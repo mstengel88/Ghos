@@ -3,6 +3,7 @@ using Ghos.Web.Assets;
 using Ghos.Web.Auth;
 using Ghos.Web.Components;
 using Ghos.Web.Data;
+using Ghos.Web.Dispatch;
 using Ghos.Web.Exports;
 using Ghos.Web.Marketing;
 using Ghos.Web.Shopify;
@@ -32,6 +33,13 @@ builder.Services.AddHttpClient<ShopifyAdminClient>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
 });
 builder.Services.AddScoped<ShopifySyncService>();
+builder.Services.AddScoped<DispatchCredentialStore>();
+builder.Services.AddHttpClient<DispatchIntegrationClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
+});
+builder.Services.AddScoped<DispatchSyncService>();
 builder.Services.Configure<AssetStorageOptions>(
     builder.Configuration.GetSection(AssetStorageOptions.SectionName));
 builder.Services.AddScoped<AssetStorageService>();

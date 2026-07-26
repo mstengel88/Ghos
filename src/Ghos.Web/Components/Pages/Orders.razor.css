@@ -6,7 +6,7 @@
     gap: 24px;
 }
 
-.orders-heading > div {
+.orders-heading > div:first-child {
     max-width: 760px;
 }
 
@@ -22,7 +22,13 @@
     line-height: 1.55;
 }
 
-.orders-heading > a {
+.heading-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.heading-actions a {
     color: #617b1c;
     font-size: .7rem;
     font-weight: 850;

@@ -6,7 +6,7 @@
     gap: 24px;
 }
 
-.delivery-heading > div {
+.delivery-heading > div:first-child {
     max-width: 780px;
 }
 
@@ -22,7 +22,13 @@
     line-height: 1.55;
 }
 
-.delivery-heading > a,
+.heading-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.heading-actions a,
 .delivery-detail > a {
     color: #617b1c;
     font-size: .7rem;

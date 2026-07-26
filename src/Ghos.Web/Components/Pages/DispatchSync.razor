@@ -1,0 +1,321 @@
+@page "/settings/dispatch"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.AdministratorOnly)]
+@inject DispatchSyncService SyncService
+@inject DispatchCredentialStore CredentialStore
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<DispatchSync> Logger
+
+<PageTitle>Dispatch connection | GHOS</PageTitle>
+
+<div class="dispatch-heading">
+    <div>
+        <a href="/settings">← Settings</a>
+        <span class="panel-label">DISPATCH CONNECTION</span>
+        <h2>Orders and delivery sync</h2>
+        <p>Mirror operational data into GHOS while the dispatch app remains the source of truth for routes, drivers, progress, and delivery proof.</p>
+    </div>
+    <div class="connection-state @(Configured ? "connected" : "pending")">
+        <i></i>
+        <div>
+            <strong>@(Configured ? "Connection configured" : "Setup required")</strong>
+            <span>@(Settings?.BaseUrl ?? "No dispatch address saved")</span>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="dispatch-alert error" role="alert">@ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="dispatch-alert success" role="status">@SuccessMessage</div>
+}
+
+@if (!Configured || ShowConnectionForm)
+{
+    <section class="panel setup-panel">
+        <div class="setup-number">1</div>
+        <div>
+            <span class="panel-label">SECURE READ-ONLY LINK</span>
+            <h3>@(Configured ? "Replace dispatch connection" : "Connect GHOS to dispatch")</h3>
+            <p>Enter the public HTTPS address for your dispatch app and the dedicated GHOS integration secret. GHOS tests the signed endpoint before saving and encrypts the secret in PostgreSQL.</p>
+
+            <EditForm Model="@ConnectionModel"
+                      OnValidSubmit="@TestAndSaveAsync"
+                      FormName="dispatch-connection">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="validation-summary" />
+
+                <div class="connection-fields">
+                    <label>
+                        <span>Dispatch app address</span>
+                        <input @bind="ConnectionModel.BaseUrl"
+                               @bind:event="oninput"
+                               type="url"
+                               autocomplete="url"
+                               placeholder="https://dispatch.example.com" />
+                        <ValidationMessage For="@(() => ConnectionModel.BaseUrl)" />
+                    </label>
+
+                    <label>
+                        <span>GHOS integration secret</span>
+                        <input @bind="ConnectionModel.IntegrationSecret"
+                               @bind:event="oninput"
+                               type="password"
+                               autocomplete="new-password"
+                               placeholder="Paste the dedicated secret" />
+                        <ValidationMessage For="@(() => ConnectionModel.IntegrationSecret)" />
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button class="primary-action"
+                            type="submit"
+                            disabled="@Busy">
+                        @(Busy ? "Testing…" : "Test and save connection")
+                    </button>
+                    @if (Configured)
+                    {
+                        <button class="secondary-action"
+                                type="button"
+                                disabled="@Busy"
+                                @onclick="CancelReplacement">
+                            Cancel
+                        </button>
+                    }
+                </div>
+            </EditForm>
+
+            <div class="security-notes">
+                <span><strong>Direction</strong> Dispatch → GHOS</span>
+                <span><strong>Access</strong> Read only</span>
+                <span><strong>Authentication</strong> Signed secret header</span>
+                <span><strong>Excluded</strong> Signatures, photos, checklists</span>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <div class="connection-grid">
+        <section class="panel sync-panel">
+            <span class="panel-label">MANUAL SYNCHRONIZATION</span>
+            <h3>Refresh operations</h3>
+            <p>Imports only dispatch records that changed after the last successful run. Re-running is safe: GHOS updates matching records instead of creating duplicates.</p>
+            <div class="form-actions">
+                <button class="primary-action"
+                        type="button"
+                        disabled="@Busy"
+                        @onclick="SynchronizeAsync">
+                    @(Busy ? "Synchronizing…" : "Sync dispatch now")
+                </button>
+                <button class="secondary-action"
+                        type="button"
+                        disabled="@Busy"
+                        @onclick="FullRefreshAsync">
+                    Full refresh
+                </button>
+                <button class="text-action"
+                        type="button"
+                        disabled="@Busy"
+                        @onclick="BeginReplacement">
+                    Replace connection
+                </button>
+            </div>
+        </section>
+
+        <section class="panel status-panel">
+            <span class="panel-label">LAST SYNC</span>
+            @if (Settings?.LastSyncCompletedAtUtc is null)
+            {
+                <h3>Not run yet</h3>
+                <p>Tested credentials are saved. Run the first sync when the dispatch endpoint is deployed.</p>
+            }
+            else
+            {
+                <h3>@Settings.LastSyncStatus</h3>
+                <p>@FormatTimestamp(Settings.LastSyncCompletedAtUtc.Value)</p>
+                <div class="sync-counts">
+                    <span><strong>@Settings.LastImportedCount</strong> received</span>
+                    <span><strong>@Settings.LastCreatedCount</strong> created</span>
+                    <span><strong>@Settings.LastUpdatedCount</strong> refreshed</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(Settings.LastSyncMessage))
+                {
+                    <small>@Settings.LastSyncMessage</small>
+                }
+            }
+        </section>
+    </div>
+
+    <section class="panel ownership-panel">
+        <div>
+            <span class="panel-label">SYSTEM OWNERSHIP</span>
+            <h3>One source of truth, two focused tools</h3>
+        </div>
+        <div class="ownership-flow">
+            <article>
+                <strong>Dispatch app owns</strong>
+                <span>Scheduling, routes, drivers, stop order, live progress, and delivery proof.</span>
+            </article>
+            <i>signed read-only feed →</i>
+            <article>
+                <strong>GHOS mirrors</strong>
+                <span>Orders and delivery status for unified reporting, customer context, and future operations dashboards.</span>
+            </article>
+        </div>
+    </section>
+}
+
+@code {
+    private DispatchConnectionSettings? Settings { get; set; }
+    private DispatchConnectionInput ConnectionModel { get; set; } =
+        new()
+        {
+            BaseUrl = "https://dispatch.winterwatch-pro.info"
+        };
+    private bool Configured { get; set; }
+    private bool ShowConnectionForm { get; set; }
+    private bool Busy { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Configured = await SyncService.IsConfiguredAsync();
+        Settings = await SyncService.GetSettingsAsync();
+        if (Settings is not null)
+        {
+            ConnectionModel.BaseUrl = Settings.BaseUrl;
+        }
+    }
+
+    private async Task TestAndSaveAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            await SyncService.TestAsync(
+                ConnectionModel.BaseUrl,
+                ConnectionModel.IntegrationSecret);
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await CredentialStore.SaveAsync(
+                ConnectionModel.BaseUrl,
+                ConnectionModel.IntegrationSecret,
+                userId);
+            Configured = true;
+            ShowConnectionForm = false;
+            ConnectionModel.IntegrationSecret = string.Empty;
+            Settings = await SyncService.GetSettingsAsync();
+            SuccessMessage =
+                "Dispatch connected securely. GHOS can now synchronize orders and deliveries.";
+        }
+        catch (DispatchConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not save the dispatch connection.");
+            ErrorMessage =
+                "GHOS could not test or save the dispatch connection. Nothing was changed.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task SynchronizeAsync() =>
+        await RunSyncAsync(fullRefresh: false);
+
+    private async Task FullRefreshAsync() =>
+        await RunSyncAsync(fullRefresh: true);
+
+    private async Task RunSyncAsync(bool fullRefresh)
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var result = await SyncService.SynchronizeAsync(
+                authenticationState.User,
+                fullRefresh);
+            Settings = await SyncService.GetSettingsAsync();
+            SuccessMessage =
+                $"Dispatch sync complete: {result.Received} received, {result.Created} created, and {result.Updated} refreshed.";
+        }
+        catch (DispatchConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+            Settings = await SyncService.GetSettingsAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS dispatch synchronization failed.");
+            ErrorMessage =
+                "The dispatch sync did not complete. Existing GHOS orders and deliveries were retained.";
+            Settings = await SyncService.GetSettingsAsync();
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private void BeginReplacement()
+    {
+        ConnectionModel = new()
+        {
+            BaseUrl = Settings?.BaseUrl ??
+                "https://dispatch.winterwatch-pro.info"
+        };
+        ErrorMessage = null;
+        SuccessMessage = null;
+        ShowConnectionForm = true;
+    }
+
+    private void CancelReplacement()
+    {
+        ConnectionModel = new()
+        {
+            BaseUrl = Settings?.BaseUrl ??
+                "https://dispatch.winterwatch-pro.info"
+        };
+        ErrorMessage = null;
+        ShowConnectionForm = false;
+    }
+
+    private static string FormatTimestamp(DateTime timestamp) =>
+        timestamp.ToLocalTime().ToString("MMM d, yyyy · h:mm tt");
+
+    private sealed class DispatchConnectionInput
+    {
+        [Required(ErrorMessage = "Enter the dispatch app address.")]
+        [Url(ErrorMessage = "Enter a valid HTTPS address.")]
+        public string BaseUrl { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Enter the GHOS integration secret.")]
+        [MinLength(
+            24,
+            ErrorMessage = "Use an integration secret with at least 24 characters.")]
+        public string IntegrationSecret { get; set; } = string.Empty;
+    }
+}

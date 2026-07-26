@@ -38,6 +38,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<Delivery> Deliveries => Set<Delivery>();
 
+    public DbSet<DispatchConnectionSettings> DispatchConnectionSettings =>
+        Set<DispatchConnectionSettings>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -235,6 +238,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(order => order.Deliveries)
                 .HasForeignKey(item => item.SalesOrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<DispatchConnectionSettings>(settings =>
+        {
+            settings.ToTable("DispatchConnectionSettings");
         });
     }
 }
