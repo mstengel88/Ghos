@@ -34,6 +34,12 @@
 {
     <div class="module-notice" role="status">Product information saved successfully.</div>
 }
+else if (ReviewCompleted)
+{
+    <div class="module-notice" role="status">
+        Review queue complete. Every Shopify product has been reviewed.
+    </div>
+}
 
 <section class="catalog-summary">
     <article>
@@ -179,7 +185,7 @@
                             <td><span class="status-badge @product.Status.ToString().ToLowerInvariant()">@product.Status</span></td>
                             <td>
                                 <AuthorizeView Policy="@GhosPolicies.Operations">
-                                    <a class="row-action" href="/products/@product.Id/edit">Edit</a>
+                                    <a class="row-action" href="@GetEditorUrl(product)">Edit</a>
                                 </AuthorizeView>
                             </td>
                         </tr>
@@ -197,6 +203,9 @@
     [SupplyParameterFromQuery(Name = "review")]
     public string? ReviewValue { get; set; }
 
+    [SupplyParameterFromQuery(Name = "reviewComplete")]
+    public string? ReviewCompleteValue { get; set; }
+
     private List<Product> AllProducts { get; set; } = [];
     private List<ProductCategory> Categories { get; set; } = [];
     private bool Loading { get; set; } = true;
@@ -205,6 +214,7 @@
     private string SelectedStatus { get; set; } = string.Empty;
     private string SelectedReview { get; set; } = string.Empty;
     private bool Saved => SavedValue == "1";
+    private bool ReviewCompleted => ReviewCompleteValue == "1";
     private int NeedsReviewCount => AllProducts.Count(product =>
         product.ShopifyProductId is not null && product.ReviewedAtUtc is null);
 
@@ -263,6 +273,11 @@
             product.AlternateNames.Any(name =>
                 name.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
     }
+
+    private string GetEditorUrl(Product product) =>
+        SelectedReview == "needed"
+            ? $"/products/{product.Id}/edit?review=1"
+            : $"/products/{product.Id}/edit";
 
     private static string FormatPrice(Product product)
     {

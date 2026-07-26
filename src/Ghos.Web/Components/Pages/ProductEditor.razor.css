@@ -189,6 +189,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 12px;
 }
 
@@ -214,6 +215,12 @@
 .form-actions button:disabled {
     cursor: wait;
     opacity: .65;
+}
+
+.form-actions button.secondary-submit {
+    border: 1px solid #d3ddcf;
+    background: white;
+    color: #536054;
 }
 
 .shopify-source {
@@ -336,6 +343,15 @@
     .shopify-source-heading {
         flex-direction: column;
     }
+
+    .form-actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .form-actions a {
+        text-align: center;
+    }
 }
 .review-notice {
     margin-bottom: 18px;
@@ -351,6 +367,11 @@
 
 .review-notice strong {
     color: #5e4710;
+}
+
+.review-notice strong span {
+    color: #88701f;
+    font-weight: 750;
 }
 
 .review-notice span {

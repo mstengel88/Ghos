@@ -12,7 +12,7 @@
 
 <div class="editor-heading">
     <div>
-        <a href="/products">← Product catalog</a>
+        <a href="@ReturnUrl">← @(IsReviewMode ? "Review queue" : "Product catalog")</a>
         <span class="panel-label">PRODUCT RECORD</span>
         <h2>@(IsNew ? "Add a product" : $"Edit {Model.Name}")</h2>
         <p>Create one approved source for the product information used by search, marketing, sales sheets, and future website integrations.</p>
@@ -48,7 +48,13 @@ else
             SourceProduct.ReviewedAtUtc is null)
         {
             <div class="review-notice">
-                <strong>Shopify import awaiting review</strong>
+                <strong>
+                    Shopify import awaiting review
+                    @if (IsReviewMode)
+                    {
+                        <span>· @PendingReviewCount remaining</span>
+                    }
+                </strong>
                 <span>Confirm the category, status, availability, and customer-facing information below. Saving marks this product reviewed.</span>
             </div>
         }
@@ -160,15 +166,32 @@ else
         </section>
 
         <div class="form-actions">
-            <a href="/products">Cancel</a>
-            <button type="submit" disabled="@Saving">
-                @(Saving
-                    ? "Saving…"
-                    : SourceProduct?.ShopifyProductId is not null &&
-                      SourceProduct.ReviewedAtUtc is null
-                        ? "Save & mark reviewed"
-                        : "Save product")
-            </button>
+            <a href="@ReturnUrl">Cancel</a>
+            @if (IsReviewMode)
+            {
+                <button class="secondary-submit"
+                        type="submit"
+                        disabled="@Saving"
+                        @onclick="() => ContinueReviewAfterSave = false">
+                    @(Saving ? "Saving…" : "Save & return to queue")
+                </button>
+                <button type="submit"
+                        disabled="@Saving"
+                        @onclick="() => ContinueReviewAfterSave = true">
+                    @(Saving ? "Saving…" : "Save & review next")
+                </button>
+            }
+            else
+            {
+                <button type="submit" disabled="@Saving">
+                    @(Saving
+                        ? "Saving…"
+                        : SourceProduct?.ShopifyProductId is not null &&
+                          SourceProduct.ReviewedAtUtc is null
+                            ? "Save & mark reviewed"
+                            : "Save product")
+                </button>
+            }
         </div>
     </EditForm>
 
@@ -230,6 +253,9 @@ else
     [Parameter]
     public Guid? ProductId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "review")]
+    public string? ReviewValue { get; set; }
+
     private ProductFormModel Model { get; set; } = new();
     private List<ProductCategory> Categories { get; set; } = [];
     private bool Loading { get; set; } = true;
@@ -237,8 +263,17 @@ else
     private bool NotFound { get; set; }
     private string? SaveError { get; set; }
     private int CurrentCompleteness { get; set; }
+    private int PendingReviewCount { get; set; }
     private Product? SourceProduct { get; set; }
     private bool IsNew => ProductId is null;
+    private bool IsReviewMode =>
+        !IsNew &&
+        ReviewValue == "1" &&
+        SourceProduct?.ShopifyProductId is not null;
+    private bool ContinueReviewAfterSave { get; set; } = true;
+    private string ReturnUrl => IsReviewMode
+        ? "/products?review=needed"
+        : "/products";
 
     protected override async Task OnInitializedAsync()
     {
@@ -284,6 +319,16 @@ else
 
             SourceProduct = product;
             CurrentCompleteness = ProductCompleteness.Calculate(product);
+
+            if (ReviewValue == "1" &&
+                product.ShopifyProductId is not null)
+            {
+                PendingReviewCount = await dbContext.Products
+                    .AsNoTracking()
+                    .CountAsync(item =>
+                        item.ShopifyProductId != null &&
+                        item.ReviewedAtUtc == null);
+            }
         }
 
         Loading = false;
@@ -350,7 +395,32 @@ else
             }
 
             await dbContext.SaveChangesAsync();
-            Navigation.NavigateTo("/products?saved=1", forceLoad: true);
+
+            if (IsReviewMode && ContinueReviewAfterSave)
+            {
+                var nextProductId = await dbContext.Products
+                    .AsNoTracking()
+                    .Where(item =>
+                        item.Id != product.Id &&
+                        item.ShopifyProductId != null &&
+                        item.ReviewedAtUtc == null)
+                    .OrderBy(item => item.Name)
+                    .Select(item => (Guid?)item.Id)
+                    .FirstOrDefaultAsync();
+
+                Navigation.NavigateTo(
+                    nextProductId is null
+                        ? "/products?review=needed&reviewComplete=1"
+                        : $"/products/{nextProductId}/edit?review=1",
+                    forceLoad: true);
+                return;
+            }
+
+            Navigation.NavigateTo(
+                IsReviewMode
+                    ? "/products?review=needed&saved=1"
+                    : "/products?saved=1",
+                forceLoad: true);
         }
         catch (DbUpdateException)
         {
