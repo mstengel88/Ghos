@@ -17,7 +17,7 @@
     @if (Content is not null)
     {
         <div class="tomorrow-badge">
-            <span>TOMORROW’S POST</span>
+            <span>@GetScheduleBadgeLabel(Content.ScheduledForUtc)</span>
             <strong>@FormatLocalDate(Content.ScheduledForUtc)</strong>
         </div>
     }
@@ -45,6 +45,68 @@ else if (Content is null)
 }
 else
 {
+    <section class="panel content-queue">
+        <div class="queue-heading">
+            <div>
+                <span class="panel-label">CONTENT QUEUE</span>
+                <h3>Plan the next Material Monday</h3>
+                <p>Select a package to edit, or prepare the next draft from a verified Shopify product and its approved primary image.</p>
+            </div>
+            <div class="queue-counts" aria-label="Content status summary">
+                <span><strong>@ContentQueue.Count</strong> Total</span>
+                <span><strong>@ContentQueue.Count(item => item.Status == MarketingContentStatus.ReadyForReview)</strong> Review</span>
+                <span><strong>@ContentQueue.Count(item => item.Status == MarketingContentStatus.Scheduled)</strong> Scheduled</span>
+            </div>
+        </div>
+
+        <div class="queue-list" aria-label="Marketing packages">
+            @foreach (var package in ContentQueue)
+            {
+                <button type="button"
+                        class="queue-card @(package.Id == Content.Id ? "active" : null)"
+                        @onclick="() => SelectContentAsync(package.Id)">
+                    <span class="queue-date">
+                        <strong>@FormatLocalMonthDay(package.ScheduledForUtc)</strong>
+                        <small>@FormatLocalWeekday(package.ScheduledForUtc)</small>
+                    </span>
+                    <span class="queue-details">
+                        <strong>@package.Title</strong>
+                        <small>@(package.Product?.ProductCategory?.Name ?? package.Series)</small>
+                    </span>
+                    <span class="queue-status @package.Status.ToString().ToLowerInvariant()">
+                        @FormatStatus(package.Status)
+                    </span>
+                </button>
+            }
+        </div>
+
+        <div class="draft-builder">
+            <label>
+                <span>Next featured product</span>
+                <select @bind="NewPackageProductId">
+                    <option value="">Choose an active product…</option>
+                    @foreach (var product in EligibleProducts)
+                    {
+                        <option value="@product.Id">@product.Name · @product.ProductCategory.Name</option>
+                    }
+                </select>
+            </label>
+            <div class="draft-date">
+                <span>Next opening</span>
+                <strong>@FormatLocalDate(GetNextMaterialMondayUtc()) · 8:00 AM CT</strong>
+            </div>
+            <button type="button"
+                    class="create-draft-button"
+                    disabled="@(CreatingDraft || NewPackageProductId is null)"
+                    @onclick="CreateNextMaterialMondayAsync">
+                @(CreatingDraft ? "Creating draft…" : "Create next package")
+            </button>
+        </div>
+        <p class="builder-note">
+            Drafts use only verified GHOS product fields. Facts and captions remain editable and require team approval.
+        </p>
+    </section>
+
     <section class="studio-summary">
         <article>
             <span>Package status</span>
@@ -244,7 +306,7 @@ else
                     <p>GHOS records approval and the planned time. It does not publish to social accounts automatically.</p>
                 </div>
                 <div class="readiness-checks">
-                    <span class="ready">✓ Verified #1 Stone product information</span>
+                    <span class="ready">✓ Verified @(Content.Product?.Name ?? "product") information</span>
                     <span class="@(Content.DigitalAsset is null ? "missing" : "ready")">
                         @(Content.DigitalAsset is null ? "○ Approved image needed" : "✓ Approved primary image")
                     </span>
@@ -261,7 +323,7 @@ else
                                 type="button"
                                 disabled="@(Saving || Content.DigitalAsset is null)"
                                 @onclick="ApproveAndScheduleAsync">
-                            Approve for tomorrow
+                            Approve and schedule
                         </button>
                     }
                 </div>
@@ -275,8 +337,12 @@ else
         TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
 
     private MarketingContentPackage? Content { get; set; }
+    private List<MarketingContentPackage> ContentQueue { get; set; } = [];
+    private List<Product> EligibleProducts { get; set; } = [];
     private bool Loading { get; set; } = true;
     private bool Saving { get; set; }
+    private bool CreatingDraft { get; set; }
+    private Guid? NewPackageProductId { get; set; }
     private string SelectedTemplateKey { get; set; } =
         "material-monday-square";
     private string? SuccessMessage { get; set; }
@@ -286,18 +352,48 @@ else
         MarketingTemplateCatalog.All.Single(template =>
             template.Key == SelectedTemplateKey);
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync() =>
+        await LoadWorkspaceAsync();
 
-    private async Task LoadAsync()
+    private async Task LoadWorkspaceAsync(Guid? preferredContentId = null)
     {
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
-        Content = await dbContext.MarketingContentPackages
+        ContentQueue = await dbContext.MarketingContentPackages
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(content => content.Product)
+                .ThenInclude(product => product!.ProductCategory)
             .Include(content => content.DigitalAsset)
             .OrderBy(content => content.ScheduledForUtc)
-            .FirstOrDefaultAsync(content =>
-                content.Slug == "material-monday-1-stone-2026-07-27");
+            .ToListAsync();
+        EligibleProducts = await dbContext.Products
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(product => product.ProductCategory)
+            .Include(product => product.AlternateNames)
+            .Include(product => product.AssetLinks)
+                .ThenInclude(link => link.DigitalAsset)
+            .Where(product => product.Status == ProductStatus.Active)
+            .OrderBy(product => product.ProductCategory.SortOrder)
+            .ThenBy(product => product.Name)
+            .ToListAsync();
+
+        var selectedId = preferredContentId ?? Content?.Id;
+        Content = ContentQueue.FirstOrDefault(item => item.Id == selectedId)
+            ?? ContentQueue
+                .Where(item => item.ScheduledForUtc >= DateTime.UtcNow.Date)
+                .OrderBy(item => item.ScheduledForUtc)
+                .FirstOrDefault()
+            ?? ContentQueue.OrderByDescending(item => item.UpdatedAtUtc)
+                .FirstOrDefault();
         Loading = false;
+    }
+
+    private async Task SelectContentAsync(Guid contentId)
+    {
+        SuccessMessage = null;
+        ErrorMessage = null;
+        await LoadWorkspaceAsync(contentId);
     }
 
     private async Task SaveAsync() =>
@@ -363,9 +459,9 @@ else
 
             await dbContext.SaveChangesAsync();
             SuccessMessage = markScheduled
-                ? "Tomorrow’s Material Monday package is approved and queued in GHOS."
+                ? $"{stored.Title} is approved and scheduled in GHOS."
                 : "Marketing package saved successfully.";
-            await LoadAsync();
+            await LoadWorkspaceAsync(stored.Id);
         }
         catch (DbUpdateException)
         {
@@ -374,6 +470,119 @@ else
         finally
         {
             Saving = false;
+        }
+    }
+
+    private async Task CreateNextMaterialMondayAsync()
+    {
+        if (NewPackageProductId is null)
+        {
+            ErrorMessage = "Choose a product before creating the next package.";
+            return;
+        }
+
+        var product = EligibleProducts.SingleOrDefault(item =>
+            item.Id == NewPackageProductId.Value);
+        if (product is null)
+        {
+            ErrorMessage = "That product is no longer available for marketing.";
+            return;
+        }
+
+        CreatingDraft = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            var scheduledForUtc = GetNextMaterialMondayUtc();
+            var localDate = TimeZoneInfo.ConvertTimeFromUtc(
+                scheduledForUtc,
+                CentralTime);
+            var slug =
+                $"material-monday-{product.Slug}-{localDate:yyyy-MM-dd}";
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+
+            if (await dbContext.MarketingContentPackages.AnyAsync(item =>
+                item.Slug == slug))
+            {
+                ErrorMessage =
+                    "A Material Monday package already exists for that product and date.";
+                return;
+            }
+
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            var primaryAsset = product.AssetLinks
+                .Where(link =>
+                    link.IsPrimary &&
+                    link.DigitalAsset.Kind == AssetKind.Image &&
+                    link.DigitalAsset.Status == AssetStatus.Approved)
+                .Select(link => link.DigitalAsset)
+                .FirstOrDefault();
+            var destinationUrl = GetProductUrl(product);
+            var facts = BuildVerifiedFacts(product);
+            var description = GetVerifiedDescription(product);
+            var availability = BuildAvailabilityLine(product);
+            var now = DateTime.UtcNow;
+            var package = new MarketingContentPackage
+            {
+                Slug = slug,
+                Title = $"Material Monday — {product.Name}",
+                Series = "Material Monday",
+                TemplateKey = MarketingTemplateCatalog.MaterialMonday,
+                Status = MarketingContentStatus.Draft,
+                ScheduledForUtc = scheduledForUtc,
+                ProductId = product.Id,
+                DigitalAssetId = primaryAsset?.Id,
+                Headline = product.Name.ToUpperInvariant(),
+                AlternateName = product.AlternateNames.Count == 0
+                    ? null
+                    : $"Also known as {product.AlternateNames
+                        .OrderBy(item => item.Name)
+                        .First().Name}",
+                Subheadline = description,
+                FactItems = string.Join(Environment.NewLine, facts),
+                FacebookCaption = BuildFacebookDraft(
+                    product,
+                    description,
+                    facts,
+                    destinationUrl),
+                InstagramCaption = BuildInstagramDraft(
+                    product,
+                    description,
+                    facts),
+                StoryPrompt =
+                    $"Have a question about {product.Name}? | Yes | Tell me more",
+                ReelScript = BuildReelDraft(product, availability),
+                Hashtags =
+                    $"#GreenHillsSupply #MaterialMonday #{BuildHashtag(product.Name)} #LandscapeSupply #WisconsinLandscaping",
+                CallToAction = "Plan your project with Green Hills Supply",
+                DestinationUrl = destinationUrl,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now,
+                CreatedByUserId = userId,
+                UpdatedByUserId = userId
+            };
+
+            dbContext.MarketingContentPackages.Add(package);
+            await dbContext.SaveChangesAsync();
+            NewPackageProductId = null;
+            SuccessMessage =
+                $"{package.Title} was created as a draft for {localDate:dddd, MMMM d}.";
+            await LoadWorkspaceAsync(package.Id);
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The draft could not be created. No existing package was changed.";
+        }
+        finally
+        {
+            CreatingDraft = false;
         }
     }
 
@@ -399,7 +608,7 @@ else
 
     private string GetReadinessHeading() =>
         Content?.Status == MarketingContentStatus.Scheduled
-            ? "Approved and queued for tomorrow"
+            ? "Approved and scheduled"
             : "Ready for final team approval";
 
     private static string FormatStatus(MarketingContentStatus status) =>
@@ -415,11 +624,190 @@ else
             : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
                 .ToString("dddd, MMMM d");
 
+    private static string FormatLocalMonthDay(DateTime? utc) =>
+        utc is null
+            ? "TBD"
+            : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
+                .ToString("MMM d");
+
+    private static string FormatLocalWeekday(DateTime? utc) =>
+        utc is null
+            ? "Unscheduled"
+            : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
+                .ToString("dddd");
+
     private static string FormatLocalTime(DateTime? utc) =>
         utc is null
             ? "Not scheduled"
             : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
                 .ToString("h:mm tt 'CT'");
+
+    private static string GetScheduleBadgeLabel(DateTime? utc)
+    {
+        if (utc is null)
+        {
+            return "UNSCHEDULED";
+        }
+
+        var localDate = TimeZoneInfo.ConvertTimeFromUtc(
+            utc.Value,
+            CentralTime).Date;
+        var today = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.UtcNow,
+            CentralTime).Date;
+        return (localDate - today).Days switch
+        {
+            0 => "TODAY’S POST",
+            1 => "TOMORROW’S POST",
+            _ => "UPCOMING POST"
+        };
+    }
+
+    private DateTime GetNextMaterialMondayUtc()
+    {
+        var today = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.UtcNow,
+            CentralTime).Date;
+        var latestLocalDate = ContentQueue
+            .Where(item =>
+                item.Series == "Material Monday" &&
+                item.ScheduledForUtc is not null)
+            .Select(item => TimeZoneInfo.ConvertTimeFromUtc(
+                item.ScheduledForUtc!.Value,
+                CentralTime).Date)
+            .DefaultIfEmpty(today)
+            .Max();
+        var anchorDate = latestLocalDate > today ? latestLocalDate : today;
+        var candidate = anchorDate.AddDays(1);
+        while (candidate.DayOfWeek != DayOfWeek.Monday)
+        {
+            candidate = candidate.AddDays(1);
+        }
+
+        var unspecified = DateTime.SpecifyKind(
+            candidate.AddHours(8),
+            DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(unspecified, CentralTime);
+    }
+
+    private static IReadOnlyList<string> BuildVerifiedFacts(Product product)
+    {
+        var uses = (product.BestUses ?? string.Empty)
+            .Split(
+                ['\r', '\n', ',', ';'],
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries)
+            .Take(4)
+            .ToList();
+        if (uses.Count > 0)
+        {
+            return uses;
+        }
+
+        var facts = new List<string>();
+        if (product.AvailableForPickup)
+        {
+            facts.Add("Pickup available");
+        }
+        if (product.AvailableForDelivery)
+        {
+            facts.Add("Delivery available");
+        }
+        if (product.AvailableInBulk)
+        {
+            facts.Add("Bulk material");
+        }
+        if (product.AvailableBagged)
+        {
+            facts.Add("Bagged option");
+        }
+        return facts.Count > 0 ? facts : ["Ask our team for details"];
+    }
+
+    private static string GetVerifiedDescription(Product product)
+    {
+        var value = product.ShortDescription
+            ?? product.ShopifySeoDescription
+            ?? product.ShopifyProductType
+            ?? "Available from Green Hills Supply";
+        return value.Length <= 180 ? value : $"{value[..177].TrimEnd()}…";
+    }
+
+    private static string BuildAvailabilityLine(Product product)
+    {
+        var options = new List<string>();
+        if (product.AvailableForPickup)
+        {
+            options.Add("pickup");
+        }
+        if (product.AvailableForDelivery)
+        {
+            options.Add("delivery");
+        }
+        return options.Count == 0
+            ? "Ask our team for availability"
+            : string.Join(" or ", options);
+    }
+
+    private static string BuildFacebookDraft(
+        Product product,
+        string description,
+        IReadOnlyList<string> facts,
+        string destinationUrl) =>
+        $"""
+        🪨 Material Monday: {product.Name}
+
+        {description}
+
+        Verified highlights:
+        {string.Join(Environment.NewLine, facts.Select(fact => $"✔ {fact}"))}
+
+        Tell us about your project and our team will help you confirm the right material and quantity.
+
+        Learn more: {destinationUrl}
+        """;
+
+    private static string BuildInstagramDraft(
+        Product product,
+        string description,
+        IReadOnlyList<string> facts) =>
+        $"""
+        Material Monday 🪨
+
+        Today’s featured product is {product.Name}.
+
+        {description}
+
+        {string.Join(" · ", facts)}
+
+        Planning a project? Our team can help you choose the right material and estimate how much you need.
+
+        Learn more at the link in our bio.
+        """;
+
+    private static string BuildReelDraft(
+        Product product,
+        string availability) =>
+        $"""
+        HOOK — On-screen text: “What should you know about {product.Name}?”
+
+        SHOW — Close-up of the approved product image, then fresh yard or loading footage.
+
+        VOICEOVER — “Today’s Material Monday features {product.Name}. Tell us about your project and our team can help confirm whether it is the right fit.”
+
+        CLOSE — On-screen text: “{product.Name} · {availability} · Green Hills Supply”
+
+        CTA — “Plan your project with Green Hills Supply.”
+        """;
+
+    private static string GetProductUrl(Product product)
+    {
+        var handle = product.ShopifyHandle ?? product.Slug;
+        return $"https://greenhillssupply.com/products/{handle}";
+    }
+
+    private static string BuildHashtag(string productName) =>
+        new(productName.Where(char.IsLetterOrDigit).ToArray());
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
