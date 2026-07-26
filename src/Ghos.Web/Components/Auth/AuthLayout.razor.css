@@ -1,0 +1,115 @@
+.auth-shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: minmax(320px, .85fr) minmax(460px, 1.15fr);
+    background: #f4f6f2;
+}
+
+.auth-brand {
+    min-height: 100vh;
+    padding: 42px clamp(34px, 6vw, 82px);
+    background:
+        radial-gradient(circle at 15% 15%, rgba(155, 198, 35, .15), transparent 32%),
+        linear-gradient(145deg, #17281a, #0e1710);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.auth-brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+}
+
+.auth-brand-mark {
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+    background: #9BC623;
+    color: #142116;
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+}
+
+.auth-brand-name {
+    font-size: .92rem;
+    font-weight: 850;
+    letter-spacing: .09em;
+}
+
+.auth-brand-subtitle {
+    margin-top: 3px;
+    color: #91a092;
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+}
+
+.auth-brand-copy {
+    max-width: 580px;
+    padding: 90px 0 40px;
+}
+
+.auth-brand-copy span {
+    color: #9BC623;
+    font-size: .7rem;
+    font-weight: 850;
+    letter-spacing: .15em;
+}
+
+.auth-brand-copy h1 {
+    margin: 13px 0 18px;
+    font-size: clamp(2.2rem, 4vw, 4.35rem);
+    line-height: 1.02;
+    letter-spacing: -.045em;
+}
+
+.auth-brand-copy p {
+    max-width: 520px;
+    margin: 0;
+    color: #b9c4ba;
+    font-size: clamp(.95rem, 1.4vw, 1.12rem);
+    line-height: 1.65;
+}
+
+.auth-content {
+    min-height: 100vh;
+    padding: 34px;
+    display: flex;
+    flex-direction: column;
+}
+
+.auth-content-inner {
+    width: min(100%, 470px);
+    margin: auto;
+}
+
+.auth-content footer {
+    padding-top: 26px;
+    color: #849085;
+    font-size: .72rem;
+    text-align: center;
+}
+
+@media (max-width: 860px) {
+    .auth-shell {
+        display: block;
+    }
+
+    .auth-brand {
+        min-height: auto;
+        padding: 24px;
+    }
+
+    .auth-brand-copy {
+        display: none;
+    }
+
+    .auth-content {
+        min-height: calc(100vh - 96px);
+        padding: 30px 20px 20px;
+    }
+}

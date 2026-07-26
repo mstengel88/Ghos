@@ -48,6 +48,10 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Redis__ConnectionString: redis:6379
+      Bootstrap__Token: ${GHOS_BOOTSTRAP_TOKEN}
+      DataProtection__KeyPath: /var/lib/ghos/data-protection
+    volumes:
+      - ghos-data-protection:/var/lib/ghos/data-protection
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,3 +73,7 @@ services:
 networks:
   ghos-internal:
     name: ghos-internal
+
+volumes:
+  ghos-data-protection:
+    name: ghos-data-protection

@@ -1,0 +1,91 @@
+@page "/account/login"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Sign in | GHOS</PageTitle>
+
+<div class="auth-card">
+    <span class="auth-eyebrow">WELCOME BACK</span>
+    <h2>Sign in to GHOS</h2>
+    <p class="auth-intro">Use your Green Hills account to continue to the company workspace.</p>
+
+    @if (SetupRequired)
+    {
+        <div class="auth-notice">
+            <strong>First-time setup is ready.</strong>
+            <span>Create the initial administrator account before signing in.</span>
+            <a href="/account/bootstrap">Set up GHOS</a>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(StatusMessage))
+        {
+            <div class="auth-alert" role="alert">@StatusMessage</div>
+        }
+
+        <form method="post" action="/account/login" class="auth-form">
+            <AntiforgeryToken />
+            <input type="hidden" name="ReturnUrl" value="@SafeReturnUrl" />
+
+            <label for="email">Email address</label>
+            <input id="email"
+                   name="Email"
+                   type="email"
+                   autocomplete="username"
+                   inputmode="email"
+                   required
+                   autofocus />
+
+            <label for="password">Password</label>
+            <input id="password"
+                   name="Password"
+                   type="password"
+                   autocomplete="current-password"
+                   required />
+
+            <label class="auth-check">
+                <input name="RememberMe" type="checkbox" value="true" />
+                <span>Keep me signed in on this device</span>
+            </label>
+
+            <button class="auth-submit" type="submit">Sign in</button>
+        </form>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "setup")]
+    public string? Setup { get; set; }
+
+    private bool SetupRequired { get; set; }
+
+    private string SafeReturnUrl =>
+        !string.IsNullOrWhiteSpace(ReturnUrl) &&
+        ReturnUrl.StartsWith('/') &&
+        !ReturnUrl.StartsWith("//")
+            ? ReturnUrl
+            : "/";
+
+    private string? StatusMessage => (Error, Setup) switch
+    {
+        (_, "complete") => "GHOS has already been initialized. Sign in with an existing account.",
+        ("required", _) => "Enter your email address and password.",
+        ("locked", _) => "This account is temporarily locked after repeated unsuccessful attempts. Try again later.",
+        ("invalid", _) => "The email address or password was not recognized.",
+        _ => null
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        SetupRequired = !await DbContext.Users.AnyAsync();
+    }
+}

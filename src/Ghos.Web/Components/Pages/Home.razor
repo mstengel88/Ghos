@@ -1,52 +1,54 @@
 @page "/"
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
 
 <PageTitle>Dashboard | GHOS</PageTitle>
 
 <div class="welcome">
     <div>
-        <span class="eyebrow">SATURDAY, JULY 25</span>
-        <h2>Good evening, Matthew.</h2>
-        <p>Here is what is happening across Green Hills Supply.</p>
+        <span class="eyebrow">@DateTimeOffset.Now.ToString("dddd, MMMM d").ToUpperInvariant()</span>
+        <h2>@Greeting, @DisplayName.</h2>
+        <p>Your secure Green Hills workspace is ready for the next foundation module.</p>
     </div>
 
-    <button class="primary-action">+ Quick action</button>
+    <a class="primary-action" href="/products">Open product foundation</a>
 </div>
 
 <div class="metric-grid">
     <article class="metric-card">
         <div class="metric-heading">
-            <span>Sales today</span>
-            <span class="metric-icon">$</span>
+            <span>Team accounts</span>
+            <span class="metric-icon">●</span>
         </div>
-        <strong>$0.00</strong>
-        <small>CounterPoint connection pending</small>
+        <strong>@UserCount</strong>
+        <small>Stored in PostgreSQL Identity</small>
     </article>
 
     <article class="metric-card">
         <div class="metric-heading">
-            <span>Today's deliveries</span>
-            <span class="metric-icon">▰</span>
+            <span>Access control</span>
+            <span class="metric-icon">✓</span>
         </div>
-        <strong>0</strong>
-        <small>No delivery data connected</small>
+        <strong>Active</strong>
+        <small>Authenticated routes and role policies</small>
     </article>
 
     <article class="metric-card">
         <div class="metric-heading">
-            <span>Open quotes</span>
-            <span class="metric-icon">▤</span>
-        </div>
-        <strong>0</strong>
-        <small>Quote module coming soon</small>
-    </article>
-
-    <article class="metric-card">
-        <div class="metric-heading">
-            <span>Product records</span>
+            <span>Database</span>
             <span class="metric-icon">◆</span>
         </div>
-        <strong>0</strong>
-        <small>Ready for initial product import</small>
+        <strong>@DatabaseStatus</strong>
+        <small>Identity schema and migrations</small>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-heading">
+            <span>Foundation</span>
+            <span class="metric-icon">2</span>
+        </div>
+        <strong>2 of 4</strong>
+        <small>Infrastructure and identity complete</small>
     </article>
 </div>
 
@@ -54,43 +56,42 @@
     <section class="panel activity-panel">
         <div class="panel-header">
             <div>
-                <span class="panel-label">ACTIVITY</span>
-                <h3>Recent activity</h3>
+                <span class="panel-label">FOUNDATION UPDATE</span>
+                <h3>Secure access is operational</h3>
             </div>
-            <button class="text-button">View all</button>
         </div>
 
         <div class="empty-state">
             <div class="empty-icon">✓</div>
-            <h4>GHOS is online</h4>
-            <p>Your application, PostgreSQL database, Redis cache and management services are running.</p>
+            <h4>Identity is connected</h4>
+            <p>GHOS now uses PostgreSQL-backed accounts, protected routes, role policies, and secure sign-in cookies. Future modules can build on the same access model.</p>
         </div>
     </section>
 
     <section class="panel">
         <div class="panel-header">
             <div>
-                <span class="panel-label">SYSTEMS</span>
-                <h3>Platform status</h3>
+                <span class="panel-label">ACCESS FOUNDATION</span>
+                <h3>Security status</h3>
             </div>
         </div>
 
         <div class="status-list">
             <div class="status-row">
-                <span><i></i> GHOS Web</span>
-                <strong>Online</strong>
+                <span><i></i> PostgreSQL Identity</span>
+                <strong>@DatabaseStatus</strong>
             </div>
             <div class="status-row">
-                <span><i></i> PostgreSQL</span>
-                <strong>Healthy</strong>
+                <span><i></i> Cookie authentication</span>
+                <strong>Enabled</strong>
             </div>
             <div class="status-row">
-                <span><i></i> Redis</span>
-                <strong>Healthy</strong>
+                <span><i></i> Role authorization</span>
+                <strong>Enabled</strong>
             </div>
             <div class="status-row">
-                <span><i></i> Portainer</span>
-                <strong>Online</strong>
+                <span><i></i> Initial setup</span>
+                <strong>Complete</strong>
             </div>
         </div>
     </section>
@@ -112,15 +113,15 @@
                 </div>
             </div>
 
-            <div class="roadmap-item current">
+            <div class="roadmap-item complete">
                 <span>2</span>
                 <div>
-                    <strong>Application foundation</strong>
-                    <p>Brand shell, database access, authentication and permissions</p>
+                    <strong>Identity and access</strong>
+                    <p>Accounts, roles, authentication and protected modules</p>
                 </div>
             </div>
 
-            <div class="roadmap-item">
+            <div class="roadmap-item current">
                 <span>3</span>
                 <div>
                     <strong>Product Information Management</strong>
@@ -138,3 +139,40 @@
         </div>
     </section>
 </div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private int UserCount { get; set; }
+    private string DatabaseStatus { get; set; } = "Checking";
+    private string DisplayName { get; set; } = "team member";
+
+    private string Greeting => DateTimeOffset.Now.Hour switch
+    {
+        < 12 => "Good morning",
+        < 17 => "Good afternoon",
+        _ => "Good evening"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthenticationStateTask is not null)
+        {
+            var authenticationState = await AuthenticationStateTask;
+            DisplayName = authenticationState.User.FindFirst("display_name")?.Value
+                ?? authenticationState.User.Identity?.Name
+                ?? "team member";
+        }
+
+        try
+        {
+            UserCount = await DbContext.Users.CountAsync();
+            DatabaseStatus = "Connected";
+        }
+        catch
+        {
+            DatabaseStatus = "Unavailable";
+        }
+    }
+}

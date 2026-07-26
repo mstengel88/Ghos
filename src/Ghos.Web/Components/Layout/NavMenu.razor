@@ -19,20 +19,22 @@
         <span>Products</span>
     </NavLink>
 
-    <NavLink href="/customers">
-        <span class="nav-icon">●</span>
-        <span>Customers</span>
-    </NavLink>
+    <AuthorizeView Policy="@GhosPolicies.Operations">
+        <NavLink href="/customers">
+            <span class="nav-icon">●</span>
+            <span>Customers</span>
+        </NavLink>
 
-    <NavLink href="/orders">
-        <span class="nav-icon">▤</span>
-        <span>Orders</span>
-    </NavLink>
+        <NavLink href="/orders">
+            <span class="nav-icon">▤</span>
+            <span>Orders</span>
+        </NavLink>
 
-    <NavLink href="/deliveries">
-        <span class="nav-icon">▰</span>
-        <span>Deliveries</span>
-    </NavLink>
+        <NavLink href="/deliveries">
+            <span class="nav-icon">▰</span>
+            <span>Deliveries</span>
+        </NavLink>
+    </AuthorizeView>
 
     <div class="nav-section">GROWTH</div>
 
@@ -41,10 +43,12 @@
         <span>Digital Assets</span>
     </NavLink>
 
-    <NavLink href="/marketing">
-        <span class="nav-icon">✦</span>
-        <span>Marketing Studio</span>
-    </NavLink>
+    <AuthorizeView Policy="@GhosPolicies.Marketing">
+        <NavLink href="/marketing">
+            <span class="nav-icon">✦</span>
+            <span>Marketing Studio</span>
+        </NavLink>
+    </AuthorizeView>
 
     <NavLink href="/playbook">
         <span class="nav-icon">▥</span>
@@ -58,15 +62,19 @@
 
     <div class="nav-section">MANAGEMENT</div>
 
-    <NavLink href="/reports">
-        <span class="nav-icon">▥</span>
-        <span>Reports</span>
-    </NavLink>
+    <AuthorizeView Policy="@GhosPolicies.Management">
+        <NavLink href="/reports">
+            <span class="nav-icon">▥</span>
+            <span>Reports</span>
+        </NavLink>
+    </AuthorizeView>
 
-    <NavLink href="/settings">
-        <span class="nav-icon">⚙</span>
-        <span>Settings</span>
-    </NavLink>
+    <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
+        <NavLink href="/settings">
+            <span class="nav-icon">⚙</span>
+            <span>Settings</span>
+        </NavLink>
+    </AuthorizeView>
 </nav>
 
 <div class="sidebar-footer">

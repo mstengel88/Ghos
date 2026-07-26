@@ -1,27 +1,121 @@
+using System.Threading.RateLimiting;
+using Ghos.Web.Auth;
 using Ghos.Web.Components;
+using Ghos.Web.Data;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+var dataProtectionKeyPath = builder.Configuration["DataProtection:KeyPath"]
+    ?? "/var/lib/ghos/data-protection";
+
+builder.Services
+    .AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath))
+    .SetApplicationName("GreenHills.GHOS");
+
+builder.Services
+    .AddIdentity<ApplicationUser, IdentityRole>(options =>
+    {
+        options.SignIn.RequireConfirmedAccount = false;
+        options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 12;
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireNonAlphanumeric = true;
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    })
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<
+    IUserClaimsPrincipalFactory<ApplicationUser>,
+    ApplicationUserClaimsPrincipalFactory>();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.Name = "GHOS.Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+    options.LoginPath = "/account/login";
+    options.AccessDeniedPath = "/account/access-denied";
+});
+
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(GhosPolicies.AdministratorOnly,
+        policy => policy.RequireRole(GhosRoles.Administrator))
+    .AddPolicy(GhosPolicies.Management,
+        policy => policy.RequireRole(GhosRoles.Administrator, GhosRoles.Manager))
+    .AddPolicy(GhosPolicies.Operations,
+        policy => policy.RequireRole(
+            GhosRoles.Administrator,
+            GhosRoles.Manager,
+            GhosRoles.Operations))
+    .AddPolicy(GhosPolicies.Marketing,
+        policy => policy.RequireRole(
+            GhosRoles.Administrator,
+            GhosRoles.Manager,
+            GhosRoles.Marketing));
+
+builder.Services.AddCascadingAuthenticationState();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "text/plain";
+        await context.HttpContext.Response.WriteAsync(
+            "Too many authentication attempts. Please wait a minute and try again.",
+            cancellationToken);
+    };
+    options.AddPolicy("authentication", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapAccountEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+await DatabaseInitializer.InitializeAsync(app.Services);
 
 app.Run();

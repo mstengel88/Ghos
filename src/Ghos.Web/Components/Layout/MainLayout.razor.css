@@ -77,6 +77,25 @@
     font-weight: 850;
 }
 
+.sign-out-button,
+.sign-in-link {
+    padding: 8px 11px;
+    border: 1px solid #dce3da;
+    border-radius: 8px;
+    background: white;
+    color: #475248;
+    font-size: .76rem;
+    font-weight: 750;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.sign-out-button:hover,
+.sign-in-link:hover {
+    border-color: #9BC623;
+    color: #48610a;
+}
+
 .ghos-content {
     padding: 30px 32px 48px;
 }

@@ -1,0 +1,19 @@
+@page "/account/access-denied"
+@layout AuthLayout
+
+<PageTitle>Access denied | GHOS</PageTitle>
+
+<div class="auth-card">
+    <span class="auth-eyebrow">ACCESS RESTRICTED</span>
+    <h2>You don’t have access to this area.</h2>
+    <p class="auth-intro">Your account is signed in, but the requested module requires a different GHOS role.</p>
+
+    <div class="auth-actions">
+        <a class="auth-primary-link" href="/">Return to dashboard</a>
+        <form method="post" action="/account/logout">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="/account/login" />
+            <button class="auth-secondary-button" type="submit">Sign in with another account</button>
+        </form>
+    </div>
+</div>

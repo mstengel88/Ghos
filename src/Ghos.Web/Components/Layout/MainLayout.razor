@@ -9,16 +9,28 @@
         <header class="ghos-header">
             <div>
                 <div class="ghos-page-label">GREEN HILLS OPERATING SYSTEM</div>
-                <h1>Dashboard</h1>
+                <h1>GHOS Workspace</h1>
             </div>
 
-            <div class="ghos-user">
-                <div class="ghos-user-text">
-                    <strong>Matthew</strong>
-                    <span>Administrator</span>
-                </div>
-                <div class="ghos-avatar">MS</div>
-            </div>
+            <AuthorizeView>
+                <Authorized Context="auth">
+                    <div class="ghos-user">
+                        <div class="ghos-user-text">
+                            <strong>@GetDisplayName(auth.User)</strong>
+                            <span>@GetPrimaryRole(auth.User)</span>
+                        </div>
+                        <div class="ghos-avatar">@GetInitials(auth.User)</div>
+                        <form method="post" action="/account/logout">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="returnUrl" value="/account/login" />
+                            <button class="sign-out-button" type="submit">Sign out</button>
+                        </form>
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="sign-in-link" href="/account/login">Sign in</a>
+                </NotAuthorized>
+            </AuthorizeView>
         </header>
 
         <section class="ghos-content">
@@ -26,6 +38,29 @@
         </section>
     </main>
 </div>
+
+@code {
+    private static string GetDisplayName(System.Security.Claims.ClaimsPrincipal user) =>
+        user.FindFirst("display_name")?.Value
+        ?? user.Identity?.Name
+        ?? "GHOS User";
+
+    private static string GetPrimaryRole(System.Security.Claims.ClaimsPrincipal user) =>
+        GhosRoles.All.FirstOrDefault(user.IsInRole) ?? "Team member";
+
+    private static string GetInitials(System.Security.Claims.ClaimsPrincipal user)
+    {
+        var displayName = GetDisplayName(user);
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return parts.Length switch
+        {
+            0 => "GH",
+            1 => parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant(),
+            _ => $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant()
+        };
+    }
+}
 
 <div id="blazor-error-ui" data-nosnippet>
     An unexpected error occurred.

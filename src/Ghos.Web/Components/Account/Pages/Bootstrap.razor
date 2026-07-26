@@ -1,0 +1,106 @@
+@page "/account/bootstrap"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext DbContext
+@inject IConfiguration Configuration
+
+<PageTitle>Set up GHOS | Green Hills Supply</PageTitle>
+
+<div class="auth-card">
+    <span class="auth-eyebrow">INITIAL ADMINISTRATOR</span>
+    <h2>Set up GHOS</h2>
+    <p class="auth-intro">Create the first administrator account. This setup closes automatically after the account is created.</p>
+
+    @if (SetupComplete)
+    {
+        <div class="auth-notice">
+            <strong>GHOS is already initialized.</strong>
+            <span>The first administrator account has been created.</span>
+            <a href="/account/login">Go to sign in</a>
+        </div>
+    }
+    else if (!BootstrapConfigured)
+    {
+        <div class="auth-alert" role="alert">
+            Initial setup is disabled because the server setup code is not configured.
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(StatusMessage))
+        {
+            <div class="auth-alert" role="alert">@StatusMessage</div>
+        }
+
+        <form method="post" action="/account/bootstrap" class="auth-form">
+            <AntiforgeryToken />
+
+            <label for="setup-code">Server setup code</label>
+            <input id="setup-code"
+                   name="SetupCode"
+                   type="password"
+                   autocomplete="off"
+                   required />
+            <small>Use the one-time code stored in the GHOS server environment.</small>
+
+            <label for="display-name">Full name</label>
+            <input id="display-name"
+                   name="DisplayName"
+                   type="text"
+                   autocomplete="name"
+                   maxlength="120"
+                   required />
+
+            <label for="email">Email address</label>
+            <input id="email"
+                   name="Email"
+                   type="email"
+                   autocomplete="username"
+                   inputmode="email"
+                   required />
+
+            <label for="password">Password</label>
+            <input id="password"
+                   name="Password"
+                   type="password"
+                   autocomplete="new-password"
+                   minlength="12"
+                   required />
+            <small>Use at least 12 characters with uppercase, lowercase, a number, and a symbol.</small>
+
+            <label for="confirm-password">Confirm password</label>
+            <input id="confirm-password"
+                   name="ConfirmPassword"
+                   type="password"
+                   autocomplete="new-password"
+                   minlength="12"
+                   required />
+
+            <button class="auth-submit" type="submit">Create administrator</button>
+        </form>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private bool SetupComplete { get; set; }
+    private bool BootstrapConfigured { get; set; }
+
+    private string? StatusMessage => Error switch
+    {
+        "code" => "The server setup code was not accepted.",
+        "validation" => "Complete every field and make sure the passwords match.",
+        "create" => "The account could not be created. Check the password requirements and try again.",
+        "disabled" => "Initial setup is not configured on the server.",
+        _ => null
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        SetupComplete = await DbContext.Users.AnyAsync();
+        BootstrapConfigured = !string.IsNullOrWhiteSpace(Configuration["Bootstrap:Token"]);
+    }
+}
