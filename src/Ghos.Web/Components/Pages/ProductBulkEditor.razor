@@ -1,0 +1,456 @@
+@page "/products/bulk"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Operations)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Bulk Edit Products | GHOS</PageTitle>
+
+<div class="bulk-heading">
+    <div>
+        <a href="/products">← Product catalog</a>
+        <span class="panel-label">PRODUCT BULK EDITOR</span>
+        <h2>Update products together</h2>
+        <p>Select the exact records you want, choose only the fields that should change, then review the update before applying it.</p>
+    </div>
+    <div class="selection-count">
+        <strong>@SelectedIds.Count</strong>
+        <span>selected</span>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ResultMessage))
+{
+    <div class="module-notice" role="status">@ResultMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="auth-alert" role="alert">@ErrorMessage</div>
+}
+
+<section class="panel action-panel">
+    <div class="section-heading">
+        <div>
+            <span class="panel-label">CHANGES TO APPLY</span>
+            <h3>Choose one or more updates</h3>
+        </div>
+        <span>Blank choices leave existing values unchanged.</span>
+    </div>
+
+    <div class="action-grid">
+        <label>
+            <span>Category</span>
+            <select @bind="CategoryAction">
+                <option value="">No change</option>
+                @foreach (var category in Categories)
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Status</span>
+            <select @bind="StatusAction">
+                <option value="">No change</option>
+                @foreach (var status in Enum.GetValues<ProductStatus>())
+                {
+                    <option value="@status">@status</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Pickup</span>
+            <select @bind="PickupAction">
+                <option value="">No change</option>
+                <option value="true">Available</option>
+                <option value="false">Not available</option>
+            </select>
+        </label>
+        <label>
+            <span>Delivery</span>
+            <select @bind="DeliveryAction">
+                <option value="">No change</option>
+                <option value="true">Available</option>
+                <option value="false">Not available</option>
+            </select>
+        </label>
+        <label>
+            <span>Bulk</span>
+            <select @bind="BulkAction">
+                <option value="">No change</option>
+                <option value="true">Available</option>
+                <option value="false">Not available</option>
+            </select>
+        </label>
+        <label>
+            <span>Bagged</span>
+            <select @bind="BaggedAction">
+                <option value="">No change</option>
+                <option value="true">Available</option>
+                <option value="false">Not available</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="review-actions">
+        <button class="secondary-button" type="button" @onclick="ResetActions">Clear changes</button>
+        <button class="primary-button" type="button" @onclick="ReviewChanges">Review changes</button>
+    </div>
+</section>
+
+@if (ReviewingChanges)
+{
+    <section class="panel confirmation-panel">
+        <div>
+            <span class="panel-label">CONFIRM BULK UPDATE</span>
+            <h3>@SelectedIds.Count products will be updated</h3>
+            <ul>
+                @foreach (var description in ActionDescriptions)
+                {
+                    <li>@description</li>
+                }
+            </ul>
+            <p>Product names, descriptions, pricing, Shopify source data, and media will not be changed.</p>
+        </div>
+        <div class="confirmation-actions">
+            <button type="button" @onclick="() => ReviewingChanges = false">Go back</button>
+            <button class="apply-button"
+                    type="button"
+                    disabled="@Applying"
+                    @onclick="ApplyChangesAsync">
+                @(Applying ? "Applying…" : $"Apply to {SelectedIds.Count} {(SelectedIds.Count == 1 ? "product" : "products")}")
+            </button>
+        </div>
+    </section>
+}
+
+<section class="panel records-panel">
+    <div class="filter-toolbar">
+        <label class="search-field">
+            <span>Search products</span>
+            <input @bind="SearchText"
+                   @bind:event="oninput"
+                   type="search"
+                   placeholder="Name or product code" />
+        </label>
+        <label>
+            <span>Category</span>
+            <select @bind="CategoryFilter">
+                <option value="">All categories</option>
+                @foreach (var category in Categories)
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Status</span>
+            <select @bind="StatusFilter">
+                <option value="">All statuses</option>
+                @foreach (var status in Enum.GetValues<ProductStatus>())
+                {
+                    <option value="@status">@status</option>
+                }
+            </select>
+        </label>
+        <div class="selection-tools">
+            <button type="button" @onclick="SelectVisible">Select visible</button>
+            <button type="button" @onclick="ClearSelection">Clear selection</button>
+        </div>
+    </div>
+
+    @if (Loading)
+    {
+        <div class="records-empty">Loading products…</div>
+    }
+    else if (FilteredProducts.Count == 0)
+    {
+        <div class="records-empty">No products match these filters.</div>
+    }
+    else
+    {
+        <div class="bulk-table-wrap">
+            <table class="bulk-table">
+                <thead>
+                    <tr>
+                        <th class="check-column">
+                            <input type="checkbox"
+                                   aria-label="Select all visible products"
+                                   checked="@AllVisibleSelected"
+                                   @onchange="ToggleAllVisible" />
+                        </th>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Availability</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var product in FilteredProducts)
+                    {
+                        <tr class="@(SelectedIds.Contains(product.Id) ? "selected" : null)">
+                            <td class="check-column">
+                                <input type="checkbox"
+                                       aria-label="Select @product.Name"
+                                       checked="@SelectedIds.Contains(product.Id)"
+                                       @onchange="eventArgs => ToggleSelection(product.Id, eventArgs)" />
+                            </td>
+                            <td>
+                                <strong>@product.Name</strong>
+                                <small>@(product.ProductCode ?? "No product code")</small>
+                            </td>
+                            <td>@product.ProductCategory.Name</td>
+                            <td><span class="status-pill @product.Status.ToString().ToLowerInvariant()">@product.Status</span></td>
+                            <td>
+                                <div class="availability-list">
+                                    @if (product.AvailableForPickup) { <span>Pickup</span> }
+                                    @if (product.AvailableForDelivery) { <span>Delivery</span> }
+                                    @if (product.AvailableInBulk) { <span>Bulk</span> }
+                                    @if (product.AvailableBagged) { <span>Bagged</span> }
+                                </div>
+                            </td>
+                            <td>@(product.ShopifyProductId is null ? "GHOS" : "Shopify")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private List<Product> Products { get; set; } = [];
+    private List<ProductCategory> Categories { get; set; } = [];
+    private HashSet<Guid> SelectedIds { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private bool ReviewingChanges { get; set; }
+    private bool Applying { get; set; }
+    private string SearchText { get; set; } = string.Empty;
+    private string CategoryFilter { get; set; } = string.Empty;
+    private string StatusFilter { get; set; } = string.Empty;
+    private string? ResultMessage { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string categoryAction = string.Empty;
+    private string statusAction = string.Empty;
+    private string pickupAction = string.Empty;
+    private string deliveryAction = string.Empty;
+    private string bulkAction = string.Empty;
+    private string baggedAction = string.Empty;
+
+    private string CategoryAction { get => categoryAction; set { categoryAction = value; InvalidateReview(); } }
+    private string StatusAction { get => statusAction; set { statusAction = value; InvalidateReview(); } }
+    private string PickupAction { get => pickupAction; set { pickupAction = value; InvalidateReview(); } }
+    private string DeliveryAction { get => deliveryAction; set { deliveryAction = value; InvalidateReview(); } }
+    private string BulkAction { get => bulkAction; set { bulkAction = value; InvalidateReview(); } }
+    private string BaggedAction { get => baggedAction; set { baggedAction = value; InvalidateReview(); } }
+
+    private List<Product> FilteredProducts => Products
+        .Where(product =>
+            string.IsNullOrWhiteSpace(SearchText) ||
+            product.Name.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase) ||
+            (product.ProductCode?.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase) ?? false))
+        .Where(product =>
+            string.IsNullOrWhiteSpace(CategoryFilter) ||
+            product.ProductCategoryId.ToString() == CategoryFilter)
+        .Where(product =>
+            string.IsNullOrWhiteSpace(StatusFilter) ||
+            product.Status.ToString() == StatusFilter)
+        .ToList();
+
+    private bool AllVisibleSelected =>
+        FilteredProducts.Count > 0 &&
+        FilteredProducts.All(product => SelectedIds.Contains(product.Id));
+
+    private List<string> ActionDescriptions
+    {
+        get
+        {
+            var descriptions = new List<string>();
+            if (TryGetCategoryAction(out var categoryId))
+            {
+                descriptions.Add($"Set category to {Categories.Single(category => category.Id == categoryId).Name}.");
+            }
+            if (TryGetStatusAction(out var status)) descriptions.Add($"Set status to {status}.");
+            AddAvailabilityDescription(descriptions, "Pickup", PickupAction);
+            AddAvailabilityDescription(descriptions, "Delivery", DeliveryAction);
+            AddAvailabilityDescription(descriptions, "Bulk", BulkAction);
+            AddAvailabilityDescription(descriptions, "Bagged", BaggedAction);
+            return descriptions;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Categories = await dbContext.ProductCategories
+            .AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name)
+            .ToListAsync();
+        Products = await dbContext.Products
+            .AsNoTracking()
+            .Include(product => product.ProductCategory)
+            .OrderBy(product => product.Name)
+            .ToListAsync();
+        Loading = false;
+    }
+
+    private void ToggleSelection(Guid id, ChangeEventArgs eventArgs)
+    {
+        if (eventArgs.Value is bool isSelected && isSelected)
+        {
+            SelectedIds.Add(id);
+        }
+        else
+        {
+            SelectedIds.Remove(id);
+        }
+        InvalidateReview();
+    }
+
+    private void ToggleAllVisible(ChangeEventArgs eventArgs)
+    {
+        if (eventArgs.Value is bool isSelected && isSelected)
+        {
+            SelectVisible();
+        }
+        else
+        {
+            foreach (var product in FilteredProducts)
+            {
+                SelectedIds.Remove(product.Id);
+            }
+            InvalidateReview();
+        }
+    }
+
+    private void SelectVisible()
+    {
+        foreach (var product in FilteredProducts)
+        {
+            SelectedIds.Add(product.Id);
+        }
+        InvalidateReview();
+    }
+
+    private void ClearSelection()
+    {
+        SelectedIds.Clear();
+        InvalidateReview();
+    }
+
+    private void ReviewChanges()
+    {
+        ResultMessage = null;
+        ErrorMessage = null;
+        if (SelectedIds.Count == 0)
+        {
+            ErrorMessage = "Select at least one product.";
+            return;
+        }
+        if (ActionDescriptions.Count == 0)
+        {
+            ErrorMessage = "Choose at least one field to update.";
+            return;
+        }
+        ReviewingChanges = true;
+    }
+
+    private async Task ApplyChangesAsync()
+    {
+        if (!ReviewingChanges || SelectedIds.Count == 0 || ActionDescriptions.Count == 0)
+        {
+            ErrorMessage = "Review the selected products and changes before applying them.";
+            return;
+        }
+
+        Applying = true;
+        ErrorMessage = null;
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var selectedIds = SelectedIds.ToList();
+            var products = await dbContext.Products
+                .Where(product => selectedIds.Contains(product.Id))
+                .ToListAsync();
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var now = DateTime.UtcNow;
+
+            foreach (var product in products)
+            {
+                if (TryGetCategoryAction(out var categoryId)) product.ProductCategoryId = categoryId;
+                if (TryGetStatusAction(out var status)) product.Status = status;
+                ApplyAvailability(PickupAction, value => product.AvailableForPickup = value);
+                ApplyAvailability(DeliveryAction, value => product.AvailableForDelivery = value);
+                ApplyAvailability(BulkAction, value => product.AvailableInBulk = value);
+                ApplyAvailability(BaggedAction, value => product.AvailableBagged = value);
+                product.UpdatedAtUtc = now;
+                product.UpdatedByUserId = userId;
+            }
+
+            await dbContext.SaveChangesAsync();
+            ResultMessage = $"{products.Count} {(products.Count == 1 ? "product" : "products")} updated successfully.";
+            SelectedIds.Clear();
+            ResetActions();
+            await LoadAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage = "The products could not be updated. No product names or Shopify source data were changed.";
+        }
+        finally
+        {
+            Applying = false;
+        }
+    }
+
+    private void ResetActions()
+    {
+        categoryAction = statusAction = pickupAction = deliveryAction = bulkAction = baggedAction = string.Empty;
+        ReviewingChanges = false;
+    }
+
+    private void InvalidateReview()
+    {
+        ReviewingChanges = false;
+        ResultMessage = null;
+        ErrorMessage = null;
+    }
+
+    private static void ApplyAvailability(string action, Action<bool> setter)
+    {
+        if (bool.TryParse(action, out var value)) setter(value);
+    }
+
+    private static void AddAvailabilityDescription(List<string> descriptions, string label, string action)
+    {
+        if (bool.TryParse(action, out var value))
+        {
+            descriptions.Add($"{label}: {(value ? "available" : "not available")}.");
+        }
+    }
+
+    private bool TryGetCategoryAction(out Guid categoryId)
+    {
+        categoryId = default;
+        if (!Guid.TryParse(CategoryAction, out var parsedCategoryId) ||
+            !Categories.Any(category => category.Id == parsedCategoryId))
+        {
+            return false;
+        }
+
+        categoryId = parsedCategoryId;
+        return true;
+    }
+
+    private bool TryGetStatusAction(out ProductStatus status) =>
+        Enum.TryParse(StatusAction, out status) &&
+        Enum.IsDefined(status);
+}

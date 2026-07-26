@@ -1,0 +1,533 @@
+@page "/assets/bulk"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Assets)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Bulk Edit Assets | GHOS</PageTitle>
+
+<div class="bulk-heading">
+    <div>
+        <a href="/assets">← Digital asset library</a>
+        <span class="panel-label">DIGITAL ASSET BULK EDITOR</span>
+        <h2>Organize assets together</h2>
+        <p>Select exact files, choose the metadata that should change, then review the update before applying it. Original files are never modified.</p>
+    </div>
+    <div class="selection-count">
+        <strong>@SelectedIds.Count</strong>
+        <span>selected</span>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ResultMessage))
+{
+    <div class="module-notice" role="status">@ResultMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="auth-alert" role="alert">@ErrorMessage</div>
+}
+
+<section class="panel action-panel">
+    <div class="section-heading">
+        <div>
+            <span class="panel-label">CHANGES TO APPLY</span>
+            <h3>Choose one or more updates</h3>
+        </div>
+        <span>Blank choices leave existing metadata unchanged.</span>
+    </div>
+
+    <div class="action-grid asset-actions">
+        <label>
+            <span>Approval status</span>
+            <select @bind="StatusAction">
+                <option value="">No change</option>
+                @foreach (var status in Enum.GetValues<AssetStatus>())
+                {
+                    <option value="@status">@FormatStatus(status)</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Rating</span>
+            <select @bind="RatingAction">
+                <option value="">No change</option>
+                <option value="0">Clear rating</option>
+                @for (var rating = 1; rating <= 5; rating++)
+                {
+                    <option value="@rating">@(new string('★', rating))</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Add product link</span>
+            <select @bind="ProductAction">
+                <option value="">No change</option>
+                @foreach (var product in Products)
+                {
+                    <option value="@product.Id">@product.Name</option>
+                }
+            </select>
+        </label>
+        <label class="wide">
+            <span>Add tags</span>
+            <input @bind="TagsAction"
+                   @bind:event="oninput"
+                   type="text"
+                   maxlength="1000"
+                   placeholder="Example: spring, aggregate, hero image" />
+            <small>Tags are added without removing any existing tags.</small>
+        </label>
+    </div>
+
+    <div class="review-actions">
+        <button class="secondary-button" type="button" @onclick="ResetActions">Clear changes</button>
+        <button class="primary-button" type="button" @onclick="ReviewChanges">Review changes</button>
+    </div>
+</section>
+
+@if (ReviewingChanges)
+{
+    <section class="panel confirmation-panel">
+        <div>
+            <span class="panel-label">CONFIRM BULK UPDATE</span>
+            <h3>@SelectedIds.Count assets will be updated</h3>
+            <ul>
+                @foreach (var description in ActionDescriptions)
+                {
+                    <li>@description</li>
+                }
+            </ul>
+            <p>Original files, filenames, hashes, source URLs, and existing product links will not be removed.</p>
+        </div>
+        <div class="confirmation-actions">
+            <button type="button" @onclick="() => ReviewingChanges = false">Go back</button>
+            <button class="apply-button"
+                    type="button"
+                    disabled="@Applying"
+                    @onclick="ApplyChangesAsync">
+                @(Applying ? "Applying…" : $"Apply to {SelectedIds.Count} {(SelectedIds.Count == 1 ? "asset" : "assets")}")
+            </button>
+        </div>
+    </section>
+}
+
+<section class="panel records-panel">
+    <div class="filter-toolbar asset-filters">
+        <label class="search-field">
+            <span>Search assets</span>
+            <input @bind="SearchText"
+                   @bind:event="oninput"
+                   type="search"
+                   placeholder="Title, filename, tag, or product" />
+        </label>
+        <label>
+            <span>Status</span>
+            <select @bind="StatusFilter">
+                <option value="">All statuses</option>
+                @foreach (var status in Enum.GetValues<AssetStatus>())
+                {
+                    <option value="@status">@FormatStatus(status)</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Source</span>
+            <select @bind="SourceFilter">
+                <option value="">All sources</option>
+                @foreach (var source in Enum.GetValues<AssetSource>())
+                {
+                    <option value="@source">@FormatSource(source)</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Product link</span>
+            <select @bind="LinkFilter">
+                <option value="">All assets</option>
+                <option value="linked">Linked</option>
+                <option value="unlinked">Unlinked</option>
+            </select>
+        </label>
+        <div class="selection-tools">
+            <button type="button" @onclick="SelectVisible">Select visible</button>
+            <button type="button" @onclick="ClearSelection">Clear selection</button>
+        </div>
+    </div>
+
+    @if (Loading)
+    {
+        <div class="records-empty">Loading assets…</div>
+    }
+    else if (FilteredAssets.Count == 0)
+    {
+        <div class="records-empty">No assets match these filters.</div>
+    }
+    else
+    {
+        <div class="bulk-table-wrap">
+            <table class="bulk-table">
+                <thead>
+                    <tr>
+                        <th class="check-column">
+                            <input type="checkbox"
+                                   aria-label="Select all visible assets"
+                                   checked="@AllVisibleSelected"
+                                   @onchange="ToggleAllVisible" />
+                        </th>
+                        <th>Asset</th>
+                        <th>Source</th>
+                        <th>Status</th>
+                        <th>Products</th>
+                        <th>Rating</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var asset in FilteredAssets)
+                    {
+                        <tr class="@(SelectedIds.Contains(asset.Id) ? "selected" : null)">
+                            <td class="check-column">
+                                <input type="checkbox"
+                                       aria-label="Select @asset.Title"
+                                       checked="@SelectedIds.Contains(asset.Id)"
+                                       @onchange="eventArgs => ToggleSelection(asset.Id, eventArgs)" />
+                            </td>
+                            <td>
+                                <div class="asset-identity">
+                                    @if (CanPreviewImage(asset))
+                                    {
+                                        <img src="/asset-files/@asset.Id" alt="" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <div class="asset-kind">@asset.Kind.ToString()[0]</div>
+                                    }
+                                    <div>
+                                        <strong>@asset.Title</strong>
+                                        <small>@asset.OriginalFileName</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>@FormatSource(asset.Source)</td>
+                            <td><span class="status-pill @asset.Status.ToString().ToLowerInvariant()">@FormatStatus(asset.Status)</span></td>
+                            <td>
+                                @(asset.ProductLinks.Count == 0
+                                    ? "Unlinked"
+                                    : string.Join(", ", asset.ProductLinks.Select(link => link.Product.Name)))
+                            </td>
+                            <td>@(asset.Rating == 0 ? "—" : new string('★', asset.Rating))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private List<DigitalAsset> AssetRecords { get; set; } = [];
+    private List<Product> Products { get; set; } = [];
+    private HashSet<Guid> SelectedIds { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private bool ReviewingChanges { get; set; }
+    private bool Applying { get; set; }
+    private string SearchText { get; set; } = string.Empty;
+    private string StatusFilter { get; set; } = string.Empty;
+    private string SourceFilter { get; set; } = string.Empty;
+    private string LinkFilter { get; set; } = string.Empty;
+    private string? ResultMessage { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string statusAction = string.Empty;
+    private string ratingAction = string.Empty;
+    private string productAction = string.Empty;
+    private string tagsAction = string.Empty;
+
+    private string StatusAction { get => statusAction; set { statusAction = value; InvalidateReview(); } }
+    private string RatingAction { get => ratingAction; set { ratingAction = value; InvalidateReview(); } }
+    private string ProductAction { get => productAction; set { productAction = value; InvalidateReview(); } }
+    private string TagsAction { get => tagsAction; set { tagsAction = value; InvalidateReview(); } }
+
+    private List<DigitalAsset> FilteredAssets => AssetRecords
+        .Where(MatchesSearch)
+        .Where(asset =>
+            string.IsNullOrWhiteSpace(StatusFilter) ||
+            asset.Status.ToString() == StatusFilter)
+        .Where(asset =>
+            string.IsNullOrWhiteSpace(SourceFilter) ||
+            asset.Source.ToString() == SourceFilter)
+        .Where(asset =>
+            string.IsNullOrWhiteSpace(LinkFilter) ||
+            (LinkFilter == "linked" && asset.ProductLinks.Count > 0) ||
+            (LinkFilter == "unlinked" && asset.ProductLinks.Count == 0))
+        .ToList();
+
+    private bool AllVisibleSelected =>
+        FilteredAssets.Count > 0 &&
+        FilteredAssets.All(asset => SelectedIds.Contains(asset.Id));
+
+    private List<string> ActionDescriptions
+    {
+        get
+        {
+            var descriptions = new List<string>();
+            if (TryGetStatusAction(out var status))
+            {
+                descriptions.Add($"Set approval status to {FormatStatus(status)}.");
+            }
+            if (TryGetRatingAction(out var rating))
+            {
+                descriptions.Add(rating == 0 ? "Clear ratings." : $"Set rating to {new string('★', rating)}.");
+            }
+            if (TryGetProductAction(out var productId))
+            {
+                descriptions.Add($"Add link to {Products.Single(product => product.Id == productId).Name}.");
+            }
+            if (!string.IsNullOrWhiteSpace(TagsAction))
+            {
+                descriptions.Add($"Add tags: {NormalizeTags(TagsAction)}.");
+            }
+            return descriptions;
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Products = await dbContext.Products
+            .AsNoTracking()
+            .OrderBy(product => product.Name)
+            .ToListAsync();
+        AssetRecords = await dbContext.DigitalAssets
+            .AsNoTracking()
+            .Include(asset => asset.ProductLinks)
+                .ThenInclude(link => link.Product)
+            .AsSplitQuery()
+            .OrderByDescending(asset => asset.CreatedAtUtc)
+            .ToListAsync();
+        Loading = false;
+    }
+
+    private bool MatchesSearch(DigitalAsset asset)
+    {
+        if (string.IsNullOrWhiteSpace(SearchText)) return true;
+        var search = SearchText.Trim();
+        return asset.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+            asset.OriginalFileName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+            (asset.Tags?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            asset.ProductLinks.Any(link =>
+                link.Product.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ToggleSelection(Guid id, ChangeEventArgs eventArgs)
+    {
+        if (eventArgs.Value is bool isSelected && isSelected) SelectedIds.Add(id);
+        else SelectedIds.Remove(id);
+        InvalidateReview();
+    }
+
+    private void ToggleAllVisible(ChangeEventArgs eventArgs)
+    {
+        if (eventArgs.Value is bool isSelected && isSelected)
+        {
+            SelectVisible();
+        }
+        else
+        {
+            foreach (var asset in FilteredAssets) SelectedIds.Remove(asset.Id);
+            InvalidateReview();
+        }
+    }
+
+    private void SelectVisible()
+    {
+        foreach (var asset in FilteredAssets) SelectedIds.Add(asset.Id);
+        InvalidateReview();
+    }
+
+    private void ClearSelection()
+    {
+        SelectedIds.Clear();
+        InvalidateReview();
+    }
+
+    private void ReviewChanges()
+    {
+        ResultMessage = null;
+        ErrorMessage = null;
+        if (SelectedIds.Count == 0)
+        {
+            ErrorMessage = "Select at least one asset.";
+            return;
+        }
+        if (ActionDescriptions.Count == 0)
+        {
+            ErrorMessage = "Choose at least one metadata update.";
+            return;
+        }
+        ReviewingChanges = true;
+    }
+
+    private async Task ApplyChangesAsync()
+    {
+        if (!ReviewingChanges || SelectedIds.Count == 0 || ActionDescriptions.Count == 0)
+        {
+            ErrorMessage = "Review the selected assets and changes before applying them.";
+            return;
+        }
+
+        Applying = true;
+        ErrorMessage = null;
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var selectedIds = SelectedIds.ToList();
+            var assets = await dbContext.DigitalAssets
+                .Where(asset => selectedIds.Contains(asset.Id))
+                .Include(asset => asset.ProductLinks)
+                .ToListAsync();
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var now = DateTime.UtcNow;
+            var hasProductAction = TryGetProductAction(out var productId);
+            var hasStatusAction = TryGetStatusAction(out var status);
+            var hasRatingAction = TryGetRatingAction(out var rating);
+            var normalizedTags = NormalizeTags(TagsAction);
+
+            foreach (var asset in assets)
+            {
+                if (hasStatusAction)
+                {
+                    asset.Status = status;
+                    if (status == AssetStatus.Approved)
+                    {
+                        asset.ApprovedAtUtc ??= now;
+                        asset.ApprovedByUserId ??= userId;
+                    }
+                    else
+                    {
+                        asset.ApprovedAtUtc = null;
+                        asset.ApprovedByUserId = null;
+                        foreach (var link in asset.ProductLinks.Where(link => link.IsPrimary))
+                        {
+                            link.IsPrimary = false;
+                            link.PrimaryAssignedAtUtc = null;
+                            link.PrimaryAssignedByUserId = null;
+                        }
+                    }
+                }
+                if (hasRatingAction) asset.Rating = rating;
+                if (!string.IsNullOrWhiteSpace(normalizedTags))
+                {
+                    asset.Tags = MergeTags(asset.Tags, normalizedTags);
+                }
+                if (hasProductAction &&
+                    asset.ProductLinks.All(link => link.ProductId != productId))
+                {
+                    asset.ProductLinks.Add(new AssetProductLink { ProductId = productId });
+                }
+                asset.UpdatedAtUtc = now;
+                asset.UpdatedByUserId = userId;
+            }
+
+            await dbContext.SaveChangesAsync();
+            ResultMessage = $"{assets.Count} {(assets.Count == 1 ? "asset" : "assets")} updated successfully. Original files were preserved.";
+            SelectedIds.Clear();
+            ResetActions();
+            await LoadAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage = "The asset metadata could not be updated. Original files were not changed.";
+        }
+        finally
+        {
+            Applying = false;
+        }
+    }
+
+    private void ResetActions()
+    {
+        statusAction = ratingAction = productAction = tagsAction = string.Empty;
+        ReviewingChanges = false;
+    }
+
+    private void InvalidateReview()
+    {
+        ReviewingChanges = false;
+        ResultMessage = null;
+        ErrorMessage = null;
+    }
+
+    private static bool CanPreviewImage(DigitalAsset asset) =>
+        asset.Kind == AssetKind.Image &&
+        asset.ContentType is "image/jpeg" or "image/png" or "image/webp" or "image/gif";
+
+    private static string FormatStatus(AssetStatus status) => status switch
+    {
+        AssetStatus.PendingReview => "Pending review",
+        AssetStatus.Approved => "Approved",
+        AssetStatus.Archived => "Archived",
+        _ => status.ToString()
+    };
+
+    private static string FormatSource(AssetSource source) => source switch
+    {
+        AssetSource.ICloudImport => "iCloud import",
+        AssetSource.Shopify => "Shopify",
+        _ => "Upload"
+    };
+
+    private static string? NormalizeTags(string? tags)
+    {
+        var normalized = (tags ?? string.Empty)
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase);
+        var value = string.Join(", ", normalized);
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string? MergeTags(string? existingTags, string newTags)
+    {
+        var tags = (NormalizeTags($"{existingTags}, {newTags}") ?? string.Empty)
+            .Split(", ", StringSplitOptions.RemoveEmptyEntries);
+        var accepted = new List<string>();
+
+        foreach (var tag in tags)
+        {
+            var candidate = string.Join(", ", accepted.Append(tag));
+            if (candidate.Length > 2000)
+            {
+                break;
+            }
+            accepted.Add(tag);
+        }
+
+        return accepted.Count == 0 ? null : string.Join(", ", accepted);
+    }
+
+    private bool TryGetProductAction(out Guid productId)
+    {
+        productId = default;
+        if (!Guid.TryParse(ProductAction, out var parsedProductId) ||
+            !Products.Any(product => product.Id == parsedProductId))
+        {
+            return false;
+        }
+
+        productId = parsedProductId;
+        return true;
+    }
+
+    private bool TryGetStatusAction(out AssetStatus status) =>
+        Enum.TryParse(StatusAction, out status) &&
+        Enum.IsDefined(status);
+
+    private bool TryGetRatingAction(out int rating) =>
+        int.TryParse(RatingAction, out rating) &&
+        rating is >= 0 and <= 5;
+}

@@ -1,0 +1,344 @@
+.bulk-heading {
+    margin-bottom: 22px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.bulk-heading > div:first-child {
+    max-width: 800px;
+}
+
+.bulk-heading a {
+    margin-bottom: 17px;
+    color: #66870f;
+    display: block;
+    font-size: .76rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.bulk-heading h2 {
+    margin: 7px 0 6px;
+    font-size: clamp(1.8rem, 3vw, 2.45rem);
+    letter-spacing: -.035em;
+}
+
+.bulk-heading p {
+    margin: 0;
+    color: #6d786e;
+    line-height: 1.55;
+}
+
+.selection-count {
+    min-width: 120px;
+    padding: 14px 17px;
+    border: 1px solid #dce6c5;
+    border-radius: 12px;
+    background: #f9fced;
+    text-align: right;
+}
+
+.selection-count strong,
+.selection-count span {
+    display: block;
+}
+
+.selection-count strong {
+    color: #54700f;
+    font-size: 1.35rem;
+}
+
+.selection-count span {
+    color: #748076;
+    font-size: .68rem;
+}
+
+.action-panel,
+.confirmation-panel {
+    margin-bottom: 17px;
+    padding: 22px;
+}
+
+.section-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.section-heading h3,
+.confirmation-panel h3 {
+    margin: 5px 0 0;
+}
+
+.section-heading > span {
+    color: #849086;
+    font-size: .7rem;
+}
+
+.action-grid {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 13px;
+}
+
+.action-grid label,
+.filter-toolbar label {
+    display: grid;
+    gap: 6px;
+}
+
+.action-grid label > span,
+.filter-toolbar label > span {
+    color: #59655a;
+    font-size: .68rem;
+    font-weight: 800;
+}
+
+.action-grid input,
+.action-grid select,
+.filter-toolbar input,
+.filter-toolbar select {
+    min-height: 41px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d8dfd6;
+    border-radius: 8px;
+    background: white;
+    color: #273129;
+    font: inherit;
+    font-size: .78rem;
+    outline: none;
+}
+
+.action-grid input:focus,
+.action-grid select:focus,
+.filter-toolbar input:focus,
+.filter-toolbar select:focus {
+    border-color: #8fb91f;
+    box-shadow: 0 0 0 3px rgba(155, 198, 35, .12);
+}
+
+.review-actions,
+.confirmation-actions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 9px;
+}
+
+.review-actions button,
+.confirmation-actions button,
+.selection-tools button {
+    min-height: 39px;
+    padding: 8px 13px;
+    border: 1px solid #d1d9cf;
+    border-radius: 8px;
+    background: white;
+    color: #536054;
+    font-size: .73rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.review-actions .primary-button,
+.confirmation-actions .apply-button {
+    border-color: #9BC623;
+    background: #9BC623;
+    color: #142116;
+}
+
+.confirmation-panel {
+    border-color: #d7e5b4;
+    background: #fcfef7;
+    display: flex;
+    justify-content: space-between;
+    gap: 25px;
+}
+
+.confirmation-panel ul {
+    margin: 13px 0;
+    padding-left: 20px;
+    color: #455147;
+    font-size: .78rem;
+    line-height: 1.7;
+}
+
+.confirmation-panel p {
+    margin: 0;
+    color: #7b867c;
+    font-size: .7rem;
+}
+
+.confirmation-actions {
+    align-items: flex-end;
+    flex: 0 0 auto;
+}
+
+.records-panel {
+    padding: 0;
+    overflow: hidden;
+}
+
+.filter-toolbar {
+    padding: 17px 18px;
+    border-bottom: 1px solid #e7ebe5;
+    background: #fafbf9;
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) 200px 170px auto;
+    gap: 12px;
+}
+
+.selection-tools {
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.selection-tools button {
+    min-height: 41px;
+    white-space: nowrap;
+}
+
+.bulk-table-wrap {
+    overflow-x: auto;
+}
+
+.bulk-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.bulk-table th,
+.bulk-table td {
+    padding: 13px 15px;
+    border-bottom: 1px solid #edf0ec;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.bulk-table th {
+    color: #748076;
+    background: #fcfdfb;
+    font-size: .65rem;
+    font-weight: 850;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.bulk-table td {
+    color: #4f5b51;
+    font-size: .76rem;
+}
+
+.bulk-table tr.selected td {
+    background: #fbfdf5;
+}
+
+.bulk-table td strong,
+.bulk-table td small {
+    display: block;
+}
+
+.bulk-table td strong {
+    color: #1d271f;
+    font-size: .82rem;
+}
+
+.bulk-table td small {
+    margin-top: 3px;
+    color: #89938a;
+    font-size: .65rem;
+}
+
+.check-column {
+    width: 45px;
+    text-align: center !important;
+}
+
+.check-column input {
+    width: 16px;
+    height: 16px;
+    accent-color: #83ad19;
+}
+
+.availability-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.availability-list span,
+.status-pill {
+    padding: 4px 7px;
+    border-radius: 6px;
+    background: #f0f3ef;
+    font-size: .63rem;
+    font-weight: 750;
+}
+
+.status-pill.active,
+.status-pill.approved {
+    background: #edf7d9;
+    color: #526e0d;
+}
+
+.status-pill.draft,
+.status-pill.pendingreview {
+    background: #fff4d6;
+    color: #7c6013;
+}
+
+.status-pill.archived {
+    background: #edf0ec;
+    color: #687369;
+}
+
+.records-empty {
+    min-height: 260px;
+    padding: 45px;
+    color: #748076;
+    display: grid;
+    place-items: center;
+}
+
+@media (max-width: 950px) {
+    .action-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .filter-toolbar {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 650px) {
+    .bulk-heading,
+    .confirmation-panel {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .selection-count {
+        text-align: left;
+    }
+
+    .action-grid,
+    .filter-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .selection-tools,
+    .confirmation-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .selection-tools button,
+    .confirmation-actions button {
+        flex: 1;
+    }
+}
