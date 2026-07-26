@@ -331,6 +331,11 @@ namespace Ghos.Web.Data.Migrations
                         .HasMaxLength(2200)
                         .HasColumnType("character varying(2200)");
 
+                    b.Property<string>("LayoutSettingsJson")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("character varying(12000)");
+
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid");
 

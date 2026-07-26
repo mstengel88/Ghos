@@ -1,10 +1,14 @@
 @page "/marketing"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.Marketing)]
+@implements IAsyncDisposable
+@using System.Globalization
 @using System.Security.Claims
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Marketing Studio | GHOS</PageTitle>
 
@@ -40,7 +44,29 @@ else if (Content is null)
 {
     <section class="panel studio-empty">
         <h3>No content package is ready yet</h3>
-        <p>The first Material Monday package will appear when #1 Stone is available in the GHOS product catalog.</p>
+        <p>Choose an active product to prepare the next Material Monday package.</p>
+        <div class="draft-builder empty-builder">
+            <label>
+                <span>Featured product</span>
+                <select @bind="NewPackageProductId">
+                    <option value="">Choose an active product…</option>
+                    @foreach (var product in EligibleProducts)
+                    {
+                        <option value="@product.Id">@product.Name · @product.ProductCategory.Name</option>
+                    }
+                </select>
+            </label>
+            <div class="draft-date">
+                <span>Next opening</span>
+                <strong>@FormatLocalDate(GetNextMaterialMondayUtc()) · 8:00 AM CT</strong>
+            </div>
+            <button type="button"
+                    class="create-draft-button"
+                    disabled="@(CreatingDraft || NewPackageProductId is null)"
+                    @onclick="CreateNextMaterialMondayAsync">
+                @(CreatingDraft ? "Creating draft…" : "Create package")
+            </button>
+        </div>
     </section>
 }
 else
@@ -133,7 +159,7 @@ else
                 {
                     <button type="button"
                             class="@(SelectedTemplateKey == template.Key ? "active" : null)"
-                            @onclick="() => SelectedTemplateKey = template.Key">
+                            @onclick="() => SelectTemplate(template.Key)">
                         <span>@template.Format</span>
                         <strong>@template.Width × @template.Height</strong>
                     </button>
@@ -149,8 +175,12 @@ else
                     <span>@SelectedTemplate.Purpose</span>
                 </div>
 
-                <div class="creative-stage @GetPreviewClass()">
-                    <article class="material-card">
+                <div class="creative-stage @GetPreviewClass()"
+                     id="@LayoutEditorRootId">
+                    <article class="material-card"
+                             data-layout-card
+                             data-canvas-width="@SelectedTemplate.Width"
+                             data-canvas-height="@SelectedTemplate.Height">
                         @if (Content.DigitalAsset is not null)
                         {
                             <img src="/asset-files/@Content.DigitalAsset.Id"
@@ -167,12 +197,34 @@ else
                         </div>
                         <div class="guide-number">MATERIAL GUIDE · 001</div>
                         <div class="creative-copy">
-                            <span class="alternate-name">@Content.AlternateName</span>
-                            <h3>@Content.Headline</h3>
-                            <p>@Content.Subheadline</p>
+                            <span class="alternate-name layout-element @GetSelectedLayoutClass(MarketingLayoutElementKeys.AlternateName)"
+                                  data-layout-element="@MarketingLayoutElementKeys.AlternateName"
+                                  data-layout-x="@GetLayout(MarketingLayoutElementKeys.AlternateName).X.ToString(CultureInfo.InvariantCulture)"
+                                  data-layout-y="@GetLayout(MarketingLayoutElementKeys.AlternateName).Y.ToString(CultureInfo.InvariantCulture)"
+                                  style="@GetLayoutStyle(MarketingLayoutElementKeys.AlternateName)">
+                                @Content.AlternateName
+                            </span>
+                            <h3 class="layout-element @GetSelectedLayoutClass(MarketingLayoutElementKeys.Headline)"
+                                data-layout-element="@MarketingLayoutElementKeys.Headline"
+                                data-layout-x="@GetLayout(MarketingLayoutElementKeys.Headline).X.ToString(CultureInfo.InvariantCulture)"
+                                data-layout-y="@GetLayout(MarketingLayoutElementKeys.Headline).Y.ToString(CultureInfo.InvariantCulture)"
+                                style="@GetLayoutStyle(MarketingLayoutElementKeys.Headline)">
+                                @Content.Headline
+                            </h3>
+                            <p class="layout-element @GetSelectedLayoutClass(MarketingLayoutElementKeys.Subheadline)"
+                               data-layout-element="@MarketingLayoutElementKeys.Subheadline"
+                               data-layout-x="@GetLayout(MarketingLayoutElementKeys.Subheadline).X.ToString(CultureInfo.InvariantCulture)"
+                               data-layout-y="@GetLayout(MarketingLayoutElementKeys.Subheadline).Y.ToString(CultureInfo.InvariantCulture)"
+                               style="@GetLayoutStyle(MarketingLayoutElementKeys.Subheadline)">
+                                @Content.Subheadline
+                            </p>
                             @if (SelectedTemplateKey == "material-monday-square")
                             {
-                                <div class="fact-grid">
+                                <div class="fact-grid layout-element @GetSelectedLayoutClass(MarketingLayoutElementKeys.Facts)"
+                                     data-layout-element="@MarketingLayoutElementKeys.Facts"
+                                     data-layout-x="@GetLayout(MarketingLayoutElementKeys.Facts).X.ToString(CultureInfo.InvariantCulture)"
+                                     data-layout-y="@GetLayout(MarketingLayoutElementKeys.Facts).Y.ToString(CultureInfo.InvariantCulture)"
+                                     style="@GetLayoutStyle(MarketingLayoutElementKeys.Facts)">
                                     @foreach (var fact in GetFactItems())
                                     {
                                         <span><i>✓</i>@fact</span>
@@ -181,7 +233,13 @@ else
                             }
                             else
                             {
-                                <div class="vertical-cta">@Content.CallToAction</div>
+                                <div class="vertical-cta layout-element @GetSelectedLayoutClass(MarketingLayoutElementKeys.Facts)"
+                                     data-layout-element="@MarketingLayoutElementKeys.Facts"
+                                     data-layout-x="@GetLayout(MarketingLayoutElementKeys.Facts).X.ToString(CultureInfo.InvariantCulture)"
+                                     data-layout-y="@GetLayout(MarketingLayoutElementKeys.Facts).Y.ToString(CultureInfo.InvariantCulture)"
+                                     style="@GetLayoutStyle(MarketingLayoutElementKeys.Facts)">
+                                    @Content.CallToAction
+                                </div>
                             }
                         </div>
                         <footer>
@@ -192,6 +250,51 @@ else
                             </div>
                         </footer>
                     </article>
+                </div>
+
+                <div class="layout-editor" aria-label="Text layout controls">
+                    <div class="layout-editor-heading">
+                        <div>
+                            <span class="panel-label">TEXT POSITION &amp; SIZE</span>
+                            <strong>@GetSelectedLayoutLabel()</strong>
+                        </div>
+                        <span>Drag text directly on the preview.</span>
+                    </div>
+                    <div class="layout-element-tabs">
+                        @foreach (var elementKey in MarketingLayoutElementKeys.All)
+                        {
+                            <button type="button"
+                                    class="@(SelectedLayoutElementKey == elementKey ? "active" : null)"
+                                    @onclick="() => SelectLayoutElement(elementKey)">
+                                @MarketingLayoutElementKeys.GetLabel(
+                                    elementKey,
+                                    SelectedTemplate.Height > SelectedTemplate.Width)
+                            </button>
+                        }
+                    </div>
+                    <div class="layout-control-row">
+                        <label class="size-control">
+                            <span>Text size</span>
+                            <input type="range"
+                                   min="45"
+                                   max="175"
+                                   step="1"
+                                   value="@GetSelectedScalePercent()"
+                                   @oninput="UpdateSelectedScale" />
+                            <strong>@GetSelectedScalePercent()%</strong>
+                        </label>
+                        <div class="nudge-controls" aria-label="Move selected text">
+                            <button type="button" title="Move left" @onclick="() => NudgeSelected(-12, 0)">←</button>
+                            <button type="button" title="Move up" @onclick="() => NudgeSelected(0, -12)">↑</button>
+                            <button type="button" title="Move down" @onclick="() => NudgeSelected(0, 12)">↓</button>
+                            <button type="button" title="Move right" @onclick="() => NudgeSelected(12, 0)">→</button>
+                        </div>
+                        <button type="button"
+                                class="reset-layout-button"
+                                @onclick="ResetSelectedLayout">
+                            Reset selected
+                        </button>
+                    </div>
                 </div>
 
                 <div class="template-spec">
@@ -228,7 +331,12 @@ else
                         <span class="panel-label">CREATIVE COPY</span>
                         <h3>Fact card content</h3>
                     </div>
-                    <span>Changes update every format.</span>
+                    <button type="button"
+                            class="refresh-product-button"
+                            disabled="@(RefreshingProduct || Content.ProductId is null)"
+                            @onclick="RefreshProductAsync">
+                        @(RefreshingProduct ? "Refreshing…" : "↻ Refresh from product")
+                    </button>
                 </div>
                 <div class="field-grid">
                     <label>
@@ -314,6 +422,12 @@ else
                     <span class="ready">✓ Correct product link</span>
                 </div>
                 <div class="editor-actions">
+                    <button class="delete-button"
+                            type="button"
+                            disabled="@Saving"
+                            @onclick="() => ConfirmingDelete = true">
+                        Delete plan
+                    </button>
                     <button class="save-button" type="submit" disabled="@Saving">
                         @(Saving ? "Saving…" : "Save changes")
                     </button>
@@ -327,6 +441,26 @@ else
                         </button>
                     }
                 </div>
+                @if (ConfirmingDelete)
+                {
+                    <div class="delete-confirmation" role="alert">
+                        <div>
+                            <strong>Delete this marketing plan?</strong>
+                            <span>The product, approved image, and other plans will not be removed.</span>
+                        </div>
+                        <button type="button"
+                                class="cancel-delete-button"
+                                @onclick="() => ConfirmingDelete = false">
+                            Keep plan
+                        </button>
+                        <button type="button"
+                                class="confirm-delete-button"
+                                disabled="@Saving"
+                                @onclick="DeletePlanAsync">
+                            Delete permanently
+                        </button>
+                    </div>
+                }
             </section>
         </EditForm>
     </div>
@@ -335,18 +469,26 @@ else
 @code {
     private static readonly TimeZoneInfo CentralTime =
         TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+    private const string LayoutEditorRootId = "marketing-layout-editor";
 
     private MarketingContentPackage? Content { get; set; }
     private List<MarketingContentPackage> ContentQueue { get; set; } = [];
     private List<Product> EligibleProducts { get; set; } = [];
+    private MarketingLayoutSettings LayoutSettings { get; set; } = new();
     private bool Loading { get; set; } = true;
     private bool Saving { get; set; }
     private bool CreatingDraft { get; set; }
+    private bool RefreshingProduct { get; set; }
+    private bool ConfirmingDelete { get; set; }
     private Guid? NewPackageProductId { get; set; }
     private string SelectedTemplateKey { get; set; } =
         "material-monday-square";
+    private string SelectedLayoutElementKey { get; set; } =
+        MarketingLayoutElementKeys.Headline;
     private string? SuccessMessage { get; set; }
     private string? ErrorMessage { get; set; }
+    private IJSObjectReference? MarketingStudioModule { get; set; }
+    private DotNetObjectReference<Marketing>? SelfReference { get; set; }
 
     private MarketingTemplateDefinition SelectedTemplate =>
         MarketingTemplateCatalog.All.Single(template =>
@@ -354,6 +496,26 @@ else
 
     protected override async Task OnInitializedAsync() =>
         await LoadWorkspaceAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            MarketingStudioModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                "import",
+                "/js/marketingStudio.js");
+            SelfReference = DotNetObjectReference.Create(this);
+        }
+
+        if (Content is not null && MarketingStudioModule is not null &&
+            SelfReference is not null)
+        {
+            await MarketingStudioModule.InvokeVoidAsync(
+                "attach",
+                LayoutEditorRootId,
+                SelfReference);
+        }
+    }
 
     private async Task LoadWorkspaceAsync(Guid? preferredContentId = null)
     {
@@ -386,6 +548,10 @@ else
                 .FirstOrDefault()
             ?? ContentQueue.OrderByDescending(item => item.UpdatedAtUtc)
                 .FirstOrDefault();
+        LayoutSettings = MarketingLayoutSettings.Parse(
+            Content?.LayoutSettingsJson);
+        ConfirmingDelete = false;
+        SelectedLayoutElementKey = MarketingLayoutElementKeys.Headline;
         Loading = false;
     }
 
@@ -443,6 +609,7 @@ else
             stored.ReelScript = Content.ReelScript.Trim();
             stored.Hashtags = NullIfWhiteSpace(Content.Hashtags);
             stored.CallToAction = Content.CallToAction.Trim();
+            stored.LayoutSettingsJson = LayoutSettings.ToJson();
             stored.UpdatedAtUtc = now;
             stored.UpdatedByUserId = userId;
 
@@ -455,6 +622,12 @@ else
             else if (stored.Status == MarketingContentStatus.Draft)
             {
                 stored.Status = MarketingContentStatus.ReadyForReview;
+            }
+            else if (stored.Status == MarketingContentStatus.Scheduled)
+            {
+                stored.Status = MarketingContentStatus.ReadyForReview;
+                stored.ApprovedAtUtc = null;
+                stored.ApprovedByUserId = null;
             }
 
             await dbContext.SaveChangesAsync();
@@ -562,6 +735,7 @@ else
                     $"#GreenHillsSupply #MaterialMonday #{BuildHashtag(product.Name)} #LandscapeSupply #WisconsinLandscaping",
                 CallToAction = "Plan your project with Green Hills Supply",
                 DestinationUrl = destinationUrl,
+                LayoutSettingsJson = "{}",
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now,
                 CreatedByUserId = userId,
@@ -586,6 +760,130 @@ else
         }
     }
 
+    private async Task RefreshProductAsync()
+    {
+        if (Content?.ProductId is null)
+        {
+            ErrorMessage = "This plan is not linked to a product.";
+            return;
+        }
+
+        RefreshingProduct = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var product = await dbContext.Products
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(item => item.AlternateNames)
+                .Include(item => item.AssetLinks)
+                    .ThenInclude(link => link.DigitalAsset)
+                .SingleAsync(item => item.Id == Content.ProductId.Value);
+            var stored = await dbContext.MarketingContentPackages
+                .SingleAsync(item => item.Id == Content.Id);
+            var primaryAsset = product.AssetLinks
+                .Where(link =>
+                    link.IsPrimary &&
+                    link.DigitalAsset.Kind == AssetKind.Image &&
+                    link.DigitalAsset.Status == AssetStatus.Approved)
+                .Select(link => link.DigitalAsset)
+                .FirstOrDefault();
+
+            stored.Title = $"Material Monday — {product.Name}";
+            stored.Headline = product.Name.ToUpperInvariant();
+            stored.AlternateName = product.AlternateNames.Count == 0
+                ? null
+                : $"Also known as {product.AlternateNames
+                    .OrderBy(item => item.Name)
+                    .First().Name}";
+            stored.Subheadline = GetVerifiedDescription(product);
+            stored.FactItems = string.Join(
+                Environment.NewLine,
+                BuildVerifiedFacts(product));
+            stored.DestinationUrl = GetProductUrl(product);
+            stored.DigitalAssetId = primaryAsset?.Id;
+            stored.UpdatedAtUtc = DateTime.UtcNow;
+            stored.UpdatedByUserId = userId;
+
+            if (stored.Status == MarketingContentStatus.Scheduled)
+            {
+                stored.Status = MarketingContentStatus.ReadyForReview;
+                stored.ApprovedAtUtc = null;
+                stored.ApprovedByUserId = null;
+            }
+
+            await dbContext.SaveChangesAsync();
+            SuccessMessage =
+                $"Template details and primary image were refreshed from {product.Name}. Channel captions were preserved.";
+            await LoadWorkspaceAsync(stored.Id);
+        }
+        catch (InvalidOperationException)
+        {
+            ErrorMessage =
+                "The linked product could not be found. Nothing was changed.";
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The product refresh could not be saved. Nothing was published.";
+        }
+        finally
+        {
+            RefreshingProduct = false;
+        }
+    }
+
+    private async Task DeletePlanAsync()
+    {
+        if (Content is null)
+        {
+            return;
+        }
+
+        Saving = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+        var deletedTitle = Content.Title;
+
+        try
+        {
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var stored = await dbContext.MarketingContentPackages
+                .SingleOrDefaultAsync(item => item.Id == Content.Id);
+            if (stored is null)
+            {
+                ErrorMessage = "That plan has already been removed.";
+                return;
+            }
+
+            dbContext.MarketingContentPackages.Remove(stored);
+            await dbContext.SaveChangesAsync();
+            SuccessMessage =
+                $"{deletedTitle} was deleted. Its product and digital assets were preserved.";
+            Content = null;
+            await LoadWorkspaceAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The plan could not be deleted. No product or asset was changed.";
+        }
+        finally
+        {
+            Saving = false;
+            ConfirmingDelete = false;
+        }
+    }
+
     private IReadOnlyList<string> GetFactItems() =>
         (Content?.FactItems ?? string.Empty)
             .Split(
@@ -602,6 +900,112 @@ else
             "material-monday-story" => "story",
             _ => "reel"
         };
+
+    private void SelectTemplate(string templateKey)
+    {
+        SelectedTemplateKey = templateKey;
+        SelectedLayoutElementKey = MarketingLayoutElementKeys.Headline;
+    }
+
+    private void SelectLayoutElement(string elementKey)
+    {
+        SelectedLayoutElementKey = elementKey;
+    }
+
+    private MarketingElementLayout GetLayout(string elementKey)
+    {
+        var layout = LayoutSettings.GetOrCreate(
+            SelectedTemplateKey,
+            elementKey);
+        layout.Normalize();
+        return layout;
+    }
+
+    private string GetLayoutStyle(string elementKey)
+    {
+        var layout = GetLayout(elementKey);
+        var left = layout.X / SelectedTemplate.Width * 100;
+        var top = layout.Y / SelectedTemplate.Height * 100;
+        return FormattableString.Invariant(
+            $"left:{left:0.###}%;top:{top:0.###}%;transform:scale({layout.Scale:0.###});");
+    }
+
+    private string? GetSelectedLayoutClass(string elementKey) =>
+        SelectedLayoutElementKey == elementKey ? "selected" : null;
+
+    private string GetSelectedLayoutLabel() =>
+        MarketingLayoutElementKeys.GetLabel(
+            SelectedLayoutElementKey,
+            SelectedTemplate.Height > SelectedTemplate.Width);
+
+    private int GetSelectedScalePercent() =>
+        (int)Math.Round(GetLayout(SelectedLayoutElementKey).Scale * 100);
+
+    private void UpdateSelectedScale(ChangeEventArgs args)
+    {
+        if (!double.TryParse(
+            args.Value?.ToString(),
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out var percent))
+        {
+            return;
+        }
+
+        var layout = GetLayout(SelectedLayoutElementKey);
+        layout.Scale = percent / 100;
+        layout.Normalize();
+        SyncLayoutJson();
+    }
+
+    private void NudgeSelected(double x, double y)
+    {
+        var layout = GetLayout(SelectedLayoutElementKey);
+        layout.X += x;
+        layout.Y += y;
+        layout.Normalize();
+        SyncLayoutJson();
+    }
+
+    private void ResetSelectedLayout()
+    {
+        var layout = GetLayout(SelectedLayoutElementKey);
+        layout.X = 0;
+        layout.Y = 0;
+        layout.Scale = 1;
+        SyncLayoutJson();
+    }
+
+    [JSInvokable]
+    public Task UpdateLayoutPosition(
+        string elementKey,
+        double x,
+        double y)
+    {
+        if (!MarketingLayoutElementKeys.All.Contains(
+            elementKey,
+            StringComparer.OrdinalIgnoreCase))
+        {
+            return Task.CompletedTask;
+        }
+
+        SelectedLayoutElementKey = elementKey;
+        var layout = GetLayout(elementKey);
+        layout.X = x;
+        layout.Y = y;
+        layout.Normalize();
+        SyncLayoutJson();
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void SyncLayoutJson()
+    {
+        if (Content is not null)
+        {
+            Content.LayoutSettingsJson = LayoutSettings.ToJson();
+        }
+    }
 
     private string GetDownloadUrl() =>
         $"/marketing-content/{Content!.Id}/creative/{SelectedTemplateKey}.svg";
@@ -808,6 +1212,26 @@ else
 
     private static string BuildHashtag(string productName) =>
         new(productName.Where(char.IsLetterOrDigit).ToArray());
+
+    public async ValueTask DisposeAsync()
+    {
+        if (MarketingStudioModule is not null)
+        {
+            try
+            {
+                await MarketingStudioModule.InvokeVoidAsync(
+                    "detach",
+                    LayoutEditorRootId);
+                await MarketingStudioModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is already gone.
+            }
+        }
+
+        SelfReference?.Dispose();
+    }
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

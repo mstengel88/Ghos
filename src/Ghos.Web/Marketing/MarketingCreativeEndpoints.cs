@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security;
 using System.Text;
 using Ghos.Web.Assets;
@@ -90,6 +91,24 @@ public static class MarketingCreativeEndpoints
         var subheadlineY = headlineY + (vertical ? 120 : 105);
         var alternateY = headlineY - (vertical ? 110 : 90);
         var footerHeight = vertical ? 150 : 125;
+        var layoutSettings = MarketingLayoutSettings.Parse(
+            content.LayoutSettingsJson);
+        var alternateLayout = GetLayout(
+            layoutSettings,
+            template.Key,
+            MarketingLayoutElementKeys.AlternateName);
+        var headlineLayout = GetLayout(
+            layoutSettings,
+            template.Key,
+            MarketingLayoutElementKeys.Headline);
+        var subheadlineLayout = GetLayout(
+            layoutSettings,
+            template.Key,
+            MarketingLayoutElementKeys.Subheadline);
+        var factsLayout = GetLayout(
+            layoutSettings,
+            template.Key,
+            MarketingLayoutElementKeys.Facts);
         var facts = (content.FactItems ?? string.Empty)
             .Split(
                 ['\r', '\n'],
@@ -99,17 +118,17 @@ public static class MarketingCreativeEndpoints
             .ToList();
         var factMarkup = vertical
             ? $"""
-               <rect x="75" y="{subheadlineY + 90}" width="{width - 150}" height="120" rx="12" fill="#142116" fill-opacity=".78" />
-               <rect x="75" y="{subheadlineY + 90}" width="12" height="120" fill="#9BC623" />
-               <text x="115" y="{subheadlineY + 162}" class="cta">{Escape(content.CallToAction)}</text>
+               <rect x="{F(75 + factsLayout.X)}" y="{F(subheadlineY + 90 + factsLayout.Y)}" width="{width - 150}" height="120" rx="12" fill="#142116" fill-opacity=".78" />
+               <rect x="{F(75 + factsLayout.X)}" y="{F(subheadlineY + 90 + factsLayout.Y)}" width="12" height="120" fill="#9BC623" />
+               <text x="{F(115 + factsLayout.X)}" y="{F(subheadlineY + 162 + factsLayout.Y)}" class="cta" style="font-size:{F(29 * factsLayout.Scale)}px">{Escape(content.CallToAction)}</text>
                """
             : string.Join(
                 Environment.NewLine,
                 facts.Select((fact, index) =>
                 {
-                    var x = index % 2 == 0 ? 75 : 560;
-                    var y = 875 + (index / 2 * 58);
-                    return $"<text x=\"{x}\" y=\"{y}\" class=\"fact\"><tspan class=\"check\">✓</tspan> {Escape(fact)}</text>";
+                    var x = (index % 2 == 0 ? 75 : 560) + factsLayout.X;
+                    var y = 875 + (index / 2 * 58) + factsLayout.Y;
+                    return $"<text x=\"{F(x)}\" y=\"{F(y)}\" class=\"fact\" style=\"font-size:{F(27 * factsLayout.Scale)}px\"><tspan class=\"check\">✓</tspan> {Escape(fact)}</text>";
                 }));
 
         return $$"""
@@ -149,9 +168,9 @@ public static class MarketingCreativeEndpoints
               <text x="55" y="{{(vertical ? 142 : 116)}}" class="series-large">MONDAY</text>
               <text x="{{width - 55}}" y="{{(vertical ? 70 : 58)}}" text-anchor="end" class="guide">MATERIAL GUIDE · 001</text>
 
-              <text x="75" y="{{alternateY}}" class="alternate">{{Escape(content.AlternateName)}}</text>
-              <text x="70" y="{{headlineY}}" class="headline">{{Escape(content.Headline)}}</text>
-              <text x="75" y="{{subheadlineY}}" class="subheadline">{{Escape(content.Subheadline)}}</text>
+              <text x="{{F(75 + alternateLayout.X)}}" y="{{F(alternateY + alternateLayout.Y)}}" class="alternate" style="font-size:{{F(GetSize(vertical, 27, 24) * alternateLayout.Scale)}}px">{{Escape(content.AlternateName)}}</text>
+              <text x="{{F(70 + headlineLayout.X)}}" y="{{F(headlineY + headlineLayout.Y)}}" class="headline" style="font-size:{{F(GetSize(vertical, 126, 116) * headlineLayout.Scale)}}px">{{Escape(content.Headline)}}</text>
+              <text x="{{F(75 + subheadlineLayout.X)}}" y="{{F(subheadlineY + subheadlineLayout.Y)}}" class="subheadline" style="font-size:{{F(GetSize(vertical, 32, 29) * subheadlineLayout.Scale)}}px">{{Escape(content.Subheadline)}}</text>
               {{factMarkup}}
 
               <rect x="0" y="{{height - footerHeight}}" width="{{width}}" height="{{footerHeight}}" fill="#9BC623" />
@@ -165,6 +184,19 @@ public static class MarketingCreativeEndpoints
 
     private static int GetSize(bool vertical, int verticalSize, int squareSize) =>
         vertical ? verticalSize : squareSize;
+
+    private static MarketingElementLayout GetLayout(
+        MarketingLayoutSettings settings,
+        string templateKey,
+        string elementKey)
+    {
+        var layout = settings.GetOrCreate(templateKey, elementKey);
+        layout.Normalize();
+        return layout;
+    }
+
+    private static string F(double value) =>
+        value.ToString("0.###", CultureInfo.InvariantCulture);
 
     private static string Escape(string? value) =>
         SecurityElement.Escape(value ?? string.Empty) ?? string.Empty;

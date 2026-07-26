@@ -64,6 +64,9 @@ public sealed class MarketingContentPackage
     [MaxLength(2048)]
     public string? DestinationUrl { get; set; }
 
+    [MaxLength(12000)]
+    public string LayoutSettingsJson { get; set; } = "{}";
+
     public DateTime? ApprovedAtUtc { get; set; }
 
     [MaxLength(450)]
