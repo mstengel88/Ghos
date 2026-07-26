@@ -28,8 +28,18 @@ public sealed class ShopifySyncService(
             ["bulk-salt"] = "ice-melt",
             ["bagged-ice-melt"] = "ice-melt",
             ["de-icing-liquid"] = "ice-melt",
-            ["tools-hardware"] = "tools-equipment"
+            ["tools-hardware"] = "tools-equipment",
+            ["boulders-outcropping"] = "boulders-outcroppings",
+            ["landscape-accessories"] = "landscape-essentials"
         };
+
+    private static readonly HashSet<string> PreferredCategoryCollectionHandles =
+    [
+        "boulders-outcroppings",
+        "boulders-outcropping",
+        "landscape-essentials",
+        "landscape-accessories"
+    ];
 
     public string StoreDomain => shopifyClient.StoreDomain;
 
@@ -49,6 +59,13 @@ public sealed class ShopifySyncService(
             .Include(product => product.Variants)
             .Where(product => product.ShopifyProductId != null)
             .ToListAsync(cancellationToken);
+        var categories = await dbContext.ProductCategories
+            .AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name)
+            .ToListAsync(cancellationToken);
+        var fallbackCategory = GetFallbackCategory(categories);
         var byShopifyId = existingProducts.ToDictionary(
             product => product.ShopifyProductId!,
             StringComparer.Ordinal);
@@ -56,9 +73,11 @@ public sealed class ShopifySyncService(
         var items = snapshots
             .Select(snapshot =>
             {
+                var resolvedCategory = ResolveCategory(snapshot, categories);
                 var action = !byShopifyId.TryGetValue(snapshot.Id, out var existing)
                     ? ShopifySyncAction.Create
-                    : SourceHasChanged(existing, snapshot)
+                    : SourceHasChanged(existing, snapshot) ||
+                        ShouldRecoverCategory(existing, resolvedCategory, fallbackCategory)
                         ? ShopifySyncAction.Update
                         : ShopifySyncAction.Unchanged;
 
@@ -71,6 +90,7 @@ public sealed class ShopifySyncService(
                     snapshot.Variants.Count == 0
                         ? null
                         : snapshot.Variants.Min(variant => variant.Price),
+                    resolvedCategory.Name,
                     action);
             })
             .OrderBy(item => item.Title)
@@ -101,9 +121,11 @@ public sealed class ShopifySyncService(
                 .Include(product => product.Variants)
                 .ToListAsync(cancellationToken);
             var categories = await dbContext.ProductCategories
+                .Where(category => category.IsActive)
                 .OrderBy(category => category.SortOrder)
                 .ThenBy(category => category.Name)
                 .ToListAsync(cancellationToken);
+            var fallbackCategory = GetFallbackCategory(categories);
             var byShopifyId = products
                 .Where(product => product.ShopifyProductId is not null)
                 .ToDictionary(product => product.ShopifyProductId!, StringComparer.Ordinal);
@@ -125,6 +147,7 @@ public sealed class ShopifySyncService(
 
             foreach (var snapshot in snapshots)
             {
+                var resolvedCategory = ResolveCategory(snapshot, categories);
                 var isNew = !byShopifyId.TryGetValue(snapshot.Id, out var product);
 
                 if (isNew &&
@@ -139,7 +162,7 @@ public sealed class ShopifySyncService(
                 {
                     product = CreateProduct(
                         snapshot,
-                        ResolveCategory(snapshot, categories),
+                        resolvedCategory,
                         usedSlugs,
                         usedProductCodes,
                         userId,
@@ -149,9 +172,15 @@ public sealed class ShopifySyncService(
                     created++;
                 }
                 else if (SourceHasChanged(product, snapshot) ||
-                    product.ShopifyProductId is null)
+                    product.ShopifyProductId is null ||
+                    ShouldRecoverCategory(product, resolvedCategory, fallbackCategory))
                 {
                     UpdateSourceFields(product, snapshot, now);
+                    if (ShouldRecoverCategory(product, resolvedCategory, fallbackCategory))
+                    {
+                        product.ProductCategoryId = resolvedCategory.Id;
+                        product.ProductCategory = resolvedCategory;
+                    }
                     product.UpdatedAtUtc = now;
                     product.UpdatedByUserId = userId;
                     MergeVariants(product, snapshot);
@@ -353,7 +382,9 @@ public sealed class ShopifySyncService(
         ShopifyProductSnapshot snapshot,
         IList<ProductCategory> categories)
     {
-        foreach (var collection in snapshot.Collections)
+        foreach (var collection in snapshot.Collections
+            .OrderBy(collection =>
+                PreferredCategoryCollectionHandles.Contains(collection.Handle) ? 0 : 1))
         {
             if (GenericCollectionHandles.Contains(collection.Handle))
             {
@@ -372,9 +403,20 @@ public sealed class ShopifySyncService(
             }
         }
 
-        return categories.Single(category =>
-            category.Slug.Equals("shopify-import", StringComparison.OrdinalIgnoreCase));
+        return GetFallbackCategory(categories);
     }
+
+    private static ProductCategory GetFallbackCategory(
+        IEnumerable<ProductCategory> categories) =>
+        categories.Single(category =>
+            category.Slug.Equals("shopify-import", StringComparison.OrdinalIgnoreCase));
+
+    private static bool ShouldRecoverCategory(
+        Product product,
+        ProductCategory resolvedCategory,
+        ProductCategory fallbackCategory) =>
+        product.ProductCategoryId == fallbackCategory.Id &&
+        resolvedCategory.Id != fallbackCategory.Id;
 
     private static string CreateUniqueSlug(string preferredSlug, ISet<string> usedSlugs)
     {

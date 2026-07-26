@@ -44,6 +44,7 @@ public sealed record ShopifySyncPreviewItem(
     string ShopifyStatus,
     int VariantCount,
     decimal? LowestPrice,
+    string TargetCategory,
     ShopifySyncAction Action);
 
 public sealed record ShopifySyncPreview(
