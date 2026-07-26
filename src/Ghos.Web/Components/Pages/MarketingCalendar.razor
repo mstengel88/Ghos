@@ -1,0 +1,560 @@
+@page "/marketing/calendar"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Marketing)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Marketing Calendar | GHOS</PageTitle>
+
+<div class="calendar-heading">
+    <div>
+        <span class="panel-label">CONTENT OPERATIONS</span>
+        <h2>Marketing Calendar</h2>
+        <p>Plan the publishing rhythm, spot schedule gaps, and open any campaign directly in the Marketing Studio.</p>
+    </div>
+    <div class="heading-actions">
+        <label>
+            <span>Show status</span>
+            <select @bind="StatusFilter">
+                <option value="All">All campaigns</option>
+                @foreach (var status in Enum.GetValues<MarketingContentStatus>())
+                {
+                    <option value="@status.ToString()">@GetStatusLabel(status)</option>
+                }
+            </select>
+        </label>
+        <a class="primary-link" href="/marketing">+ Create in Studio</a>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="module-notice" role="status">@SuccessMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="auth-alert" role="alert">@ErrorMessage</div>
+}
+
+@if (Loading)
+{
+    <section class="panel calendar-empty">Preparing the content calendar…</section>
+}
+else
+{
+    var visiblePackages = GetFilteredPackages();
+    var scheduledCount = visiblePackages.Count(item => item.ScheduledForUtc is not null);
+    var readyCount = visiblePackages.Count(item =>
+        item.Status is MarketingContentStatus.ReadyForReview or
+            MarketingContentStatus.Scheduled);
+    var publishedCount = visiblePackages.Count(item =>
+        item.Status == MarketingContentStatus.Published);
+
+    <section class="calendar-summary">
+        <article>
+            <span>Campaigns shown</span>
+            <strong>@visiblePackages.Count</strong>
+            <small>Using the current status filter</small>
+        </article>
+        <article>
+            <span>Scheduled</span>
+            <strong>@scheduledCount</strong>
+            <small>With a confirmed date and time</small>
+        </article>
+        <article>
+            <span>Ready or queued</span>
+            <strong>@readyCount</strong>
+            <small>Review and scheduled statuses</small>
+        </article>
+        <article>
+            <span>Published</span>
+            <strong>@publishedCount</strong>
+            <small>Completed campaigns</small>
+        </article>
+    </section>
+
+    <div class="calendar-workspace">
+        <section class="panel calendar-panel">
+            <div class="month-toolbar">
+                <div>
+                    <span class="panel-label">MONTHLY VIEW</span>
+                    <h3>@VisibleMonth.ToString("MMMM yyyy")</h3>
+                </div>
+                <div>
+                    <button type="button" @onclick="GoToToday">Today</button>
+                    <button type="button"
+                            title="Previous month"
+                            @onclick="() => ChangeMonth(-1)">←</button>
+                    <button type="button"
+                            title="Next month"
+                            @onclick="() => ChangeMonth(1)">→</button>
+                </div>
+            </div>
+
+            <div class="weekday-row" aria-hidden="true">
+                @foreach (var weekday in WeekdayLabels)
+                {
+                    <span>@weekday</span>
+                }
+            </div>
+
+            <div class="month-grid">
+                @foreach (var day in GetCalendarDays())
+                {
+                    var dayPackages = GetPackagesForDay(visiblePackages, day);
+                    <div class="@GetDayClass(day)">
+                        <div class="day-number">
+                            <span>@day.Day</span>
+                            @if (day.Date == TodayCentral)
+                            {
+                                <small>Today</small>
+                            }
+                        </div>
+                        <div class="day-campaigns">
+                            @foreach (var package in dayPackages.Take(3))
+                            {
+                                <button type="button"
+                                        class="campaign-chip @GetStatusClass(package.Status)"
+                                        title="@package.Title"
+                                        @onclick="() => SelectPackage(package.Id)">
+                                    <span>@FormatLocalTime(package.ScheduledForUtc)</span>
+                                    <strong>@package.Title</strong>
+                                </button>
+                            }
+                            @if (dayPackages.Count > 3)
+                            {
+                                <small class="more-campaigns">
+                                    +@(dayPackages.Count - 3) more
+                                </small>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <aside class="calendar-sidebar">
+            @if (SelectedPackage is null)
+            {
+                <section class="panel selection-empty">
+                    <div class="empty-icon">▦</div>
+                    <h3>Select a campaign</h3>
+                    <p>Choose an item on the calendar to review its timing and publishing status.</p>
+                </section>
+            }
+            else
+            {
+                <section class="panel schedule-editor">
+                    <div class="editor-heading">
+                        <div>
+                            <span class="status-pill @GetStatusClass(SelectedPackage.Status)">
+                                @GetStatusLabel(SelectedPackage.Status)
+                            </span>
+                            <h3>@SelectedPackage.Title</h3>
+                            <p>@(SelectedPackage.Product?.Name ?? "No product linked")</p>
+                        </div>
+                        <button type="button"
+                                title="Close editor"
+                                @onclick="ClearSelection">×</button>
+                    </div>
+
+                    @if (SelectedPackage.Status is
+                        MarketingContentStatus.Published or
+                        MarketingContentStatus.Archived)
+                    {
+                        <div class="published-details">
+                            <span>Scheduled for</span>
+                            <strong>@FormatLocalDateTime(SelectedPackage.ScheduledForUtc)</strong>
+                            @if (SelectedPackage.PublishedAtUtc is not null)
+                            {
+                                <span>Published</span>
+                                <strong>@FormatLocalDateTime(SelectedPackage.PublishedAtUtc)</strong>
+                            }
+                            <p>Published and archived campaigns are locked here to preserve their reporting history.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="schedule-fields">
+                            <label>
+                                <span>Date</span>
+                                <input type="date" @bind="ScheduleDate" />
+                            </label>
+                            <label>
+                                <span>Time (Central)</span>
+                                <input type="time" @bind="ScheduleTime" />
+                            </label>
+                            <label class="wide-field">
+                                <span>Workflow status</span>
+                                <select @bind="EditorStatus">
+                                    <option value="@MarketingContentStatus.Draft">Draft</option>
+                                    <option value="@MarketingContentStatus.ReadyForReview">Ready for review</option>
+                                    <option value="@MarketingContentStatus.Scheduled">Scheduled</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="editor-actions">
+                            <button type="button"
+                                    class="save-schedule"
+                                    disabled="@Saving"
+                                    @onclick="SaveScheduleAsync">
+                                @(Saving ? "Saving…" : "Save schedule")
+                            </button>
+                            <button type="button"
+                                    class="clear-schedule"
+                                    disabled="@(Saving || SelectedPackage.ScheduledForUtc is null)"
+                                    @onclick="ClearScheduleAsync">
+                                Remove date
+                            </button>
+                        </div>
+                    }
+
+                    <a class="studio-link"
+                       href="/marketing?contentId=@SelectedPackage.Id">
+                        Open full campaign in Marketing Studio →
+                    </a>
+                </section>
+            }
+
+            @{
+                var unscheduled = visiblePackages
+                    .Where(item => item.ScheduledForUtc is null)
+                    .OrderByDescending(item => item.UpdatedAtUtc)
+                    .Take(8)
+                    .ToList();
+            }
+            <section class="panel unscheduled-panel">
+                <div class="sidebar-heading">
+                    <div>
+                        <span class="panel-label">NEEDS A DATE</span>
+                        <h3>Unscheduled campaigns</h3>
+                    </div>
+                    <span>@unscheduled.Count</span>
+                </div>
+                @if (unscheduled.Count == 0)
+                {
+                    <p class="all-scheduled">Every visible campaign has a date.</p>
+                }
+                else
+                {
+                    <div class="unscheduled-list">
+                        @foreach (var package in unscheduled)
+                        {
+                            <button type="button"
+                                    @onclick="() => SelectPackage(package.Id)">
+                                <span class="status-dot @GetStatusClass(package.Status)"></span>
+                                <span>
+                                    <strong>@package.Title</strong>
+                                    <small>@GetStatusLabel(package.Status)</small>
+                                </span>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
+        </aside>
+    </div>
+}
+
+@code {
+    private static readonly TimeZoneInfo CentralTime =
+        TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+    private static readonly string[] WeekdayLabels =
+        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    private List<MarketingContentPackage> Packages { get; set; } = [];
+    private DateTime VisibleMonth { get; set; } =
+        new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime TodayCentral { get; set; }
+    private Guid? SelectedPackageId { get; set; }
+    private MarketingContentPackage? SelectedPackage =>
+        Packages.FirstOrDefault(item => item.Id == SelectedPackageId);
+    private string StatusFilter { get; set; } = "All";
+    private DateTime? ScheduleDate { get; set; }
+    private TimeOnly? ScheduleTime { get; set; } = new(8, 0);
+    private MarketingContentStatus EditorStatus { get; set; } =
+        MarketingContentStatus.Draft;
+    private bool Loading { get; set; } = true;
+    private bool Saving { get; set; }
+    private string? SuccessMessage { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        TodayCentral = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.UtcNow,
+            CentralTime).Date;
+        VisibleMonth = new DateTime(
+            TodayCentral.Year,
+            TodayCentral.Month,
+            1);
+        await LoadPackagesAsync();
+    }
+
+    private async Task LoadPackagesAsync(Guid? selectedId = null)
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        Packages = await dbContext.MarketingContentPackages
+            .AsNoTracking()
+            .Include(item => item.Product)
+            .OrderBy(item => item.ScheduledForUtc)
+            .ThenByDescending(item => item.UpdatedAtUtc)
+            .ToListAsync();
+        Loading = false;
+
+        if (selectedId is not null)
+        {
+            SelectPackage(selectedId.Value, clearMessages: false);
+        }
+    }
+
+    private List<MarketingContentPackage> GetFilteredPackages() =>
+        Packages
+            .Where(item =>
+                StatusFilter == "All" ||
+                item.Status.ToString() == StatusFilter)
+            .ToList();
+
+    private List<DateTime> GetCalendarDays()
+    {
+        var first = VisibleMonth;
+        var offset = ((int)first.DayOfWeek + 6) % 7;
+        var calendarStart = first.AddDays(-offset);
+        return Enumerable.Range(0, 42)
+            .Select(index => calendarStart.AddDays(index))
+            .ToList();
+    }
+
+    private static List<MarketingContentPackage> GetPackagesForDay(
+        IEnumerable<MarketingContentPackage> packages,
+        DateTime day) =>
+        packages
+            .Where(item =>
+                item.ScheduledForUtc is not null &&
+                TimeZoneInfo.ConvertTimeFromUtc(
+                    item.ScheduledForUtc.Value,
+                    CentralTime).Date == day.Date)
+            .OrderBy(item => item.ScheduledForUtc)
+            .ToList();
+
+    private void ChangeMonth(int months)
+    {
+        VisibleMonth = VisibleMonth.AddMonths(months);
+        ClearMessages();
+    }
+
+    private void GoToToday()
+    {
+        VisibleMonth = new DateTime(
+            TodayCentral.Year,
+            TodayCentral.Month,
+            1);
+        ClearMessages();
+    }
+
+    private void SelectPackage(Guid id, bool clearMessages = true)
+    {
+        SelectedPackageId = id;
+        if (clearMessages)
+        {
+            ClearMessages();
+        }
+        if (SelectedPackage is null)
+        {
+            return;
+        }
+
+        EditorStatus = SelectedPackage.Status;
+        if (SelectedPackage.ScheduledForUtc is null)
+        {
+            ScheduleDate = VisibleMonth;
+            ScheduleTime = new TimeOnly(8, 0);
+            return;
+        }
+
+        var local = TimeZoneInfo.ConvertTimeFromUtc(
+            SelectedPackage.ScheduledForUtc.Value,
+            CentralTime);
+        ScheduleDate = local.Date;
+        ScheduleTime = TimeOnly.FromDateTime(local);
+    }
+
+    private void ClearSelection()
+    {
+        SelectedPackageId = null;
+        ClearMessages();
+    }
+
+    private async Task SaveScheduleAsync()
+    {
+        if (SelectedPackage is null)
+        {
+            return;
+        }
+
+        if (ScheduleDate is null || ScheduleTime is null)
+        {
+            ErrorMessage = "Choose a valid date and time.";
+            return;
+        }
+
+        var local = DateTime.SpecifyKind(
+            ScheduleDate.Value.Date.Add(ScheduleTime.Value.ToTimeSpan()),
+            DateTimeKind.Unspecified);
+        if (CentralTime.IsInvalidTime(local))
+        {
+            ErrorMessage =
+                "That local time does not exist because of daylight saving time. Choose another time.";
+            return;
+        }
+
+        Saving = true;
+        ClearMessages();
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var stored = await dbContext.MarketingContentPackages
+                .SingleOrDefaultAsync(item =>
+                    item.Id == SelectedPackage.Id);
+            if (stored is null)
+            {
+                ErrorMessage = "That campaign no longer exists.";
+                return;
+            }
+
+            stored.ScheduledForUtc =
+                TimeZoneInfo.ConvertTimeToUtc(local, CentralTime);
+            stored.Status = EditorStatus;
+            stored.UpdatedAtUtc = DateTime.UtcNow;
+            stored.UpdatedByUserId = userId;
+            await dbContext.SaveChangesAsync();
+
+            var selectedId = stored.Id;
+            await LoadPackagesAsync(selectedId);
+            VisibleMonth = new DateTime(local.Year, local.Month, 1);
+            SuccessMessage =
+                $"{stored.Title} is scheduled for {local:dddd, MMMM d 'at' h:mm tt}.";
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The schedule could not be saved. Existing campaign data was not changed.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private async Task ClearScheduleAsync()
+    {
+        if (SelectedPackage is null ||
+            SelectedPackage.Status is
+                MarketingContentStatus.Published or
+                MarketingContentStatus.Archived)
+        {
+            return;
+        }
+
+        Saving = true;
+        ClearMessages();
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var stored = await dbContext.MarketingContentPackages
+                .SingleOrDefaultAsync(item =>
+                    item.Id == SelectedPackage.Id);
+            if (stored is null)
+            {
+                ErrorMessage = "That campaign no longer exists.";
+                return;
+            }
+
+            stored.ScheduledForUtc = null;
+            if (stored.Status == MarketingContentStatus.Scheduled)
+            {
+                stored.Status = MarketingContentStatus.Draft;
+            }
+            stored.UpdatedAtUtc = DateTime.UtcNow;
+            stored.UpdatedByUserId = userId;
+            await dbContext.SaveChangesAsync();
+
+            var selectedId = stored.Id;
+            await LoadPackagesAsync(selectedId);
+            SuccessMessage = $"The date was removed from {stored.Title}.";
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The date could not be removed. Existing campaign data was not changed.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private string GetDayClass(DateTime day)
+    {
+        var classes = new List<string> { "calendar-day" };
+        if (day.Month != VisibleMonth.Month)
+        {
+            classes.Add("outside-month");
+        }
+        if (day.Date == TodayCentral)
+        {
+            classes.Add("today");
+        }
+        return string.Join(" ", classes);
+    }
+
+    private static string GetStatusClass(MarketingContentStatus status) =>
+        status switch
+        {
+            MarketingContentStatus.Draft => "status-draft",
+            MarketingContentStatus.ReadyForReview => "status-review",
+            MarketingContentStatus.Scheduled => "status-scheduled",
+            MarketingContentStatus.Published => "status-published",
+            MarketingContentStatus.Archived => "status-archived",
+            _ => "status-draft"
+        };
+
+    private static string GetStatusLabel(MarketingContentStatus status) =>
+        status switch
+        {
+            MarketingContentStatus.ReadyForReview => "Ready for review",
+            _ => status.ToString()
+        };
+
+    private static string FormatLocalTime(DateTime? utc) =>
+        utc is null
+            ? "—"
+            : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
+                .ToString("h:mm tt");
+
+    private static string FormatLocalDateTime(DateTime? utc) =>
+        utc is null
+            ? "Not scheduled"
+            : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
+                .ToString("ddd, MMM d 'at' h:mm tt");
+
+    private void ClearMessages()
+    {
+        SuccessMessage = null;
+        ErrorMessage = null;
+    }
+}
