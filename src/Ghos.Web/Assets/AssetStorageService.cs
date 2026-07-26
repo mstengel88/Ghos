@@ -59,6 +59,12 @@ public sealed class AssetStorageService(
 
         var originalFileName = Path.GetFileName(request.OriginalFileName).Trim();
         var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
+        var sourceUrl = NullIfWhiteSpace(request.SourceUrl);
+
+        if (sourceUrl?.Length > 2048)
+        {
+            throw new AssetStorageException("The original source URL is too long.");
+        }
 
         if (string.IsNullOrWhiteSpace(originalFileName) ||
             !AllowedExtensions.TryGetValue(extension, out var fileType))
@@ -106,6 +112,8 @@ public sealed class AssetStorageService(
 
             if (existing is not null)
             {
+                var existingChanged = false;
+
                 if (request.ProductId is not null &&
                     existing.ProductLinks.All(link =>
                         link.ProductId != request.ProductId))
@@ -114,6 +122,18 @@ public sealed class AssetStorageService(
                     {
                         ProductId = request.ProductId.Value
                     });
+                    existingChanged = true;
+                }
+
+                if (sourceUrl is not null && existing.SourceUrl is null)
+                {
+                    existing.Source = request.Source;
+                    existing.SourceUrl = sourceUrl;
+                    existingChanged = true;
+                }
+
+                if (existingChanged)
+                {
                     existing.UpdatedAtUtc = DateTime.UtcNow;
                     existing.UpdatedByUserId = request.UserId;
                     await dbContext.SaveChangesAsync(cancellationToken);
@@ -130,7 +150,8 @@ public sealed class AssetStorageService(
                 ContentType = fileType.ContentType,
                 Kind = fileType.Kind,
                 Status = AssetStatus.PendingReview,
-                Source = AssetSource.Upload,
+                Source = request.Source,
+                SourceUrl = sourceUrl,
                 FileSizeBytes = storedFile.BytesWritten,
                 Sha256Hash = storedFile.Sha256Hash,
                 Description = NullIfWhiteSpace(request.Description),

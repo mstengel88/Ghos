@@ -89,6 +89,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             asset.HasIndex(item => item.Sha256Hash).IsUnique();
             asset.HasIndex(item => item.CreatedAtUtc);
             asset.HasIndex(item => new { item.Status, item.Kind });
+            asset.HasIndex(item => item.SourceUrl)
+                .IsUnique()
+                .HasFilter("\"SourceUrl\" IS NOT NULL");
             asset.Property(item => item.Kind).HasConversion<string>().HasMaxLength(24);
             asset.Property(item => item.Status).HasConversion<string>().HasMaxLength(24);
             asset.Property(item => item.Source).HasConversion<string>().HasMaxLength(24);

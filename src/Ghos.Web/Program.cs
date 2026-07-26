@@ -33,6 +33,14 @@ builder.Services.AddScoped<ShopifySyncService>();
 builder.Services.Configure<AssetStorageOptions>(
     builder.Configuration.GetSection(AssetStorageOptions.SectionName));
 builder.Services.AddScoped<AssetStorageService>();
+builder.Services.AddHttpClient<ShopifyAssetImportService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AllowAutoRedirect = false
+});
 
 var dataProtectionKeyPath = builder.Configuration["DataProtection:KeyPath"]
     ?? "/var/lib/ghos/data-protection";

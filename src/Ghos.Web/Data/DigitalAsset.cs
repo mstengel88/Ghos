@@ -24,6 +24,9 @@ public sealed class DigitalAsset
 
     public AssetSource Source { get; set; } = AssetSource.Upload;
 
+    [MaxLength(2048)]
+    public string? SourceUrl { get; set; }
+
     public long FileSizeBytes { get; set; }
 
     [MaxLength(64)]

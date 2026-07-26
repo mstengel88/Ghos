@@ -11,7 +11,9 @@ public sealed record AssetUploadRequest(
     string? Tags,
     int Rating,
     Guid? ProductId,
-    string? UserId);
+    string? UserId,
+    AssetSource Source = AssetSource.Upload,
+    string? SourceUrl = null);
 
 public sealed record AssetUploadResult(
     DigitalAsset Asset,

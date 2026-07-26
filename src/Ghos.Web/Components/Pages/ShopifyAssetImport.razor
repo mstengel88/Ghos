@@ -1,0 +1,254 @@
+@page "/assets/shopify"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.AdministratorOnly)]
+@inject ShopifyAssetImportService ImportService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<ShopifyAssetImport> Logger
+
+<PageTitle>Shopify image import | GHOS</PageTitle>
+
+<div class="import-heading">
+    <div>
+        <a href="/assets">← Content library</a>
+        <span class="panel-label">SHOPIFY ASSET IMPORT</span>
+        <h2>Bring product images into GHOS</h2>
+        <p>Preview Shopify’s featured product images, then copy only the missing originals into the protected asset library.</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="auth-alert" role="alert">@ErrorMessage</div>
+}
+
+@if (Result is not null)
+{
+    <div class="import-success" role="status">
+        <strong>Shopify image import completed.</strong>
+        <span>@Result.Downloaded downloaded, @Result.Reused linked from existing files, @Result.AlreadyCurrent already current, and @Result.Failed failed.</span>
+    </div>
+}
+
+<section class="panel explanation-panel">
+    <div class="explanation-number">1</div>
+    <div>
+        <span class="panel-label">SAFE, REVIEWABLE WORKFLOW</span>
+        <h3>Shopify remains unchanged</h3>
+        <p>GHOS reads the public Shopify CDN image URLs already attached to your synchronized products. Importing creates pending-review asset records, calculates a secure fingerprint, avoids duplicate storage, and links each image to the matching product.</p>
+        <div class="safety-points">
+            <span>✓ No Shopify writes</span>
+            <span>✓ No image deletions</span>
+            <span>✓ Duplicate detection</span>
+            <span>✓ Product links preserved</span>
+        </div>
+    </div>
+</section>
+
+@if (Loading)
+{
+    <section class="panel loading-panel">
+        <div class="import-spinner"></div>
+        <h3>Checking the catalog</h3>
+        <p>GHOS is comparing Shopify image URLs with the protected asset library.</p>
+    </section>
+}
+else if (Preview is not null)
+{
+    <section class="import-summary">
+        <article>
+            <span>Shopify images</span>
+            <strong>@Preview.Items.Count</strong>
+        </article>
+        <article class="download">
+            <span>Ready to download</span>
+            <strong>@Preview.DownloadCount</strong>
+        </article>
+        <article class="link">
+            <span>Ready to link</span>
+            <strong>@Preview.LinkCount</strong>
+        </article>
+        <article class="current">
+            <span>Already in GHOS</span>
+            <strong>@Preview.CurrentCount</strong>
+        </article>
+        <article class="invalid">
+            <span>Needs attention</span>
+            <strong>@Preview.InvalidCount</strong>
+        </article>
+    </section>
+
+    <section class="panel import-control">
+        <div>
+            <span class="panel-label">IMPORT CONTROL</span>
+            <h3>@GetControlTitle()</h3>
+            <p>@GetControlDescription()</p>
+        </div>
+        <div class="control-actions">
+            <button class="secondary-action"
+                    type="button"
+                    disabled="@Busy"
+                    @onclick="RefreshAsync">
+                Refresh preview
+            </button>
+            @if (Preview.DownloadCount + Preview.LinkCount > 0)
+            {
+                <button class="primary-action"
+                        type="button"
+                        disabled="@Busy"
+                        @onclick="ImportAsync">
+                    @(Busy ? "Importing images…" : $"Import {Preview.DownloadCount + Preview.LinkCount} missing images")
+                </button>
+            }
+            <a class="text-action" href="/assets">Return to library</a>
+        </div>
+    </section>
+
+    <section class="panel preview-panel">
+        <div class="preview-header">
+            <div>
+                <span class="panel-label">IMPORT PREVIEW</span>
+                <h3>Featured product images</h3>
+            </div>
+            <span>Nothing changes until you choose Import.</span>
+        </div>
+
+        <div class="preview-table-wrap">
+            <table class="preview-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Shopify image</th>
+                        <th>GHOS action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Preview.Items)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@item.ProductName</strong>
+                                @if (!string.IsNullOrWhiteSpace(item.ImageAlt))
+                                {
+                                    <small>@item.ImageAlt</small>
+                                }
+                            </td>
+                            <td>
+                                @if (IsValidUrl(item.ImageUrl))
+                                {
+                                    <a href="@item.ImageUrl" target="_blank" rel="noopener">Open source image ↗</a>
+                                }
+                                else
+                                {
+                                    <span>Invalid source URL</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="action-badge @GetActionClass(item.Action)">
+                                    @GetActionLabel(item.Action)
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    private ShopifyAssetImportPreview? Preview { get; set; }
+    private ShopifyAssetImportResult? Result { get; set; }
+    private bool Loading { get; set; } = true;
+    private bool Busy { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPreviewAsync();
+        Loading = false;
+    }
+
+    private async Task RefreshAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        Result = null;
+
+        try
+        {
+            await LoadPreviewAsync();
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        Result = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            Result = await ImportService.ImportMissingAsync(authenticationState.User);
+            await LoadPreviewAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "The Shopify image import did not complete.");
+            ErrorMessage = "GHOS could not complete the Shopify image import. Existing assets were retained; review the server logs and try again.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task LoadPreviewAsync()
+    {
+        try
+        {
+            Preview = await ImportService.PreviewAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "GHOS could not preview Shopify product images.");
+            ErrorMessage = "GHOS could not compare Shopify images with the asset library.";
+        }
+    }
+
+    private string GetControlTitle() =>
+        Preview is null
+            ? "Preview unavailable"
+            : Preview.DownloadCount + Preview.LinkCount == 0
+                ? "The Shopify image library is current"
+                : $"{Preview.DownloadCount + Preview.LinkCount} images are ready";
+
+    private string GetControlDescription() =>
+        Preview is null
+            ? "Refresh the preview to try again."
+            : Preview.DownloadCount + Preview.LinkCount == 0
+                ? "Every valid featured Shopify image is already linked to its GHOS product."
+                : "Imported images enter the pending-review queue. They are not automatically approved for marketing use.";
+
+    private static bool IsValidUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps &&
+        uri.Host.Equals("cdn.shopify.com", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetActionClass(ShopifyAssetImportAction action) =>
+        action.ToString().ToLowerInvariant();
+
+    private static string GetActionLabel(ShopifyAssetImportAction action) =>
+        action switch
+        {
+            ShopifyAssetImportAction.Download => "Download to GHOS",
+            ShopifyAssetImportAction.LinkExisting => "Link existing asset",
+            ShopifyAssetImportAction.AlreadyLinked => "Already current",
+            _ => "Invalid URL"
+        };
+}

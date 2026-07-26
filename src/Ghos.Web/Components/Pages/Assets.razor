@@ -13,9 +13,14 @@
         <p>Keep original photos, videos, and documents organized, searchable, approved, and connected to the products they support.</p>
     </div>
 
-    <AuthorizeView Policy="@GhosPolicies.Assets">
-        <a class="primary-action" href="/assets/upload">+ Upload asset</a>
-    </AuthorizeView>
+    <div class="module-actions">
+        <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
+            <a class="secondary-action" href="/assets/shopify">Import from Shopify</a>
+        </AuthorizeView>
+        <AuthorizeView Policy="@GhosPolicies.Assets">
+            <a class="primary-action" href="/assets/upload">+ Upload asset</a>
+        </AuthorizeView>
+    </div>
 </div>
 
 @if (Uploaded)
@@ -96,6 +101,17 @@ else if (Saved)
                 <option value="unlinked">Unlinked</option>
             </select>
         </label>
+
+        <label>
+            <span>Source</span>
+            <select @bind="SelectedSource">
+                <option value="">All sources</option>
+                @foreach (var source in Enum.GetValues<AssetSource>())
+                {
+                    <option value="@source">@FormatSource(source)</option>
+                }
+            </select>
+        </label>
     </div>
 
     @if (Loading)
@@ -149,7 +165,7 @@ else if (Saved)
 
                     <div class="asset-card-body">
                         <div class="asset-card-heading">
-                            <span class="kind-label">@asset.Kind</span>
+                            <span class="kind-label">@asset.Kind · @FormatSource(asset.Source)</span>
                             <span class="status-label @asset.Status.ToString().ToLowerInvariant()">
                                 @FormatStatus(asset.Status)
                             </span>
@@ -202,6 +218,7 @@ else if (Saved)
     private string SelectedKind { get; set; } = string.Empty;
     private string SelectedStatus { get; set; } = string.Empty;
     private string SelectedLinkState { get; set; } = string.Empty;
+    private string SelectedSource { get; set; } = string.Empty;
     private bool Uploaded => UploadedValue == "1";
     private bool Duplicate => DuplicateValue == "1";
     private bool Saved => SavedValue == "1";
@@ -218,6 +235,9 @@ else if (Saved)
             string.IsNullOrWhiteSpace(SelectedLinkState) ||
             (SelectedLinkState == "linked" && asset.ProductLinks.Count > 0) ||
             (SelectedLinkState == "unlinked" && asset.ProductLinks.Count == 0))
+        .Where(asset =>
+            string.IsNullOrWhiteSpace(SelectedSource) ||
+            asset.Source.ToString() == SelectedSource)
         .ToList();
 
     protected override async Task OnInitializedAsync()
@@ -261,4 +281,11 @@ else if (Saved)
 
     private static string FormatRating(int rating) =>
         rating == 0 ? "Not rated" : new string('★', rating);
+
+    private static string FormatSource(AssetSource source) => source switch
+    {
+        AssetSource.ICloudImport => "iCloud import",
+        AssetSource.Shopify => "Shopify",
+        _ => "Upload"
+    };
 }
