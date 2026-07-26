@@ -12,9 +12,14 @@
         <p>Manage the approved names, categories, synonyms, availability, and customer-facing information used throughout GHOS.</p>
     </div>
 
-    <AuthorizeView Policy="@GhosPolicies.Operations">
-        <a class="primary-action" href="/products/new">+ Add product</a>
-    </AuthorizeView>
+    <div class="module-actions">
+        <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
+            <a class="secondary-link" href="/products/shopify">Sync Shopify</a>
+        </AuthorizeView>
+        <AuthorizeView Policy="@GhosPolicies.Operations">
+            <a class="primary-action" href="/products/new">+ Add product</a>
+        </AuthorizeView>
+    </div>
 </div>
 
 @if (Saved)
@@ -32,8 +37,14 @@
         <strong>@AllProducts.Count(product => product.Status == ProductStatus.Active)</strong>
     </article>
     <article>
-        <span>Drafts</span>
-        <strong>@AllProducts.Count(product => product.Status == ProductStatus.Draft)</strong>
+        <span>Needs review</span>
+        <strong>@AllProducts.Count(product =>
+            product.Status == ProductStatus.Draft ||
+            (!product.AvailableForPickup && !product.AvailableForDelivery))</strong>
+    </article>
+    <article>
+        <span>Linked to Shopify</span>
+        <strong>@AllProducts.Count(product => product.ShopifyProductId is not null)</strong>
     </article>
     <article>
         <span>Categories</span>
@@ -103,6 +114,7 @@
                         <th>Product</th>
                         <th>Category</th>
                         <th>Availability</th>
+                        <th>Price</th>
                         <th>Completeness</th>
                         <th>Status</th>
                         <th><span class="visually-hidden">Actions</span></th>
@@ -125,6 +137,10 @@
                                         Also: @string.Join(", ", product.AlternateNames.Select(name => name.Name))
                                     </div>
                                 }
+                                @if (product.ShopifyProductId is not null)
+                                {
+                                    <div class="source-label">Shopify · @product.ShopifyHandle</div>
+                                }
                             </td>
                             <td>@product.ProductCategory.Name</td>
                             <td>
@@ -135,6 +151,7 @@
                                     @if (product.AvailableBagged) { <span>Bagged</span> }
                                 </div>
                             </td>
+                            <td>@FormatPrice(product)</td>
                             <td>
                                 <div class="completeness">
                                     <div><span style="width:@completeness%"></span></div>
@@ -191,6 +208,7 @@
             .AsNoTracking()
             .Include(product => product.ProductCategory)
             .Include(product => product.AlternateNames)
+            .Include(product => product.Variants)
             .OrderBy(product => product.Name)
             .ToListAsync();
 
@@ -209,5 +227,21 @@
             (product.ProductCode?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
             product.AlternateNames.Any(name =>
                 name.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string FormatPrice(Product product)
+    {
+        if (product.Variants.Count == 0)
+        {
+            return "—";
+        }
+
+        var prices = product.Variants
+            .Select(variant => variant.Price)
+            .Distinct()
+            .ToList();
+        var minimum = prices.Min();
+
+        return prices.Count > 1 ? $"From {minimum:C}" : minimum.ToString("C");
     }
 }

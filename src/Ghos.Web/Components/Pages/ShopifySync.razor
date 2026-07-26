@@ -1,0 +1,375 @@
+@page "/products/shopify"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.AdministratorOnly)]
+@inject ShopifySyncService SyncService
+@inject ShopifyCredentialStore CredentialStore
+@inject ShopifyAccessTokenProvider TokenProvider
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Shopify sync | GHOS</PageTitle>
+
+<div class="sync-heading">
+    <div>
+        <a href="/products">← Product catalog</a>
+        <span class="panel-label">SHOPIFY CONNECTION</span>
+        <h2>Shopify product sync</h2>
+        <p>Bring the store catalog into GHOS while keeping Shopify source data separate from approved Green Hills product information.</p>
+    </div>
+    <div class="connection-state @(Configured ? "connected" : "pending")">
+        <i></i>
+        <div>
+            <strong>@(Configured ? "Connection configured" : "Credentials needed")</strong>
+            <span>@SyncService.StoreDomain</span>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="auth-alert" role="alert">@ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="sync-success" role="status">
+        <strong>@SuccessMessage</strong>
+    </div>
+}
+
+@if (!Configured || ShowCredentialForm)
+{
+    <section class="panel setup-panel">
+        <div class="setup-number">1</div>
+        <div>
+            <span class="panel-label">ONE-TIME SHOPIFY SETUP</span>
+            <h3>@(Configured ? "Replace Shopify credentials" : "Connect GHOS to Shopify")</h3>
+            <p>Enter the Client ID and Client Secret from your Shopify app. GHOS verifies them before saving, encrypts them in PostgreSQL, and never displays the secret again or commits it to GitHub.</p>
+
+            <EditForm Model="@CredentialModel" OnValidSubmit="@SaveCredentialsAsync" FormName="shopify-credentials">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="validation-summary" />
+
+                <div class="credential-grid">
+                    <label>
+                        <span>Client ID</span>
+                        <InputText @bind-Value="CredentialModel.ClientId"
+                                   autocomplete="off"
+                                   placeholder="Paste the Shopify Client ID" />
+                        <ValidationMessage For="@(() => CredentialModel.ClientId)" />
+                    </label>
+
+                    <label>
+                        <span>Client Secret</span>
+                        <InputText @bind-Value="CredentialModel.ClientSecret"
+                                   type="password"
+                                   autocomplete="new-password"
+                                   placeholder="Paste the Shopify Client Secret" />
+                        <ValidationMessage For="@(() => CredentialModel.ClientSecret)" />
+                    </label>
+                </div>
+
+                <div class="credential-actions">
+                    <button class="primary-action" type="submit" disabled="@Busy">
+                        @(Busy ? "Verifying…" : "Verify and save connection")
+                    </button>
+                    @if (Configured)
+                    {
+                        <button class="secondary-action"
+                                type="button"
+                                disabled="@Busy"
+                                @onclick="CancelCredentialReplacement">
+                            Cancel
+                        </button>
+                    }
+                </div>
+            </EditForm>
+
+            <div class="setup-meta">
+                <span><strong>Store</strong> @SyncService.StoreDomain</span>
+                <span><strong>API version</strong> @SyncService.ApiVersion</span>
+                <span><strong>Required</strong> read_products</span>
+                <span><strong>Available later</strong> read_customers</span>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    @if (SyncResult is not null)
+    {
+        <div class="sync-success" role="status">
+            <strong>Shopify sync completed.</strong>
+            <span>@SyncResult.Created created, @SyncResult.Updated updated, and @SyncResult.Unchanged unchanged.</span>
+        </div>
+    }
+
+    <div class="sync-grid">
+        <section class="panel control-panel">
+            <span class="panel-label">SAFE IMPORT WORKFLOW</span>
+            <h3>Preview before writing</h3>
+            <p>Preview downloads Shopify data without changing GHOS. Sync never deletes GHOS products and does not overwrite approved descriptions, categories, alternate names, or availability on existing records.</p>
+
+            <div class="control-actions">
+                <button class="secondary-action"
+                        type="button"
+                        disabled="@Busy"
+                        @onclick="PreviewAsync">
+                    @(Preview is null ? "Preview Shopify catalog" : "Refresh preview")
+                </button>
+                @if (Preview is not null)
+                {
+                    <button class="primary-action"
+                            type="button"
+                            disabled="@Busy"
+                            @onclick="SynchronizeAsync">
+                        @(Busy ? "Working…" : "Sync products to GHOS")
+                    </button>
+                }
+                <button class="text-action"
+                        type="button"
+                        disabled="@Busy"
+                        @onclick="BeginCredentialReplacement">
+                    Replace credentials
+                </button>
+            </div>
+        </section>
+
+        <section class="panel last-run-panel">
+            <span class="panel-label">LAST SYNC</span>
+            @if (LastRun is null)
+            {
+                <h3>Not run yet</h3>
+                <p>The first successful sync will create an auditable history entry here.</p>
+            }
+            else
+            {
+                <h3>@LastRun.Status</h3>
+                <p>@FormatTimestamp(LastRun.CompletedAtUtc ?? LastRun.StartedAtUtc)</p>
+                <div class="last-run-counts">
+                    <span><strong>@LastRun.CreatedCount</strong> created</span>
+                    <span><strong>@LastRun.UpdatedCount</strong> updated</span>
+                    <span><strong>@LastRun.UnchangedCount</strong> unchanged</span>
+                </div>
+            }
+        </section>
+    </div>
+
+    @if (Busy)
+    {
+        <section class="panel loading-panel">
+            <div class="sync-spinner"></div>
+            <h3>Contacting Shopify</h3>
+            <p>GHOS is retrieving the complete paginated product catalog.</p>
+        </section>
+    }
+    else if (Preview is not null)
+    {
+        <section class="preview-summary">
+            <article>
+                <span>Shopify products</span>
+                <strong>@Preview.Items.Count</strong>
+            </article>
+            <article class="create">
+                <span>New to GHOS</span>
+                <strong>@Preview.CreateCount</strong>
+            </article>
+            <article class="update">
+                <span>Changed in Shopify</span>
+                <strong>@Preview.UpdateCount</strong>
+            </article>
+            <article>
+                <span>Already current</span>
+                <strong>@Preview.UnchangedCount</strong>
+            </article>
+        </section>
+
+        <section class="panel preview-panel">
+            <div class="preview-header">
+                <div>
+                    <span class="panel-label">IMPORT PREVIEW</span>
+                    <h3>Store catalog</h3>
+                </div>
+                <a href="@SyncService.StorefrontUrl" target="_blank" rel="noopener">Open storefront ↗</a>
+            </div>
+
+            <div class="preview-table-wrap">
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Shopify status</th>
+                            <th>Variants</th>
+                            <th>Starting price</th>
+                            <th>GHOS action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Preview.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.Title</strong>
+                                    <small>/products/@item.Handle</small>
+                                </td>
+                                <td>@item.ShopifyStatus</td>
+                                <td>@item.VariantCount</td>
+                                <td>@FormatPrice(item.LowestPrice)</td>
+                                <td>
+                                    <span class="action-badge @item.Action.ToString().ToLowerInvariant()">
+                                        @GetActionLabel(item.Action)
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private ShopifySyncPreview? Preview { get; set; }
+    private ShopifySyncResult? SyncResult { get; set; }
+    private ShopifySyncRun? LastRun { get; set; }
+    private ShopifyCredentialInput CredentialModel { get; set; } = new();
+    private bool Configured { get; set; }
+    private bool ShowCredentialForm { get; set; }
+    private bool Busy { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Configured = await SyncService.IsConfiguredAsync();
+        LastRun = await SyncService.GetLastRunAsync();
+    }
+
+    private async Task SaveCredentialsAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            await TokenProvider.ValidateCredentialsAsync(
+                CredentialModel.ClientId,
+                CredentialModel.ClientSecret);
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            await CredentialStore.SaveAsync(
+                CredentialModel.ClientId,
+                CredentialModel.ClientSecret,
+                userId);
+            Configured = true;
+            ShowCredentialForm = false;
+            CredentialModel = new();
+            SuccessMessage = "Shopify connected securely. GHOS is ready to preview the product catalog.";
+        }
+        catch (ShopifyConnectionException exception)
+        {
+            TokenProvider.Invalidate();
+            ErrorMessage = exception.Message;
+        }
+        catch
+        {
+            TokenProvider.Invalidate();
+            ErrorMessage = "GHOS could not verify or save the Shopify connection. Nothing was changed.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private void BeginCredentialReplacement()
+    {
+        CredentialModel = new();
+        ErrorMessage = null;
+        SuccessMessage = null;
+        ShowCredentialForm = true;
+    }
+
+    private void CancelCredentialReplacement()
+    {
+        CredentialModel = new();
+        ErrorMessage = null;
+        ShowCredentialForm = false;
+    }
+
+    private async Task PreviewAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SyncResult = null;
+
+        try
+        {
+            Preview = await SyncService.PreviewAsync();
+        }
+        catch (ShopifyConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch
+        {
+            ErrorMessage = "GHOS could not preview the Shopify catalog. Review the server logs and try again.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task SynchronizeAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SyncResult = null;
+
+        try
+        {
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            SyncResult = await SyncService.SynchronizeAsync(authenticationState.User);
+            LastRun = await SyncService.GetLastRunAsync();
+            Preview = await SyncService.PreviewAsync();
+        }
+        catch (ShopifyConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch
+        {
+            ErrorMessage = "The Shopify sync did not complete. GHOS retained the existing catalog; review the sync history and server logs before trying again.";
+            LastRun = await SyncService.GetLastRunAsync();
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private static string FormatPrice(decimal? price) =>
+        price is null ? "—" : price.Value.ToString("C");
+
+    private static string FormatTimestamp(DateTime timestamp) =>
+        timestamp.ToLocalTime().ToString("MMM d, yyyy · h:mm tt");
+
+    private static string GetActionLabel(ShopifySyncAction action) =>
+        action switch
+        {
+            ShopifySyncAction.Create => "Create",
+            ShopifySyncAction.Update => "Refresh source",
+            _ => "No change"
+        };
+
+    private sealed class ShopifyCredentialInput
+    {
+        [Required(ErrorMessage = "Enter the Shopify Client ID.")]
+        public string ClientId { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Enter the Shopify Client Secret.")]
+        public string ClientSecret { get; set; } = string.Empty;
+    }
+}

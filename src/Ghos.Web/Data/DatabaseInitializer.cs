@@ -39,7 +39,8 @@ public static class DatabaseInitializer
             CreateCategory("Bagged Materials", "bagged-materials", 60),
             CreateCategory("Outdoor Living", "outdoor-living", 70),
             CreateCategory("Tools & Equipment", "tools-equipment", 80),
-            CreateCategory("Ice Melt", "ice-melt", 90)
+            CreateCategory("Ice Melt", "ice-melt", 90),
+            CreateCategory("Shopify Import", "shopify-import", 1000)
         };
 
         var existingCategorySlugs = await dbContext.ProductCategories

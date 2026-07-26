@@ -15,6 +15,48 @@ public sealed class Product
     [MaxLength(80)]
     public string? ProductCode { get; set; }
 
+    [MaxLength(80)]
+    public string? ShopifyProductId { get; set; }
+
+    [MaxLength(160)]
+    public string? ShopifyTitle { get; set; }
+
+    [MaxLength(180)]
+    public string? ShopifyHandle { get; set; }
+
+    [MaxLength(32)]
+    public string? ShopifyStatus { get; set; }
+
+    [MaxLength(160)]
+    public string? ShopifyVendor { get; set; }
+
+    [MaxLength(160)]
+    public string? ShopifyProductType { get; set; }
+
+    public string? ShopifyDescriptionHtml { get; set; }
+
+    public string? ShopifyTags { get; set; }
+
+    [MaxLength(2048)]
+    public string? ShopifyFeaturedImageUrl { get; set; }
+
+    [MaxLength(500)]
+    public string? ShopifyFeaturedImageAlt { get; set; }
+
+    [MaxLength(200)]
+    public string? ShopifySeoTitle { get; set; }
+
+    [MaxLength(500)]
+    public string? ShopifySeoDescription { get; set; }
+
+    public DateTime? ShopifyCreatedAtUtc { get; set; }
+
+    public DateTime? ShopifyUpdatedAtUtc { get; set; }
+
+    public DateTime? ShopifyPublishedAtUtc { get; set; }
+
+    public DateTime? ShopifyLastSyncedAtUtc { get; set; }
+
     public Guid ProductCategoryId { get; set; }
 
     public ProductCategory ProductCategory { get; set; } = null!;
@@ -49,4 +91,6 @@ public sealed class Product
     public string? UpdatedByUserId { get; set; }
 
     public ICollection<ProductAlternateName> AlternateNames { get; set; } = [];
+
+    public ICollection<ProductVariant> Variants { get; set; } = [];
 }

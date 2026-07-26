@@ -155,6 +155,59 @@ else
             <button type="submit" disabled="@Saving">@(Saving ? "Saving…" : "Save product")</button>
         </div>
     </EditForm>
+
+    @if (SourceProduct?.ShopifyProductId is not null)
+    {
+        <section class="panel shopify-source">
+            <div class="shopify-source-heading">
+                <div>
+                    <span class="panel-label">SHOPIFY SOURCE</span>
+                    <h3>@SourceProduct.ShopifyTitle</h3>
+                    <p>Read-only store information from the last successful sync. Editing the approved GHOS fields above does not change Shopify.</p>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(SourceProduct.ShopifyHandle))
+                {
+                    <a href="https://greenhillssupply.com/products/@SourceProduct.ShopifyHandle"
+                       target="_blank"
+                       rel="noopener">View product ↗</a>
+                }
+            </div>
+
+            <div class="shopify-source-meta">
+                <span><strong>Status</strong> @SourceProduct.ShopifyStatus</span>
+                <span><strong>Vendor</strong> @(SourceProduct.ShopifyVendor ?? "—")</span>
+                <span><strong>Type</strong> @(SourceProduct.ShopifyProductType ?? "—")</span>
+                <span><strong>Last synced</strong> @FormatTimestamp(SourceProduct.ShopifyLastSyncedAtUtc)</span>
+            </div>
+
+            @if (SourceProduct.Variants.Count > 0)
+            {
+                <div class="variant-table-wrap">
+                    <table class="variant-table">
+                        <thead>
+                            <tr>
+                                <th>Variant</th>
+                                <th>SKU</th>
+                                <th>Price</th>
+                                <th>Available online</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var variant in SourceProduct.Variants.OrderBy(item => item.SortOrder))
+                            {
+                                <tr>
+                                    <td>@variant.Title</td>
+                                    <td>@(variant.Sku ?? "—")</td>
+                                    <td>@variant.Price.ToString("C")</td>
+                                    <td>@(variant.AvailableForSale ? "Yes" : "No")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
 }
 
 @code {
@@ -168,6 +221,7 @@ else
     private bool NotFound { get; set; }
     private string? SaveError { get; set; }
     private int CurrentCompleteness { get; set; }
+    private Product? SourceProduct { get; set; }
     private bool IsNew => ProductId is null;
 
     protected override async Task OnInitializedAsync()
@@ -185,6 +239,7 @@ else
             var product = await dbContext.Products
                 .AsNoTracking()
                 .Include(item => item.AlternateNames)
+                .Include(item => item.Variants)
                 .SingleOrDefaultAsync(item => item.Id == ProductId);
 
             if (product is null)
@@ -211,6 +266,7 @@ else
                 AvailableBagged = product.AvailableBagged
             };
 
+            SourceProduct = product;
             CurrentCompleteness = ProductCompleteness.Calculate(product);
         }
 
@@ -318,4 +374,9 @@ else
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string FormatTimestamp(DateTime? timestamp) =>
+        timestamp is null
+            ? "Not recorded"
+            : timestamp.Value.ToLocalTime().ToString("MMM d, yyyy · h:mm tt");
 }

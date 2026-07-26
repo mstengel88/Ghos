@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using Ghos.Web.Auth;
 using Ghos.Web.Components;
 using Ghos.Web.Data;
+using Ghos.Web.Shopify;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,21 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+builder.Services.Configure<ShopifyOptions>(
+    builder.Configuration.GetSection(ShopifyOptions.SectionName));
+builder.Services.AddScoped<ShopifyCredentialStore>();
+builder.Services.AddHttpClient<ShopifyAccessTokenProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
+});
+builder.Services.AddHttpClient<ShopifyAdminClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(60);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
+});
+builder.Services.AddScoped<ShopifySyncService>();
 
 var dataProtectionKeyPath = builder.Configuration["DataProtection:KeyPath"]
     ?? "/var/lib/ghos/data-protection";

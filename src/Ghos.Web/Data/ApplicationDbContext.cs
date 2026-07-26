@@ -12,6 +12,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ProductAlternateName> ProductAlternateNames => Set<ProductAlternateName>();
 
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+
+    public DbSet<ShopifySyncRun> ShopifySyncRuns => Set<ShopifySyncRun>();
+
+    public DbSet<ShopifyConnectionSettings> ShopifyConnectionSettings => Set<ShopifyConnectionSettings>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -24,8 +30,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         builder.Entity<Product>(product =>
         {
-            product.HasIndex(item => item.Name).IsUnique();
+            product.HasIndex(item => item.Name);
             product.HasIndex(item => item.Slug).IsUnique();
+            product.HasIndex(item => item.ShopifyProductId)
+                .IsUnique()
+                .HasFilter("\"ShopifyProductId\" IS NOT NULL");
+            product.HasIndex(item => item.ShopifyHandle)
+                .HasFilter("\"ShopifyHandle\" IS NOT NULL");
             product.HasIndex(item => item.ProductCode)
                 .IsUnique()
                 .HasFilter("\"ProductCode\" IS NOT NULL");
@@ -45,6 +56,28 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(product => product.AlternateNames)
                 .HasForeignKey(item => item.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ProductVariant>(variant =>
+        {
+            variant.HasIndex(item => item.ShopifyVariantId).IsUnique();
+            variant.Property(item => item.Price).HasPrecision(18, 2);
+            variant.Property(item => item.CompareAtPrice).HasPrecision(18, 2);
+
+            variant.HasOne(item => item.Product)
+                .WithMany(product => product.Variants)
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ShopifySyncRun>(syncRun =>
+        {
+            syncRun.HasIndex(item => item.StartedAtUtc);
+        });
+
+        builder.Entity<ShopifyConnectionSettings>(settings =>
+        {
+            settings.ToTable("ShopifyConnectionSettings");
         });
     }
 }
