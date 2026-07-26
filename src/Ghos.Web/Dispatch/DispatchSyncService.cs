@@ -278,10 +278,22 @@ public sealed class DispatchSyncService(
             return DeliveryStatus.Cancelled;
         }
 
+        if (source.Status.Equals(
+                "delivered",
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrWhiteSpace(source.DeliveredAt) ||
+            source.DeliveryStatus.Equals(
+                "delivered",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return DeliveryStatus.Delivered;
+        }
+
         return source.DeliveryStatus.Trim().ToLowerInvariant() switch
         {
-            "delivered" => DeliveryStatus.Delivered,
-            "en_route" => DeliveryStatus.EnRoute,
+            "en_route" when
+                DispatchOperationalTime.IsCurrentEnRoute(source) =>
+                DeliveryStatus.EnRoute,
             _ when !string.IsNullOrWhiteSpace(
                 source.AssignedRouteId) =>
                 DeliveryStatus.Scheduled,

@@ -26,29 +26,32 @@
 else
 {
     var visibleDeliveries = GetVisibleDeliveries();
+    var currentDeliveries = DeliveryItems
+        .Where(DispatchOperationalTime.IsCurrentWork)
+        .ToList();
     <section class="delivery-summary">
         <article>
             <span>Unscheduled</span>
-            <strong>@DeliveryItems.Count(item =>
+            <strong>@currentDeliveries.Count(item =>
                 item.Status == DeliveryStatus.Unscheduled)</strong>
-            <small>Waiting for a route</small>
+            <small>Current work waiting for a route</small>
         </article>
         <article>
             <span>Scheduled</span>
-            <strong>@DeliveryItems.Count(item =>
+            <strong>@currentDeliveries.Count(item =>
                 item.Status == DeliveryStatus.Scheduled)</strong>
             <small>Assigned and not started</small>
         </article>
         <article>
             <span>On the road</span>
-            <strong>@DeliveryItems.Count(item =>
+            <strong>@currentDeliveries.Count(item =>
                 item.Status is DeliveryStatus.EnRoute or
                     DeliveryStatus.Arrived)</strong>
             <small>En route or at the jobsite</small>
         </article>
         <article>
             <span>Issues</span>
-            <strong>@DeliveryItems.Count(item =>
+            <strong>@currentDeliveries.Count(item =>
                 item.Status == DeliveryStatus.Issue)</strong>
             <small>Needs dispatcher attention</small>
         </article>
@@ -66,8 +69,8 @@ else
                 <label>
                     <span>Delivery status</span>
                     <select @bind="StatusFilter">
-                        <option value="Active">Active</option>
-                        <option value="All">All</option>
+                        <option value="Current">Current work</option>
+                        <option value="All">All history</option>
                         @foreach (var status in Enum.GetValues<DeliveryStatus>())
                         {
                             <option value="@status.ToString()">@GetStatusLabel(status)</option>
@@ -231,7 +234,7 @@ else
     private Delivery? SelectedDelivery =>
         DeliveryItems.FirstOrDefault(item => item.Id == SelectedDeliveryId);
     private string SearchText { get; set; } = string.Empty;
-    private string StatusFilter { get; set; } = "Active";
+    private string StatusFilter { get; set; } = "Current";
     private bool Loading { get; set; } = true;
 
     protected override async Task OnInitializedAsync()
@@ -256,9 +259,8 @@ else
         var query = DeliveryItems.AsEnumerable();
         query = StatusFilter switch
         {
-            "Active" => query.Where(item =>
-                item.Status is not DeliveryStatus.Delivered and
-                    not DeliveryStatus.Cancelled),
+            "Current" => query.Where(
+                DispatchOperationalTime.IsCurrentWork),
             "All" => query,
             _ when Enum.TryParse<DeliveryStatus>(
                 StatusFilter,

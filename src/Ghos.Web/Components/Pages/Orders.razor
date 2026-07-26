@@ -25,24 +25,25 @@
 else
 {
     var visibleOrders = GetVisibleOrders();
+    var currentOrders = OrderItems
+        .Where(IsCurrentOrder)
+        .ToList();
     <section class="order-summary">
         <article>
             <span>Active orders</span>
-            <strong>@OrderItems.Count(item => item.Status is not
-                SalesOrderStatus.Delivered and not
-                SalesOrderStatus.Cancelled)</strong>
-            <small>Open across all connected sources</small>
+            <strong>@currentOrders.Count</strong>
+            <small>Current and upcoming work</small>
         </article>
         <article>
             <span>Needs scheduling</span>
-            <strong>@OrderItems.Count(item =>
+            <strong>@currentOrders.Count(item =>
                 item.Deliveries.Any(delivery =>
                     delivery.Status == DeliveryStatus.Unscheduled))</strong>
-            <small>Orders with an unscheduled ticket</small>
+            <small>Current orders awaiting a route</small>
         </article>
         <article>
             <span>Out for delivery</span>
-            <strong>@OrderItems.Sum(item =>
+            <strong>@currentOrders.Sum(item =>
                 item.Deliveries.Count(delivery =>
                     delivery.Status is DeliveryStatus.EnRoute or
                         DeliveryStatus.Arrived))</strong>
@@ -68,8 +69,8 @@ else
                 <label>
                     <span>Status</span>
                     <select @bind="StatusFilter">
-                        <option value="Active">Active</option>
-                        <option value="All">All</option>
+                        <option value="Current">Current work</option>
+                        <option value="All">All history</option>
                         @foreach (var status in Enum.GetValues<SalesOrderStatus>())
                         {
                             <option value="@status.ToString()">@GetStatusLabel(status)</option>
@@ -209,7 +210,7 @@ else
     private SalesOrder? SelectedOrder =>
         OrderItems.FirstOrDefault(item => item.Id == SelectedOrderId);
     private string SearchText { get; set; } = string.Empty;
-    private string StatusFilter { get; set; } = "Active";
+    private string StatusFilter { get; set; } = "Current";
     private bool Loading { get; set; } = true;
 
     protected override async Task OnInitializedAsync()
@@ -232,9 +233,7 @@ else
         var query = OrderItems.AsEnumerable();
         query = StatusFilter switch
         {
-            "Active" => query.Where(item =>
-                item.Status is not SalesOrderStatus.Delivered and
-                    not SalesOrderStatus.Cancelled),
+            "Current" => query.Where(IsCurrentOrder),
             "All" => query,
             _ when Enum.TryParse<SalesOrderStatus>(
                 StatusFilter,
@@ -264,6 +263,13 @@ else
 
         return query.ToList();
     }
+
+    private static bool IsCurrentOrder(SalesOrder order) =>
+        order.Status is not SalesOrderStatus.Delivered and
+            not SalesOrderStatus.Cancelled &&
+        (order.Deliveries.Count == 0 ||
+            order.Deliveries.Any(
+                DispatchOperationalTime.IsCurrentWork));
 
     private void SelectOrder(Guid id) => SelectedOrderId = id;
 
