@@ -59,6 +59,8 @@ public static class DatabaseInitializer
             dbContext.ProductCategories.AddRange(missingCategories);
             await dbContext.SaveChangesAsync();
         }
+
+        await SeedTomorrowMaterialMondayAsync(dbContext);
     }
 
     private static ProductCategory CreateCategory(string name, string slug, int sortOrder) =>
@@ -68,4 +70,106 @@ public static class DatabaseInitializer
             Slug = slug,
             SortOrder = sortOrder
         };
+
+    private static async Task SeedTomorrowMaterialMondayAsync(
+        ApplicationDbContext dbContext)
+    {
+        const string contentSlug = "material-monday-1-stone-2026-07-27";
+
+        if (await dbContext.MarketingContentPackages.AnyAsync(content =>
+            content.Slug == contentSlug))
+        {
+            return;
+        }
+
+        var product = await dbContext.Products
+            .Include(item => item.AssetLinks)
+                .ThenInclude(link => link.DigitalAsset)
+            .SingleOrDefaultAsync(item => item.Slug == "1-stone");
+
+        if (product is null)
+        {
+            return;
+        }
+
+        var primaryAsset = product.AssetLinks
+            .Where(link =>
+                link.IsPrimary &&
+                link.DigitalAsset.Kind == AssetKind.Image &&
+                link.DigitalAsset.Status == AssetStatus.Approved)
+            .Select(link => link.DigitalAsset)
+            .FirstOrDefault();
+        var now = DateTime.UtcNow;
+
+        dbContext.MarketingContentPackages.Add(new MarketingContentPackage
+        {
+            Slug = contentSlug,
+            Title = "Material Monday — #1 Stone",
+            Series = "Material Monday",
+            TemplateKey = "material-monday",
+            Status = MarketingContentStatus.ReadyForReview,
+            ScheduledForUtc = new DateTime(2026, 7, 27, 13, 0, 0, DateTimeKind.Utc),
+            ProductId = product.Id,
+            DigitalAssetId = primaryAsset?.Id,
+            Headline = "#1 STONE",
+            Subheadline = "Clean crushed limestone · 3/8″–1″",
+            AlternateName = "Also known as #57 Stone",
+            FactItems = string.Join(
+                Environment.NewLine,
+                "Drainage",
+                "Pipe bedding",
+                "Backfill",
+                "Landscape features"),
+            FacebookCaption =
+                """
+                🪨 Material Monday: #1 Stone
+
+                Need a dependable material for drainage or structural support? Our #1 Stone is a clean crushed limestone ranging from 3/8″ to 1″.
+
+                It’s a versatile choice for:
+                ✔ French drains and septic systems
+                ✔ Pipe bedding and backfill
+                ✔ Garden beds and walkways
+                ✔ Other construction and landscape projects
+
+                Not sure how much you need? Tell us about your project and our team will help you plan it.
+
+                Learn more: https://greenhillssupply.com/products/1-stone
+                """,
+            InstagramCaption =
+                """
+                Material Monday 🪨
+
+                #1 Stone—also known as #57 Stone—is a clean crushed limestone ranging from 3/8″ to 1″.
+
+                Use it for drainage, pipe bedding, backfill, garden beds, walkways, and more.
+
+                Planning a project? Our team can help you choose the right material and estimate how much you need.
+
+                Learn more at the link in our bio.
+                """,
+            StoryPrompt =
+                "What are you building with #1 Stone? | Drainage | Landscape",
+            ReelScript =
+                """
+                HOOK — On-screen text: “Need stone for drainage?”
+
+                SHOW — Close-up of #1 Stone, then the loader filling a truck.
+
+                VOICEOVER — “Our #1 Stone is a clean crushed limestone ranging from three-eighths of an inch to one inch. It’s a dependable choice for French drains, septic systems, pipe bedding, backfill, and landscape features.”
+
+                CLOSE — On-screen text: “#1 Stone · Pickup or delivery · Green Hills Supply”
+
+                CTA — “Tell us about your project and we’ll help you plan the right amount.”
+                """,
+            Hashtags =
+                "#GreenHillsSupply #MaterialMonday #1Stone #57Stone #LandscapeSupply #Drainage #WisconsinLandscaping",
+            CallToAction = "Plan your project with Green Hills Supply",
+            DestinationUrl = "https://greenhillssupply.com/products/1-stone",
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+
+        await dbContext.SaveChangesAsync();
+    }
 }

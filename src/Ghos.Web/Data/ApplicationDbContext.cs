@@ -28,6 +28,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<BulkOperation> BulkOperations => Set<BulkOperation>();
 
+    public DbSet<MarketingContentPackage> MarketingContentPackages =>
+        Set<MarketingContentPackage>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -151,6 +154,26 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             operation.HasIndex(item => item.PerformedAtUtc);
             operation.HasIndex(item => new { item.TargetType, item.PerformedAtUtc });
+        });
+
+        builder.Entity<MarketingContentPackage>(content =>
+        {
+            content.HasIndex(item => item.Slug).IsUnique();
+            content.HasIndex(item => item.ScheduledForUtc);
+            content.HasIndex(item => new { item.Status, item.ScheduledForUtc });
+            content.Property(item => item.Status)
+                .HasConversion<string>()
+                .HasMaxLength(32);
+
+            content.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            content.HasOne(item => item.DigitalAsset)
+                .WithMany()
+                .HasForeignKey(item => item.DigitalAssetId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

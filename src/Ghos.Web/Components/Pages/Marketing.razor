@@ -1,10 +1,438 @@
 @page "/marketing"
+@rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.Marketing)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
-<PageTitle>Marketing | GHOS</PageTitle>
+<PageTitle>Marketing Studio | GHOS</PageTitle>
 
-<div class="panel">
-    <span class="panel-label">GHOS MODULE</span>
-    <h2>Marketing</h2>
-    <p>This module is ready for development.</p>
+<div class="studio-heading">
+    <div>
+        <span class="panel-label">GREEN HILLS CONTENT WORKSPACE</span>
+        <h2>Marketing Studio</h2>
+        <p>Build accurate campaigns from approved products and assets, review every channel together, and keep publication status visible to the team.</p>
+    </div>
+    @if (Content is not null)
+    {
+        <div class="tomorrow-badge">
+            <span>TOMORROW’S POST</span>
+            <strong>@FormatLocalDate(Content.ScheduledForUtc)</strong>
+        </div>
+    }
 </div>
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="module-notice" role="status">@SuccessMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="auth-alert" role="alert">@ErrorMessage</div>
+}
+
+@if (Loading)
+{
+    <section class="panel studio-empty">Preparing the Marketing Studio…</section>
+}
+else if (Content is null)
+{
+    <section class="panel studio-empty">
+        <h3>No content package is ready yet</h3>
+        <p>The first Material Monday package will appear when #1 Stone is available in the GHOS product catalog.</p>
+    </section>
+}
+else
+{
+    <section class="studio-summary">
+        <article>
+            <span>Package status</span>
+            <strong class="status-text @Content.Status.ToString().ToLowerInvariant()">@FormatStatus(Content.Status)</strong>
+        </article>
+        <article>
+            <span>Planned time</span>
+            <strong>@FormatLocalTime(Content.ScheduledForUtc)</strong>
+        </article>
+        <article>
+            <span>Creative formats</span>
+            <strong>@MarketingTemplateCatalog.All.Count</strong>
+        </article>
+        <article>
+            <span>Approved product asset</span>
+            <strong>@(Content.DigitalAsset is null ? "Missing" : "Ready")</strong>
+        </article>
+    </section>
+
+    <div class="studio-grid">
+        <section class="creative-column">
+            <div class="format-tabs" role="tablist" aria-label="Creative format">
+                @foreach (var template in MarketingTemplateCatalog.All)
+                {
+                    <button type="button"
+                            class="@(SelectedTemplateKey == template.Key ? "active" : null)"
+                            @onclick="() => SelectedTemplateKey = template.Key">
+                        <span>@template.Format</span>
+                        <strong>@template.Width × @template.Height</strong>
+                    </button>
+                }
+            </div>
+
+            <section class="panel creative-workbench">
+                <div class="workbench-heading">
+                    <div>
+                        <span class="panel-label">LIVE TEMPLATE PREVIEW</span>
+                        <h3>@SelectedTemplate.Name</h3>
+                    </div>
+                    <span>@SelectedTemplate.Purpose</span>
+                </div>
+
+                <div class="creative-stage @GetPreviewClass()">
+                    <article class="material-card">
+                        @if (Content.DigitalAsset is not null)
+                        {
+                            <img src="/asset-files/@Content.DigitalAsset.Id"
+                                 alt="@Content.DigitalAsset.Title" />
+                        }
+                        else
+                        {
+                            <div class="missing-photo">Approved product image needed</div>
+                        }
+                        <div class="photo-shade"></div>
+                        <div class="series-ribbon">
+                            <span>MATERIAL</span>
+                            <strong>MONDAY</strong>
+                        </div>
+                        <div class="guide-number">MATERIAL GUIDE · 001</div>
+                        <div class="creative-copy">
+                            <span class="alternate-name">@Content.AlternateName</span>
+                            <h3>@Content.Headline</h3>
+                            <p>@Content.Subheadline</p>
+                            @if (SelectedTemplateKey == "material-monday-square")
+                            {
+                                <div class="fact-grid">
+                                    @foreach (var fact in GetFactItems())
+                                    {
+                                        <span><i>✓</i>@fact</span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="vertical-cta">@Content.CallToAction</div>
+                            }
+                        </div>
+                        <footer>
+                            <div class="mini-logo">GH</div>
+                            <div>
+                                <strong>GREEN HILLS SUPPLY</strong>
+                                <span>Built for Contractors. Trusted by Homeowners.</span>
+                            </div>
+                        </footer>
+                    </article>
+                </div>
+
+                <div class="template-spec">
+                    <div>
+                        <span>Canvas</span>
+                        <strong>@SelectedTemplate.Width × @SelectedTemplate.Height px</strong>
+                    </div>
+                    <div>
+                        <span>Brand green</span>
+                        <strong>#9BC623</strong>
+                    </div>
+                    <div>
+                        <span>Source asset</span>
+                        <strong>@(Content.DigitalAsset?.OriginalFileName ?? "Not assigned")</strong>
+                    </div>
+                </div>
+                @if (Content.DigitalAsset is not null)
+                {
+                    <a class="download-creative"
+                       href="@GetDownloadUrl()">
+                        Download full-size @SelectedTemplate.Format SVG
+                    </a>
+                }
+            </section>
+        </section>
+
+        <EditForm Model="Content" OnValidSubmit="SaveAsync" class="editor-column">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="validation-summary" />
+
+            <section class="panel editor-section">
+                <div class="section-heading">
+                    <div>
+                        <span class="panel-label">CREATIVE COPY</span>
+                        <h3>Fact card content</h3>
+                    </div>
+                    <span>Changes update every format.</span>
+                </div>
+                <div class="field-grid">
+                    <label>
+                        <span>Headline</span>
+                        <InputText @bind-Value="Content.Headline" />
+                    </label>
+                    <label>
+                        <span>Alternate name</span>
+                        <InputText @bind-Value="Content.AlternateName" />
+                    </label>
+                    <label class="wide">
+                        <span>Subheadline</span>
+                        <InputText @bind-Value="Content.Subheadline" />
+                    </label>
+                    <label class="wide">
+                        <span>Fact items</span>
+                        <InputTextArea @bind-Value="Content.FactItems" rows="4" />
+                        <small>One verified use per line.</small>
+                    </label>
+                    <label class="wide">
+                        <span>Call to action</span>
+                        <InputText @bind-Value="Content.CallToAction" />
+                    </label>
+                </div>
+            </section>
+
+            <section class="panel editor-section">
+                <div class="section-heading">
+                    <div>
+                        <span class="panel-label">CHANNEL COPY</span>
+                        <h3>Ready-to-publish captions</h3>
+                    </div>
+                </div>
+                <div class="channel-block">
+                    <div>
+                        <strong>Facebook</strong>
+                        <span>@Content.FacebookCaption.Length / 4,000</span>
+                    </div>
+                    <InputTextArea @bind-Value="Content.FacebookCaption" rows="12" />
+                </div>
+                <div class="channel-block">
+                    <div>
+                        <strong>Instagram</strong>
+                        <span>@Content.InstagramCaption.Length / 2,200</span>
+                    </div>
+                    <InputTextArea @bind-Value="Content.InstagramCaption" rows="10" />
+                </div>
+                <div class="channel-block compact">
+                    <div><strong>Hashtags</strong></div>
+                    <InputTextArea @bind-Value="Content.Hashtags" rows="3" />
+                </div>
+            </section>
+
+            <section class="panel editor-section">
+                <div class="section-heading">
+                    <div>
+                        <span class="panel-label">SHORT-FORM VIDEO</span>
+                        <h3>Story and Reel plan</h3>
+                    </div>
+                </div>
+                <label class="stacked-field">
+                    <span>Story prompt</span>
+                    <InputTextArea @bind-Value="Content.StoryPrompt" rows="3" />
+                </label>
+                <label class="stacked-field">
+                    <span>Reel script and shot list</span>
+                    <InputTextArea @bind-Value="Content.ReelScript" rows="11" />
+                </label>
+            </section>
+
+            <section class="panel readiness-panel">
+                <div>
+                    <span class="panel-label">PUBLICATION READINESS</span>
+                    <h3>@GetReadinessHeading()</h3>
+                    <p>GHOS records approval and the planned time. It does not publish to social accounts automatically.</p>
+                </div>
+                <div class="readiness-checks">
+                    <span class="ready">✓ Verified #1 Stone product information</span>
+                    <span class="@(Content.DigitalAsset is null ? "missing" : "ready")">
+                        @(Content.DigitalAsset is null ? "○ Approved image needed" : "✓ Approved primary image")
+                    </span>
+                    <span class="ready">✓ Facebook, Instagram, Story, and Reel copy</span>
+                    <span class="ready">✓ Correct product link</span>
+                </div>
+                <div class="editor-actions">
+                    <button class="save-button" type="submit" disabled="@Saving">
+                        @(Saving ? "Saving…" : "Save changes")
+                    </button>
+                    @if (Content.Status != MarketingContentStatus.Scheduled)
+                    {
+                        <button class="schedule-button"
+                                type="button"
+                                disabled="@(Saving || Content.DigitalAsset is null)"
+                                @onclick="ApproveAndScheduleAsync">
+                            Approve for tomorrow
+                        </button>
+                    }
+                </div>
+            </section>
+        </EditForm>
+    </div>
+}
+
+@code {
+    private static readonly TimeZoneInfo CentralTime =
+        TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+
+    private MarketingContentPackage? Content { get; set; }
+    private bool Loading { get; set; } = true;
+    private bool Saving { get; set; }
+    private string SelectedTemplateKey { get; set; } =
+        "material-monday-square";
+    private string? SuccessMessage { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    private MarketingTemplateDefinition SelectedTemplate =>
+        MarketingTemplateCatalog.All.Single(template =>
+            template.Key == SelectedTemplateKey);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Content = await dbContext.MarketingContentPackages
+            .Include(content => content.Product)
+            .Include(content => content.DigitalAsset)
+            .OrderBy(content => content.ScheduledForUtc)
+            .FirstOrDefaultAsync(content =>
+                content.Slug == "material-monday-1-stone-2026-07-27");
+        Loading = false;
+    }
+
+    private async Task SaveAsync() =>
+        await PersistAsync(markScheduled: false);
+
+    private async Task ApproveAndScheduleAsync()
+    {
+        if (Content?.DigitalAsset is null)
+        {
+            ErrorMessage = "Assign an approved product image before scheduling.";
+            return;
+        }
+
+        await PersistAsync(markScheduled: true);
+    }
+
+    private async Task PersistAsync(bool markScheduled)
+    {
+        if (Content is null)
+        {
+            return;
+        }
+
+        Saving = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var stored = await dbContext.MarketingContentPackages
+                .SingleAsync(content => content.Id == Content.Id);
+            var now = DateTime.UtcNow;
+
+            stored.Headline = Content.Headline.Trim();
+            stored.Subheadline = NullIfWhiteSpace(Content.Subheadline);
+            stored.AlternateName = NullIfWhiteSpace(Content.AlternateName);
+            stored.FactItems = NormalizeLines(Content.FactItems);
+            stored.FacebookCaption = Content.FacebookCaption.Trim();
+            stored.InstagramCaption = Content.InstagramCaption.Trim();
+            stored.StoryPrompt = Content.StoryPrompt.Trim();
+            stored.ReelScript = Content.ReelScript.Trim();
+            stored.Hashtags = NullIfWhiteSpace(Content.Hashtags);
+            stored.CallToAction = Content.CallToAction.Trim();
+            stored.UpdatedAtUtc = now;
+            stored.UpdatedByUserId = userId;
+
+            if (markScheduled)
+            {
+                stored.Status = MarketingContentStatus.Scheduled;
+                stored.ApprovedAtUtc = now;
+                stored.ApprovedByUserId = userId;
+            }
+            else if (stored.Status == MarketingContentStatus.Draft)
+            {
+                stored.Status = MarketingContentStatus.ReadyForReview;
+            }
+
+            await dbContext.SaveChangesAsync();
+            SuccessMessage = markScheduled
+                ? "Tomorrow’s Material Monday package is approved and queued in GHOS."
+                : "Marketing package saved successfully.";
+            await LoadAsync();
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage = "The marketing package could not be saved. Nothing was published.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private IReadOnlyList<string> GetFactItems() =>
+        (Content?.FactItems ?? string.Empty)
+            .Split(
+                ['\r', '\n'],
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries)
+            .Take(4)
+            .ToList();
+
+    private string GetPreviewClass() =>
+        SelectedTemplateKey switch
+        {
+            "material-monday-square" => "square",
+            "material-monday-story" => "story",
+            _ => "reel"
+        };
+
+    private string GetDownloadUrl() =>
+        $"/marketing-content/{Content!.Id}/creative/{SelectedTemplateKey}.svg";
+
+    private string GetReadinessHeading() =>
+        Content?.Status == MarketingContentStatus.Scheduled
+            ? "Approved and queued for tomorrow"
+            : "Ready for final team approval";
+
+    private static string FormatStatus(MarketingContentStatus status) =>
+        status switch
+        {
+            MarketingContentStatus.ReadyForReview => "Ready for review",
+            _ => status.ToString()
+        };
+
+    private static string FormatLocalDate(DateTime? utc) =>
+        utc is null
+            ? "Not scheduled"
+            : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
+                .ToString("dddd, MMMM d");
+
+    private static string FormatLocalTime(DateTime? utc) =>
+        utc is null
+            ? "Not scheduled"
+            : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
+                .ToString("h:mm tt 'CT'");
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string? NormalizeLines(string? value)
+    {
+        var lines = (value ?? string.Empty)
+            .Split(
+                ['\r', '\n'],
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries);
+        return lines.Length == 0
+            ? null
+            : string.Join(Environment.NewLine, lines);
+    }
+}
