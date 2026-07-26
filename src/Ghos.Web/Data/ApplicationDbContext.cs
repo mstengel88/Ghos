@@ -22,6 +22,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<AssetProductLink> AssetProductLinks => Set<AssetProductLink>();
 
+    public DbSet<BulkOperation> BulkOperations => Set<BulkOperation>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -116,6 +118,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(product => product.AssetLinks)
                 .HasForeignKey(item => item.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<BulkOperation>(operation =>
+        {
+            operation.HasIndex(item => item.PerformedAtUtc);
+            operation.HasIndex(item => new { item.TargetType, item.PerformedAtUtc });
         });
     }
 }

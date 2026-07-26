@@ -3,6 +3,7 @@ using Ghos.Web.Assets;
 using Ghos.Web.Auth;
 using Ghos.Web.Components;
 using Ghos.Web.Data;
+using Ghos.Web.Exports;
 using Ghos.Web.Shopify;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -148,6 +149,7 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapAccountEndpoints();
 app.MapAssetEndpoints();
+app.MapCsvExportEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

@@ -18,6 +18,7 @@
     <div class="selection-count">
         <strong>@SelectedIds.Count</strong>
         <span>selected</span>
+        <a href="/exports/products.csv">Export CSV</a>
     </div>
 </div>
 
@@ -105,7 +106,7 @@
     <section class="panel confirmation-panel">
         <div>
             <span class="panel-label">CONFIRM BULK UPDATE</span>
-            <h3>@SelectedIds.Count products will be updated</h3>
+            <h3>@SelectedIds.Count @(SelectedIds.Count == 1 ? "product" : "products") will be updated</h3>
             <ul>
                 @foreach (var description in ActionDescriptions)
                 {
@@ -221,9 +222,45 @@
     }
 </section>
 
+<section class="panel history-panel">
+    <div class="section-heading">
+        <div>
+            <span class="panel-label">AUDIT TRAIL</span>
+            <h3>Recent product bulk updates</h3>
+        </div>
+        <span>The latest 10 completed operations.</span>
+    </div>
+
+    @if (RecentOperations.Count == 0)
+    {
+        <div class="records-empty">No product bulk updates have been recorded yet.</div>
+    }
+    else
+    {
+        <div class="history-list">
+            @foreach (var operation in RecentOperations)
+            {
+                <article>
+                    <div>
+                        <strong>@operation.RecordCount @(operation.RecordCount == 1 ? "product" : "products")</strong>
+                        <p>@operation.Summary</p>
+                    </div>
+                    <div class="history-meta">
+                        <span>@operation.PerformedByName</span>
+                        <time datetime="@operation.PerformedAtUtc.ToString("O")">
+                            @operation.PerformedAtUtc.ToString("MMM d, yyyy · h:mm tt 'UTC'")
+                        </time>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
 @code {
     private List<Product> Products { get; set; } = [];
     private List<ProductCategory> Categories { get; set; } = [];
+    private List<BulkOperation> RecentOperations { get; set; } = [];
     private HashSet<Guid> SelectedIds { get; set; } = [];
     private bool Loading { get; set; } = true;
     private bool ReviewingChanges { get; set; }
@@ -297,6 +334,12 @@
             .AsNoTracking()
             .Include(product => product.ProductCategory)
             .OrderBy(product => product.Name)
+            .ToListAsync();
+        RecentOperations = await dbContext.BulkOperations
+            .AsNoTracking()
+            .Where(operation => operation.TargetType == BulkOperationTargets.Products)
+            .OrderByDescending(operation => operation.PerformedAtUtc)
+            .Take(10)
             .ToListAsync();
         Loading = false;
     }
@@ -375,13 +418,23 @@
         try
         {
             await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            await using var transaction = await dbContext.Database.BeginTransactionAsync();
             var selectedIds = SelectedIds.ToList();
             var products = await dbContext.Products
                 .Where(product => selectedIds.Contains(product.Id))
                 .ToListAsync();
+            if (products.Count != selectedIds.Count)
+            {
+                ErrorMessage = "One or more selected products are no longer available. Reload the page and try again.";
+                return;
+            }
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userName = authenticationState.User.FindFirstValue("display_name")
+                ?? authenticationState.User.Identity?.Name
+                ?? "GHOS user";
             var now = DateTime.UtcNow;
+            var operationSummary = string.Join(" ", ActionDescriptions);
 
             foreach (var product in products)
             {
@@ -395,7 +448,18 @@
                 product.UpdatedByUserId = userId;
             }
 
+            dbContext.BulkOperations.Add(new BulkOperation
+            {
+                TargetType = BulkOperationTargets.Products,
+                Summary = operationSummary,
+                RecordCount = products.Count,
+                PerformedAtUtc = now,
+                PerformedByUserId = userId,
+                PerformedByName = userName
+            });
+
             await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
             ResultMessage = $"{products.Count} {(products.Count == 1 ? "product" : "products")} updated successfully.";
             SelectedIds.Clear();
             ResetActions();
