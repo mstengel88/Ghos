@@ -224,7 +224,9 @@ else
             .OrderByDescending(item => item.SourceUpdatedAtUtc)
             .ThenByDescending(item => item.UpdatedAtUtc)
             .ToListAsync();
-        SelectedOrderId = OrderItems.FirstOrDefault()?.Id;
+        SelectedOrderId =
+            OrderItems.FirstOrDefault(IsCurrentOrder)?.Id ??
+            OrderItems.FirstOrDefault()?.Id;
         Loading = false;
     }
 

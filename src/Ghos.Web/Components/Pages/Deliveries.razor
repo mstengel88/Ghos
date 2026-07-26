@@ -250,7 +250,9 @@ else
         SelectedDeliveryId = DeliveryItems.Any(item =>
                 item.Id == RequestedDeliveryId)
             ? RequestedDeliveryId
-            : DeliveryItems.FirstOrDefault()?.Id;
+            : DeliveryItems.FirstOrDefault(
+                    DispatchOperationalTime.IsCurrentWork)?.Id ??
+                DeliveryItems.FirstOrDefault()?.Id;
         Loading = false;
     }
 
