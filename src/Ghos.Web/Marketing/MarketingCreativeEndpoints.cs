@@ -93,6 +93,9 @@ public static class MarketingCreativeEndpoints
         var footerHeight = vertical ? 150 : 125;
         var layoutSettings = MarketingLayoutSettings.Parse(
             content.LayoutSettingsJson);
+        var imageLayout = GetImageLayout(
+            layoutSettings,
+            template);
         var alternateLayout = GetLayout(
             layoutSettings,
             template.Key,
@@ -159,7 +162,10 @@ public static class MarketingCreativeEndpoints
                 </style>
               </defs>
               <image href="{{imageData}}"
-                     x="0" y="0" width="{{width}}" height="{{height}}"
+                     x="{{F(imageLayout.X - ((imageLayout.Scale - 1) * width / 2))}}"
+                     y="{{F(imageLayout.Y - ((imageLayout.Scale - 1) * height / 2))}}"
+                     width="{{F(width * imageLayout.Scale)}}"
+                     height="{{F(height * imageLayout.Scale)}}"
                      preserveAspectRatio="xMidYMid slice" />
               <rect x="0" y="0" width="{{width}}" height="{{height}}" fill="url(#shade)" />
 
@@ -192,6 +198,17 @@ public static class MarketingCreativeEndpoints
     {
         var layout = settings.GetOrCreate(templateKey, elementKey);
         layout.Normalize();
+        return layout;
+    }
+
+    private static MarketingElementLayout GetImageLayout(
+        MarketingLayoutSettings settings,
+        MarketingTemplateDefinition template)
+    {
+        var layout = settings.GetOrCreate(
+            template.Key,
+            MarketingLayoutElementKeys.BackgroundImage);
+        layout.NormalizeImage(template.Width, template.Height);
         return layout;
     }
 

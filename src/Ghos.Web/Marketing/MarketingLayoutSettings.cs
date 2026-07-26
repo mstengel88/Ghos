@@ -4,6 +4,7 @@ namespace Ghos.Web.Marketing;
 
 public static class MarketingLayoutElementKeys
 {
+    public const string BackgroundImage = "background-image";
     public const string AlternateName = "alternate-name";
     public const string Headline = "headline";
     public const string Subheadline = "subheadline";
@@ -98,5 +99,14 @@ public sealed class MarketingElementLayout
         X = Math.Clamp(X, -600, 600);
         Y = Math.Clamp(Y, -900, 900);
         Scale = Math.Clamp(Scale, .45, 1.75);
+    }
+
+    public void NormalizeImage(int canvasWidth, int canvasHeight)
+    {
+        Scale = Math.Clamp(Scale, 1, 2.5);
+        var maximumX = (Scale - 1) * canvasWidth / 2;
+        var maximumY = (Scale - 1) * canvasHeight / 2;
+        X = Math.Clamp(X, -maximumX, maximumX);
+        Y = Math.Clamp(Y, -maximumY, maximumY);
     }
 }

@@ -184,7 +184,8 @@ else
                         @if (Content.DigitalAsset is not null)
                         {
                             <img src="/asset-files/@Content.DigitalAsset.Id"
-                                 alt="@Content.DigitalAsset.Title" />
+                                 alt="@Content.DigitalAsset.Title"
+                                 style="@GetImageLayoutStyle()" />
                         }
                         else
                         {
@@ -295,6 +296,70 @@ else
                             Reset selected
                         </button>
                     </div>
+                </div>
+
+                <div class="image-editor" aria-label="Creative image controls">
+                    <div class="image-editor-heading">
+                        <div>
+                            <span class="panel-label">CREATIVE IMAGE</span>
+                            <strong>Choose and frame the product photo</strong>
+                        </div>
+                        <span>Each format keeps its own crop.</span>
+                    </div>
+                    @{
+                        var approvedImages = GetApprovedProductImages();
+                    }
+                    <label class="asset-select">
+                        <span>Approved product image</span>
+                        <select value="@Content.DigitalAssetId"
+                                @onchange="ChangeCreativeAsset">
+                            @if (approvedImages.Count == 0)
+                            {
+                                <option value="">No approved linked images</option>
+                            }
+                            @foreach (var asset in approvedImages)
+                            {
+                                <option value="@asset.Id">@asset.Title · @asset.OriginalFileName</option>
+                            }
+                        </select>
+                    </label>
+                    <div class="image-control-grid">
+                        <label>
+                            <span>Zoom</span>
+                            <input type="range"
+                                   min="100"
+                                   max="250"
+                                   step="1"
+                                   value="@GetImageScalePercent()"
+                                   @oninput="UpdateImageScale" />
+                            <strong>@GetImageScalePercent()%</strong>
+                        </label>
+                        <label>
+                            <span>Move left / right</span>
+                            <input type="range"
+                                   min="-300"
+                                   max="300"
+                                   step="5"
+                                   value="@GetImageOffsetX()"
+                                   @oninput="UpdateImageOffsetX" />
+                            <strong>@GetImageOffsetX() px</strong>
+                        </label>
+                        <label>
+                            <span>Move up / down</span>
+                            <input type="range"
+                                   min="-450"
+                                   max="450"
+                                   step="5"
+                                   value="@GetImageOffsetY()"
+                                   @oninput="UpdateImageOffsetY" />
+                            <strong>@GetImageOffsetY() px</strong>
+                        </label>
+                    </div>
+                    <button type="button"
+                            class="reset-image-button"
+                            @onclick="ResetImageLayout">
+                        Reset image crop
+                    </button>
                 </div>
 
                 <div class="template-spec">
@@ -636,6 +701,7 @@ else
             stored.ReelScript = Content.ReelScript.Trim();
             stored.Hashtags = NullIfWhiteSpace(Content.Hashtags);
             stored.CallToAction = Content.CallToAction.Trim();
+            stored.DigitalAssetId = Content.DigitalAssetId;
             stored.LayoutSettingsJson = LayoutSettings.ToJson();
             stored.UpdatedAtUtc = now;
             stored.UpdatedByUserId = userId;
@@ -946,6 +1012,143 @@ else
             elementKey);
         layout.Normalize();
         return layout;
+    }
+
+    private MarketingElementLayout GetImageLayout()
+    {
+        var layout = LayoutSettings.GetOrCreate(
+            SelectedTemplateKey,
+            MarketingLayoutElementKeys.BackgroundImage);
+        layout.NormalizeImage(
+            SelectedTemplate.Width,
+            SelectedTemplate.Height);
+        return layout;
+    }
+
+    private string GetImageLayoutStyle()
+    {
+        var layout = GetImageLayout();
+        var x = layout.X / SelectedTemplate.Width * 100;
+        var y = layout.Y / SelectedTemplate.Height * 100;
+        return FormattableString.Invariant(
+            $"transform:translate({x:0.###}%, {y:0.###}%) scale({layout.Scale:0.###});");
+    }
+
+    private int GetImageScalePercent() =>
+        (int)Math.Round(GetImageLayout().Scale * 100);
+
+    private int GetImageOffsetX() =>
+        (int)Math.Round(GetImageLayout().X);
+
+    private int GetImageOffsetY() =>
+        (int)Math.Round(GetImageLayout().Y);
+
+    private void UpdateImageScale(ChangeEventArgs args)
+    {
+        if (!TryParseRangeValue(args, out var value))
+        {
+            return;
+        }
+
+        var layout = GetImageLayout();
+        layout.Scale = value / 100;
+        layout.NormalizeImage(
+            SelectedTemplate.Width,
+            SelectedTemplate.Height);
+        SyncLayoutJson();
+    }
+
+    private void UpdateImageOffsetX(ChangeEventArgs args)
+    {
+        if (!TryParseRangeValue(args, out var value))
+        {
+            return;
+        }
+
+        var layout = GetImageLayout();
+        layout.X = value;
+        layout.NormalizeImage(
+            SelectedTemplate.Width,
+            SelectedTemplate.Height);
+        SyncLayoutJson();
+    }
+
+    private void UpdateImageOffsetY(ChangeEventArgs args)
+    {
+        if (!TryParseRangeValue(args, out var value))
+        {
+            return;
+        }
+
+        var layout = GetImageLayout();
+        layout.Y = value;
+        layout.NormalizeImage(
+            SelectedTemplate.Width,
+            SelectedTemplate.Height);
+        SyncLayoutJson();
+    }
+
+    private void ResetImageLayout()
+    {
+        var layout = GetImageLayout();
+        layout.X = 0;
+        layout.Y = 0;
+        layout.Scale = 1;
+        SyncLayoutJson();
+    }
+
+    private static bool TryParseRangeValue(
+        ChangeEventArgs args,
+        out double value) =>
+        double.TryParse(
+            args.Value?.ToString(),
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out value);
+
+    private IReadOnlyList<DigitalAsset> GetApprovedProductImages()
+    {
+        if (Content?.ProductId is null)
+        {
+            return [];
+        }
+
+        var product = EligibleProducts.SingleOrDefault(item =>
+            item.Id == Content.ProductId.Value);
+        if (product is null)
+        {
+            return [];
+        }
+
+        return product.AssetLinks
+            .Where(link =>
+                link.DigitalAsset.Kind == AssetKind.Image &&
+                link.DigitalAsset.Status == AssetStatus.Approved)
+            .OrderByDescending(link => link.IsPrimary)
+            .ThenBy(link => link.SortOrder)
+            .ThenBy(link => link.DigitalAsset.Title)
+            .Select(link => link.DigitalAsset)
+            .DistinctBy(asset => asset.Id)
+            .ToList();
+    }
+
+    private void ChangeCreativeAsset(ChangeEventArgs args)
+    {
+        if (Content is null ||
+            !Guid.TryParse(args.Value?.ToString(), out var assetId))
+        {
+            return;
+        }
+
+        var asset = GetApprovedProductImages()
+            .SingleOrDefault(item => item.Id == assetId);
+        if (asset is null)
+        {
+            return;
+        }
+
+        Content.DigitalAssetId = asset.Id;
+        Content.DigitalAsset = asset;
     }
 
     private string GetLayoutStyle(string elementKey)
