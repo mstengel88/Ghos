@@ -10,7 +10,9 @@
 <div class="delivery-heading">
     <div>
         <span class="panel-label">DELIVERY OPERATIONS</span>
-        <h2>Delivery Board</h2>
+        <h2>@(DisplayMode == "Calendar"
+            ? "Delivery Calendar"
+            : "Delivery Board")</h2>
         <p>A read-only GHOS mirror of dispatch assignments, route progress, and proof-of-delivery status.</p>
     </div>
     <div class="heading-actions">
@@ -28,6 +30,9 @@ else
     var visibleDeliveries = GetVisibleDeliveries();
     var currentDeliveries = DeliveryItems
         .Where(DispatchOperationalTime.IsCurrentWork)
+        .ToList();
+    var noDateItems = visibleDeliveries
+        .Where(item => item.ScheduledForUtc is null)
         .ToList();
     <section class="delivery-summary">
         <article>
@@ -77,6 +82,21 @@ else
                         }
                     </select>
                 </label>
+                <div class="delivery-view-switch">
+                    <span>View</span>
+                    <div>
+                        <button type="button"
+                                class="@(DisplayMode == "Board" ? "active" : null)"
+                                @onclick="ShowBoard">
+                            Board
+                        </button>
+                        <button type="button"
+                                class="@(DisplayMode == "Calendar" ? "active" : null)"
+                                @onclick="ShowCalendar">
+                            Calendar
+                        </button>
+                    </div>
+                </div>
             </div>
 
             @if (DeliveryItems.Count == 0)
@@ -98,49 +118,125 @@ else
             }
             else
             {
-                <div class="delivery-columns">
-                    @foreach (var lane in ActiveLanes)
+                @if (DisplayMode == "Calendar")
+                {
+                    <div class="calendar-navigation">
+                        <button type="button" @onclick="PreviousWeek">← Previous</button>
+                        <div>
+                            <strong>@FormatCalendarRange()</strong>
+                            <button type="button" @onclick="GoToCurrentWeek">Today</button>
+                        </div>
+                        <button type="button" @onclick="NextWeek">Next →</button>
+                    </div>
+
+                    <div class="delivery-calendar">
+                        @foreach (var day in GetCalendarDays())
+                        {
+                            var dayItems = GetDeliveriesForDay(
+                                visibleDeliveries,
+                                day);
+                            <section class="calendar-day @(day == DispatchOperationalTime.Today ? "today" : null)">
+                                <header>
+                                    <span>@day.ToString("ddd")</span>
+                                    <strong>@day.Day</strong>
+                                    <small>@day.ToString("MMM")</small>
+                                </header>
+                                <div>
+                                    @if (dayItems.Count == 0)
+                                    {
+                                        <p>No deliveries</p>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var delivery in dayItems)
+                                        {
+                                            <button type="button"
+                                                    class="calendar-order @(SelectedDeliveryId == delivery.Id ? "selected" : null)"
+                                                    @onclick="() => SelectDelivery(delivery.Id)">
+                                                <span>
+                                                    #@delivery.SalesOrder.OrderNumber
+                                                    <i class="@GetStatusClass(delivery.Status)">
+                                                        @GetStatusLabel(delivery.Status)
+                                                    </i>
+                                                </span>
+                                                <strong>@delivery.SalesOrder.CustomerName</strong>
+                                                <small>@delivery.Material · @delivery.Quantity @delivery.Unit</small>
+                                                <small>@GetRouteLabel(delivery)</small>
+                                            </button>
+                                        }
+                                    }
+                                </div>
+                            </section>
+                        }
+                    </div>
+
+                    @if (noDateItems.Count > 0)
                     {
-                        var laneItems = visibleDeliveries
-                            .Where(item => LaneContains(lane.Statuses, item.Status))
-                            .OrderBy(item => item.StopSequence ?? int.MaxValue)
-                            .ThenBy(item => item.ScheduledForUtc)
-                            .ToList();
-                        <section class="delivery-lane">
-                            <div class="lane-heading">
-                                <span class="@lane.CssClass"></span>
-                                <strong>@lane.Label</strong>
-                                <small>@laneItems.Count</small>
+                        <section class="calendar-no-date">
+                            <div>
+                                <span>DATE REQUIRED</span>
+                                <strong>Unscheduled date queue</strong>
+                                <small>@noDateItems.Count order(s)</small>
                             </div>
-                            @if (laneItems.Count == 0)
-                            {
-                                <p>No tickets</p>
-                            }
-                            else
-                            {
-                                @foreach (var delivery in laneItems)
+                            <div>
+                                @foreach (var delivery in noDateItems)
                                 {
                                     <button type="button"
-                                            class="delivery-card @(SelectedDeliveryId == delivery.Id ? "selected" : null)"
                                             @onclick="() => SelectDelivery(delivery.Id)">
-                                        <div>
-                                            <span>#@delivery.SalesOrder.OrderNumber</span>
-                                            <span>@GetRouteLabel(delivery)</span>
-                                        </div>
-                                        <span class="delivery-card-date">
-                                            <i>▦</i>
-                                            @FormatDeliveryDate(
-                                                delivery.ScheduledForUtc)
-                                        </span>
-                                        <strong>@delivery.SalesOrder.CustomerName</strong>
-                                        <p>@delivery.Material · @delivery.Quantity @delivery.Unit</p>
-                                        <small>@GetLocation(delivery.SalesOrder)</small>
+                                        <strong>#@delivery.SalesOrder.OrderNumber</strong>
+                                        <span>@delivery.SalesOrder.CustomerName</span>
                                     </button>
                                 }
-                            }
+                            </div>
                         </section>
                     }
-                </div>
+                }
+                else
+                {
+                    <div class="delivery-columns">
+                        @foreach (var lane in ActiveLanes)
+                        {
+                            var laneItems = visibleDeliveries
+                                .Where(item => LaneContains(lane.Statuses, item.Status))
+                                .OrderBy(item => item.StopSequence ?? int.MaxValue)
+                                .ThenBy(item => item.ScheduledForUtc)
+                                .ToList();
+                            <section class="delivery-lane">
+                                <div class="lane-heading">
+                                    <span class="@lane.CssClass"></span>
+                                    <strong>@lane.Label</strong>
+                                    <small>@laneItems.Count</small>
+                                </div>
+                                @if (laneItems.Count == 0)
+                                {
+                                    <p>No tickets</p>
+                                }
+                                else
+                                {
+                                    @foreach (var delivery in laneItems)
+                                    {
+                                        <button type="button"
+                                                class="delivery-card @(SelectedDeliveryId == delivery.Id ? "selected" : null)"
+                                                @onclick="() => SelectDelivery(delivery.Id)">
+                                            <div>
+                                                <span>#@delivery.SalesOrder.OrderNumber</span>
+                                                <span>@GetRouteLabel(delivery)</span>
+                                            </div>
+                                            <span class="delivery-card-date">
+                                                <i>▦</i>
+                                                @FormatDeliveryDate(
+                                                    delivery.ScheduledForUtc)
+                                            </span>
+                                            <strong>@delivery.SalesOrder.CustomerName</strong>
+                                            <p>@delivery.Material · @delivery.Quantity @delivery.Unit</p>
+                                            <small>@GetLocation(delivery.SalesOrder)</small>
+                                        </button>
+                                    }
+                                }
+                            </section>
+                        }
+                    </div>
+                }
             }
         </section>
 
@@ -245,6 +341,9 @@ else
         DeliveryItems.FirstOrDefault(item => item.Id == SelectedDeliveryId);
     private string SearchText { get; set; } = string.Empty;
     private string StatusFilter { get; set; } = "Current";
+    private string DisplayMode { get; set; } = "Board";
+    private DateOnly CalendarStart { get; set; } =
+        GetWeekStart(DispatchOperationalTime.Today);
     private bool Loading { get; set; } = true;
 
     protected override async Task OnInitializedAsync()
@@ -302,6 +401,50 @@ else
     }
 
     private void SelectDelivery(Guid id) => SelectedDeliveryId = id;
+
+    private void ShowBoard() => DisplayMode = "Board";
+
+    private void ShowCalendar() => DisplayMode = "Calendar";
+
+    private IEnumerable<DateOnly> GetCalendarDays() =>
+        Enumerable.Range(0, 7)
+            .Select(offset => CalendarStart.AddDays(offset));
+
+    private static List<Delivery> GetDeliveriesForDay(
+        IEnumerable<Delivery> deliveries,
+        DateOnly day) =>
+        deliveries
+            .Where(item =>
+                item.ScheduledForUtc is not null &&
+                DateOnly.FromDateTime(
+                    item.ScheduledForUtc.Value) == day)
+            .OrderBy(item => item.StopSequence ?? int.MaxValue)
+            .ThenBy(item => item.SalesOrder.CustomerName)
+            .ToList();
+
+    private void PreviousWeek() =>
+        CalendarStart = CalendarStart.AddDays(-7);
+
+    private void NextWeek() =>
+        CalendarStart = CalendarStart.AddDays(7);
+
+    private void GoToCurrentWeek() =>
+        CalendarStart = GetWeekStart(
+            DispatchOperationalTime.Today);
+
+    private string FormatCalendarRange()
+    {
+        var end = CalendarStart.AddDays(6);
+        return CalendarStart.Year == end.Year
+            ? $"{CalendarStart:MMM d} – {end:MMM d, yyyy}"
+            : $"{CalendarStart:MMM d, yyyy} – {end:MMM d, yyyy}";
+    }
+
+    private static DateOnly GetWeekStart(DateOnly date)
+    {
+        var offset = (int)date.DayOfWeek;
+        return date.AddDays(-offset);
+    }
 
     private static bool LaneContains(
         IReadOnlyCollection<DeliveryStatus> statuses,
