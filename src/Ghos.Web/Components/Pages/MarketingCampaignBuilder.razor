@@ -1,0 +1,327 @@
+@page "/marketing/builder"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Marketing)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Campaign Builder | GHOS</PageTitle>
+
+<div class="builder-heading">
+    <div>
+        <span class="panel-label">GUIDED CONTENT CREATION</span>
+        <h2>Campaign Builder</h2>
+        <p>Start from verified Shopify product information, choose a Green Hills content series, and create a complete editable draft.</p>
+    </div>
+    <a href="/marketing/calendar">View Marketing Calendar →</a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="auth-alert" role="alert">@ErrorMessage</div>
+}
+
+@if (Loading)
+{
+    <section class="panel builder-empty">Preparing campaign options…</section>
+}
+else
+{
+    var selectedSeries = GetSelectedSeries();
+    var selectedProduct = Products.FirstOrDefault(item =>
+        item.Id == SelectedProductId);
+    var nextOpening = GetNextOpeningUtc(selectedSeries);
+
+    <div class="builder-layout">
+        <section class="builder-main">
+            <div class="step-heading">
+                <span>1</span>
+                <div>
+                    <h3>Choose the content series</h3>
+                    <p>Each series has a distinct job in the weekly marketing rhythm.</p>
+                </div>
+            </div>
+
+            <div class="series-grid">
+                @foreach (var series in MarketingSeriesCatalog.All)
+                {
+                    <button type="button"
+                            class="series-card @series.Accent @(SelectedSeriesKey == series.Key ? "selected" : null)"
+                            @onclick="() => SelectSeries(series.Key)">
+                        <span class="series-day">@series.PublishDay</span>
+                        <strong>@series.Name</strong>
+                        <p>@series.Purpose</p>
+                        <small>@series.Prompt</small>
+                    </button>
+                }
+            </div>
+
+            <div class="step-heading product-step">
+                <span>2</span>
+                <div>
+                    <h3>Choose the verified product</h3>
+                    <p>The builder uses its approved GHOS fields and primary digital asset.</p>
+                </div>
+            </div>
+
+            <section class="panel product-picker">
+                <label>
+                    <span>Active Shopify product</span>
+                    <select @bind="SelectedProductId">
+                        <option value="">Choose a product…</option>
+                        @foreach (var category in Products
+                            .GroupBy(item => item.ProductCategory.Name))
+                        {
+                            <optgroup label="@category.Key">
+                                @foreach (var product in category)
+                                {
+                                    <option value="@product.Id">@product.Name</option>
+                                }
+                            </optgroup>
+                        }
+                    </select>
+                </label>
+
+                @if (selectedProduct is not null)
+                {
+                    <div class="product-verification">
+                        <span class="@GetVerificationClass(selectedProduct)">
+                            @(HasApprovedImage(selectedProduct)
+                                ? "Approved image ready"
+                                : "Image needs attention")
+                        </span>
+                        <strong>@selectedProduct.Name</strong>
+                        <small>@selectedProduct.ProductCategory.Name</small>
+                    </div>
+                }
+            </section>
+
+            <div class="step-heading schedule-step">
+                <span>3</span>
+                <div>
+                    <h3>Confirm the next opening</h3>
+                    <p>GHOS avoids duplicate series/product/date combinations.</p>
+                </div>
+            </div>
+
+            <section class="panel schedule-preview">
+                <div>
+                    <span>Recommended opening</span>
+                    <strong>@FormatLocalDateTime(nextOpening)</strong>
+                    <small>@selectedSeries.Name publishes on @selectedSeries.PublishDay mornings.</small>
+                </div>
+                <div>
+                    <span>Draft includes</span>
+                    <strong>Feed · Story · Reel</strong>
+                    <small>Captions, verified facts, CTA, hashtags, and editable creative.</small>
+                </div>
+            </section>
+        </section>
+
+        <aside class="panel draft-preview">
+            <span class="panel-label">DRAFT PREVIEW</span>
+            <div class="preview-ribbon @selectedSeries.Accent">
+                @foreach (var word in selectedSeries.Name
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Take(2))
+                {
+                    <strong>@word.ToUpperInvariant()</strong>
+                }
+            </div>
+            <div class="preview-copy">
+                <small>@selectedSeries.PublishDay · @FormatLocalTime(nextOpening) CT</small>
+                <h3>@(selectedProduct is null
+                    ? "CHOOSE A PRODUCT"
+                    : GetPreviewHeadline(selectedSeries.Key, selectedProduct))</h3>
+                <p>@(selectedProduct is null
+                    ? selectedSeries.Purpose
+                    : GetPreviewDescription(selectedSeries.Key, selectedProduct))</p>
+            </div>
+            <ul>
+                <li>Verified product facts</li>
+                <li>Approved primary image when available</li>
+                <li>Facebook and Instagram captions</li>
+                <li>Story prompt and Reel shot list</li>
+            </ul>
+            <button type="button"
+                    disabled="@(Creating || SelectedProductId is null)"
+                    @onclick="CreateDraftAsync">
+                @(Creating ? "Creating campaign…" : $"Create {selectedSeries.Name} draft")
+            </button>
+            <p class="safety-note">
+                Creation never publishes automatically. The new package opens in the Studio as a draft for review.
+            </p>
+        </aside>
+    </div>
+}
+
+@code {
+    private static readonly TimeZoneInfo CentralTime =
+        TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+
+    private List<Product> Products { get; set; } = [];
+    private List<MarketingContentPackage> ExistingPackages { get; set; } = [];
+    private string SelectedSeriesKey { get; set; } = "material-monday";
+    private Guid? SelectedProductId { get; set; }
+    private bool Loading { get; set; } = true;
+    private bool Creating { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        Products = await dbContext.Products
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.ProductCategory)
+            .Include(item => item.AlternateNames)
+            .Include(item => item.AssetLinks)
+                .ThenInclude(link => link.DigitalAsset)
+            .Where(item => item.Status == ProductStatus.Active)
+            .OrderBy(item => item.ProductCategory.SortOrder)
+            .ThenBy(item => item.Name)
+            .ToListAsync();
+        ExistingPackages = await dbContext.MarketingContentPackages
+            .AsNoTracking()
+            .ToListAsync();
+        Loading = false;
+    }
+
+    private MarketingSeriesDefinition GetSelectedSeries() =>
+        MarketingSeriesCatalog.Get(SelectedSeriesKey);
+
+    private void SelectSeries(string key)
+    {
+        SelectedSeriesKey = key;
+        ErrorMessage = null;
+    }
+
+    private DateTime GetNextOpeningUtc(
+        MarketingSeriesDefinition series)
+    {
+        var today = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.UtcNow,
+            CentralTime).Date;
+        var latestLocalDate = ExistingPackages
+            .Where(item =>
+                item.Series == series.Name &&
+                item.ScheduledForUtc is not null)
+            .Select(item => TimeZoneInfo.ConvertTimeFromUtc(
+                item.ScheduledForUtc!.Value,
+                CentralTime).Date)
+            .DefaultIfEmpty(today)
+            .Max();
+        var anchor = latestLocalDate > today ? latestLocalDate : today;
+        var candidate = anchor.AddDays(1);
+        while (candidate.DayOfWeek != series.PublishDay)
+        {
+            candidate = candidate.AddDays(1);
+        }
+
+        var local = DateTime.SpecifyKind(
+            candidate.AddHours(series.PublishHour),
+            DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(local, CentralTime);
+    }
+
+    private async Task CreateDraftAsync()
+    {
+        var series = GetSelectedSeries();
+        var product = Products.FirstOrDefault(item =>
+            item.Id == SelectedProductId);
+        if (product is null)
+        {
+            ErrorMessage = "Choose an active product before creating the campaign.";
+            return;
+        }
+
+        Creating = true;
+        ErrorMessage = null;
+        try
+        {
+            var scheduledForUtc = GetNextOpeningUtc(series);
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            var draft = MarketingSeriesCatalog.CreateDraft(
+                series,
+                product,
+                scheduledForUtc,
+                userId);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            if (await dbContext.MarketingContentPackages.AnyAsync(item =>
+                item.Slug == draft.Slug))
+            {
+                ErrorMessage =
+                    "A campaign already exists for this series, product, and date.";
+                return;
+            }
+
+            dbContext.MarketingContentPackages.Add(draft);
+            await dbContext.SaveChangesAsync();
+            NavigationManager.NavigateTo(
+                $"/marketing?contentId={draft.Id}");
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The draft could not be created. Existing campaigns were not changed.";
+        }
+        finally
+        {
+            Creating = false;
+        }
+    }
+
+    private static bool HasApprovedImage(Product product) =>
+        product.AssetLinks.Any(link =>
+            link.IsPrimary &&
+            link.DigitalAsset.Kind == AssetKind.Image &&
+            link.DigitalAsset.Status == AssetStatus.Approved);
+
+    private static string GetVerificationClass(Product product) =>
+        HasApprovedImage(product) ? "verified" : "attention";
+
+    private static string GetPreviewHeadline(
+        string seriesKey,
+        Product product) =>
+        seriesKey switch
+        {
+            "ask-green-hills" => $"ASK ABOUT {product.Name}".ToUpperInvariant(),
+            "project-spotlight" => $"BUILT WITH {product.Name}".ToUpperInvariant(),
+            "inside-green-hills" => "INSIDE GREEN HILLS",
+            "weekend-ready" => $"{product.Name} THIS WEEKEND".ToUpperInvariant(),
+            _ => product.Name.ToUpperInvariant()
+        };
+
+    private static string GetPreviewDescription(
+        string seriesKey,
+        Product product) =>
+        seriesKey switch
+        {
+            "ask-green-hills" =>
+                $"Answer a customer question about choosing {product.Name}.",
+            "project-spotlight" =>
+                $"Show what a project using {product.Name} can become.",
+            "inside-green-hills" =>
+                $"Show how {product.Name} moves through the Green Hills yard.",
+            "weekend-ready" =>
+                $"Help customers plan a weekend project with {product.Name}.",
+            _ => product.ShortDescription ??
+                product.ShopifySeoDescription ??
+                "Teach customers the verified uses and availability."
+        };
+
+    private static string FormatLocalDateTime(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(utc, CentralTime)
+            .ToString("dddd, MMMM d · h:mm tt");
+
+    private static string FormatLocalTime(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(utc, CentralTime)
+            .ToString("h:mm");
+}

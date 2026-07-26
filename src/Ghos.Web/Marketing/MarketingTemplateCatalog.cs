@@ -16,21 +16,21 @@ public static class MarketingTemplateCatalog
     [
         new(
             "material-monday-square",
-            "Material Monday Fact Card",
+            "Campaign Fact Card",
             "Square post",
             1080,
             1080,
             "Facebook and Instagram feed"),
         new(
             "material-monday-story",
-            "Material Monday Story",
+            "Campaign Story",
             "Vertical story",
             1080,
             1920,
             "Facebook and Instagram stories"),
         new(
             "material-monday-reel-cover",
-            "Material Monday Reel Cover",
+            "Campaign Reel Cover",
             "Vertical cover",
             1080,
             1920,

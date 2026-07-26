@@ -119,6 +119,8 @@ public static class MarketingCreativeEndpoints
                 StringSplitOptions.TrimEntries)
             .Take(4)
             .ToList();
+        var seriesWords = GetSeriesWords(content.Series);
+        var seriesGuide = $"{content.Series.ToUpperInvariant()} · GHOS";
         var factMarkup = vertical
             ? $"""
                <rect x="{F(75 + factsLayout.X)}" y="{F(subheadlineY + 90 + factsLayout.Y)}" width="{width - 150}" height="120" rx="12" fill="#142116" fill-opacity=".78" />
@@ -170,9 +172,9 @@ public static class MarketingCreativeEndpoints
               <rect x="0" y="0" width="{{width}}" height="{{height}}" fill="url(#shade)" />
 
               <path d="M0 0 H{{(vertical ? 500 : 420)}} L{{(vertical ? 455 : 385)}} {{(vertical ? 225 : 180)}} H0 Z" fill="#9BC623" />
-              <text x="55" y="{{(vertical ? 80 : 62)}}" class="series-small">MATERIAL</text>
-              <text x="55" y="{{(vertical ? 142 : 116)}}" class="series-large">MONDAY</text>
-              <text x="{{width - 55}}" y="{{(vertical ? 70 : 58)}}" text-anchor="end" class="guide">MATERIAL GUIDE · 001</text>
+              <text x="55" y="{{(vertical ? 80 : 62)}}" class="series-small">{{Escape(seriesWords[0])}}</text>
+              <text x="55" y="{{(vertical ? 142 : 116)}}" class="series-large">{{Escape(seriesWords[1])}}</text>
+              <text x="{{width - 55}}" y="{{(vertical ? 70 : 58)}}" text-anchor="end" class="guide">{{Escape(seriesGuide)}}</text>
 
               <text x="{{F(75 + alternateLayout.X)}}" y="{{F(alternateY + alternateLayout.Y)}}" class="alternate" style="font-size:{{F(GetSize(vertical, 27, 24) * alternateLayout.Scale)}}px">{{Escape(content.AlternateName)}}</text>
               <text x="{{F(70 + headlineLayout.X)}}" y="{{F(headlineY + headlineLayout.Y)}}" class="headline" style="font-size:{{F(GetSize(vertical, 126, 116) * headlineLayout.Scale)}}px">{{Escape(content.Headline)}}</text>
@@ -190,6 +192,25 @@ public static class MarketingCreativeEndpoints
 
     private static int GetSize(bool vertical, int verticalSize, int squareSize) =>
         vertical ? verticalSize : squareSize;
+
+    private static string[] GetSeriesWords(string? series)
+    {
+        var words = (series ?? "Green Hills")
+            .Split(
+                ' ',
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries);
+        return words.Length switch
+        {
+            0 => ["GREEN", "HILLS"],
+            1 => [words[0].ToUpperInvariant(), "SERIES"],
+            _ =>
+            [
+                words[0].ToUpperInvariant(),
+                string.Join(" ", words.Skip(1)).ToUpperInvariant()
+            ]
+        };
+    }
 
     private static MarketingElementLayout GetLayout(
         MarketingLayoutSettings settings,

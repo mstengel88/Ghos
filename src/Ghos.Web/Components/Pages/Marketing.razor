@@ -199,10 +199,13 @@ else
                         }
                         <div class="photo-shade"></div>
                         <div class="series-ribbon">
-                            <span>MATERIAL</span>
-                            <strong>MONDAY</strong>
+                            @{
+                                var seriesWords = GetSeriesRibbonWords();
+                            }
+                            <span>@seriesWords[0]</span>
+                            <strong>@seriesWords[1]</strong>
                         </div>
-                        <div class="guide-number">MATERIAL GUIDE · 001</div>
+                        <div class="guide-number">@GetSeriesGuideLabel()</div>
                         <div class="creative-copy">
                             <span class="alternate-name layout-element @GetSelectedLayoutClass(MarketingLayoutElementKeys.AlternateName)"
                                   data-layout-element="@MarketingLayoutElementKeys.AlternateName"
@@ -1251,7 +1254,7 @@ else
                 .Select(link => link.DigitalAsset)
                 .FirstOrDefault();
 
-            stored.Title = $"Material Monday — {product.Name}";
+            stored.Title = $"{stored.Series} — {product.Name}";
             stored.Headline = product.Name.ToUpperInvariant();
             stored.AlternateName = product.AlternateNames.Count == 0
                 ? null
@@ -1853,6 +1856,31 @@ else
 
     private static string BuildHashtag(string productName) =>
         new(productName.Where(char.IsLetterOrDigit).ToArray());
+
+    private string[] GetSeriesRibbonWords()
+    {
+        var words = (Content?.Series ?? "Green Hills")
+            .Split(
+                ' ',
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries);
+        return words.Length switch
+        {
+            0 => ["GREEN", "HILLS"],
+            1 => [words[0].ToUpperInvariant(), "SERIES"],
+            _ =>
+            [
+                words[0].ToUpperInvariant(),
+                string.Join(" ", words.Skip(1)).ToUpperInvariant()
+            ]
+        };
+    }
+
+    private string GetSeriesGuideLabel()
+    {
+        var series = Content?.Series ?? "Green Hills";
+        return $"{series.ToUpperInvariant()} · GHOS";
+    }
 
     public async ValueTask DisposeAsync()
     {
