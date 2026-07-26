@@ -1,0 +1,357 @@
+@page "/marketing/analytics"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Marketing)]
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+
+<PageTitle>Marketing Analytics | GHOS</PageTitle>
+
+<div class="analytics-heading">
+    <div>
+        <span class="panel-label">GREEN HILLS GROWTH SCOREBOARD</span>
+        <h2>Marketing Analytics</h2>
+        <p>See which published campaigns are earning attention, website activity, leads, orders, and attributable revenue.</p>
+    </div>
+    <label>
+        <span>Reporting period</span>
+        <select @bind="SelectedRange">
+            <option value="@MarketingRange.Last30Days">Last 30 days</option>
+            <option value="@MarketingRange.Last90Days">Last 90 days</option>
+            <option value="@MarketingRange.ThisYear">This year</option>
+            <option value="@MarketingRange.AllTime">All time</option>
+        </select>
+    </label>
+</div>
+
+@if (Loading)
+{
+    <section class="panel analytics-empty">Preparing marketing results…</section>
+}
+else
+{
+    var results = GetFilteredResults();
+    var totals = GetTotals(results);
+    var measuredCount = results.Count(result => result.Latest is not null);
+
+    <section class="analytics-summary">
+        <article>
+            <span>Published campaigns</span>
+            <strong>@results.Count</strong>
+            <small>@measuredCount with performance data</small>
+        </article>
+        <article>
+            <span>Combined reach</span>
+            <strong>@FormatNumber(totals.Reach)</strong>
+            <small>Facebook + Instagram</small>
+        </article>
+        <article>
+            <span>Engagements</span>
+            <strong>@FormatNumber(totals.Engagements)</strong>
+            <small>@FormatPercent(totals.EngagementRate) engagement rate</small>
+        </article>
+        <article>
+            <span>Website clicks</span>
+            <strong>@FormatNumber(totals.Clicks)</strong>
+            <small>@FormatNumber(totals.Leads) leads recorded</small>
+        </article>
+        <article>
+            <span>Orders</span>
+            <strong>@FormatNumber(totals.Orders)</strong>
+            <small>@FormatPercent(totals.ConversionRate) click-to-order</small>
+        </article>
+        <article>
+            <span>Attributed revenue</span>
+            <strong>@FormatCurrency(totals.Revenue)</strong>
+            <small>Manually attributed in GHOS</small>
+        </article>
+    </section>
+
+    <div class="analytics-grid">
+        <section class="panel leaderboard-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">CAMPAIGN LEADERBOARD</span>
+                    <h3>Published results</h3>
+                </div>
+                <span>Latest snapshot per campaign</span>
+            </div>
+
+            @if (results.Count == 0)
+            {
+                <div class="analytics-empty">
+                    <strong>No published campaigns in this period</strong>
+                    <span>Change the reporting period or publish a campaign.</span>
+                </div>
+            }
+            else
+            {
+                <div class="campaign-table">
+                    <div class="campaign-row campaign-header">
+                        <span>Campaign</span>
+                        <span>Reach</span>
+                        <span>Engagements</span>
+                        <span>Clicks</span>
+                        <span>Orders</span>
+                        <span>Revenue</span>
+                    </div>
+                    @foreach (var result in OrderResults(results))
+                    {
+                        <a class="campaign-row"
+                           href="/marketing?contentId=@result.Content.Id">
+                            <span class="campaign-name">
+                                <strong>@result.Content.Title</strong>
+                                <small>@FormatPublishedDate(result.Content.PublishedAtUtc)</small>
+                            </span>
+                            @if (result.Latest is null)
+                            {
+                                <span class="no-results">Not measured</span>
+                                <span>—</span>
+                                <span>—</span>
+                                <span>—</span>
+                                <span>—</span>
+                            }
+                            else
+                            {
+                                <span>@FormatNumber(GetReach(result.Latest))</span>
+                                <span>@FormatNumber(GetEngagements(result.Latest))</span>
+                                <span>@FormatNumber(result.Latest.WebsiteClicks)</span>
+                                <span>@FormatNumber(result.Latest.Orders)</span>
+                                <span>@FormatCurrency(result.Latest.Revenue)</span>
+                            }
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="panel coverage-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">MEASUREMENT COVERAGE</span>
+                    <h3>Keep results current</h3>
+                </div>
+            </div>
+            <div class="coverage-ring"
+                 style="--coverage:@GetCoveragePercent(results)">
+                <strong>@GetCoveragePercent(results)%</strong>
+                <span>measured</span>
+            </div>
+            <div class="coverage-details">
+                <span><i class="measured"></i>@measuredCount campaigns measured</span>
+                <span><i class="missing"></i>@(results.Count - measuredCount) awaiting metrics</span>
+            </div>
+            @if (results.Any(result => result.Latest is null))
+            {
+                <div class="measurement-needed">
+                    <strong>Needs a first snapshot</strong>
+                    @foreach (var result in results
+                        .Where(item => item.Latest is null)
+                        .Take(5))
+                    {
+                        <a href="/marketing?contentId=@result.Content.Id">
+                            @result.Content.Title →
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="panel reach-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">CAMPAIGN REACH</span>
+                    <h3>Relative audience size</h3>
+                </div>
+            </div>
+            @{
+                var measuredResults = OrderResults(results)
+                    .Where(result => result.Latest is not null)
+                    .Take(8)
+                    .ToList();
+                var maximumReach = measuredResults.Count == 0
+                    ? 0
+                    : measuredResults.Max(result => GetReach(result.Latest!));
+            }
+            @if (measuredResults.Count == 0)
+            {
+                <div class="analytics-empty">
+                    Add performance snapshots to see campaign comparisons.
+                </div>
+            }
+            else
+            {
+                <div class="reach-bars">
+                    @foreach (var result in measuredResults)
+                    {
+                        var reach = GetReach(result.Latest!);
+                        <div class="reach-item">
+                            <div>
+                                <strong>@result.Content.Title</strong>
+                                <span>@FormatNumber(reach)</span>
+                            </div>
+                            <div class="reach-track">
+                                <i style="width:@GetBarWidth(reach, maximumReach)%"></i>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly TimeZoneInfo CentralTime =
+        TimeZoneInfo.FindSystemTimeZoneById("America/Chicago");
+
+    private List<CampaignResult> CampaignResults { get; set; } = [];
+    private MarketingRange SelectedRange { get; set; } =
+        MarketingRange.Last90Days;
+    private bool Loading { get; set; } = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        var content = await dbContext.MarketingContentPackages
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.Product)
+            .Include(item => item.PerformanceSnapshots)
+            .Where(item => item.Status == MarketingContentStatus.Published)
+            .OrderByDescending(item => item.PublishedAtUtc)
+            .ToListAsync();
+
+        CampaignResults = content
+            .Select(item => new CampaignResult(
+                item,
+                item.PerformanceSnapshots
+                    .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
+                    .FirstOrDefault()))
+            .ToList();
+        Loading = false;
+    }
+
+    private List<CampaignResult> GetFilteredResults()
+    {
+        var cutoff = GetCutoffUtc();
+        return CampaignResults
+            .Where(result =>
+                cutoff is null ||
+                result.Content.PublishedAtUtc >= cutoff)
+            .ToList();
+    }
+
+    private DateTime? GetCutoffUtc()
+    {
+        var now = DateTime.UtcNow;
+        return SelectedRange switch
+        {
+            MarketingRange.Last30Days => now.AddDays(-30),
+            MarketingRange.Last90Days => now.AddDays(-90),
+            MarketingRange.ThisYear => new DateTime(
+                now.Year,
+                1,
+                1,
+                0,
+                0,
+                0,
+                DateTimeKind.Utc),
+            _ => null
+        };
+    }
+
+    private static MarketingTotals GetTotals(
+        IReadOnlyList<CampaignResult> results)
+    {
+        var snapshots = results
+            .Where(result => result.Latest is not null)
+            .Select(result => result.Latest!)
+            .ToList();
+        var reach = snapshots.Sum(GetReach);
+        var engagements = snapshots.Sum(GetEngagements);
+        var clicks = snapshots.Sum(item => item.WebsiteClicks ?? 0);
+        var leads = snapshots.Sum(item => item.Leads ?? 0);
+        var orders = snapshots.Sum(item => item.Orders ?? 0);
+        var revenue = snapshots.Sum(item => item.Revenue ?? 0);
+        return new MarketingTotals(
+            reach,
+            engagements,
+            clicks,
+            leads,
+            orders,
+            revenue,
+            reach == 0 ? null : engagements / (double)reach,
+            clicks == 0 ? null : orders / (double)clicks);
+    }
+
+    private static IEnumerable<CampaignResult> OrderResults(
+        IEnumerable<CampaignResult> results) =>
+        results
+            .OrderByDescending(result => result.Latest?.Revenue ?? 0)
+            .ThenByDescending(result => result.Latest?.Orders ?? 0)
+            .ThenByDescending(result => result.Latest?.WebsiteClicks ?? 0)
+            .ThenByDescending(result =>
+                result.Latest is null ? 0 : GetReach(result.Latest))
+            .ThenByDescending(result => result.Content.PublishedAtUtc);
+
+    private static int GetReach(MarketingPerformanceSnapshot snapshot) =>
+        (snapshot.FacebookReach ?? 0) +
+        (snapshot.InstagramReach ?? 0);
+
+    private static int GetEngagements(
+        MarketingPerformanceSnapshot snapshot) =>
+        (snapshot.FacebookEngagements ?? 0) +
+        (snapshot.InstagramEngagements ?? 0);
+
+    private static int GetCoveragePercent(
+        IReadOnlyList<CampaignResult> results) =>
+        results.Count == 0
+            ? 0
+            : (int)Math.Round(
+                results.Count(result => result.Latest is not null) /
+                (double)results.Count * 100);
+
+    private static int GetBarWidth(int value, int maximum) =>
+        maximum <= 0
+            ? 0
+            : Math.Max(4, (int)Math.Round(value / (double)maximum * 100));
+
+    private static string FormatNumber(int? value) =>
+        value?.ToString("N0", CultureInfo.InvariantCulture) ?? "—";
+
+    private static string FormatCurrency(decimal? value) =>
+        value?.ToString("C2", CultureInfo.GetCultureInfo("en-US")) ?? "—";
+
+    private static string FormatPercent(double? value) =>
+        value?.ToString("P1", CultureInfo.InvariantCulture) ?? "—";
+
+    private static string FormatPublishedDate(DateTime? value) =>
+        value is null
+            ? "Publication date unavailable"
+            : TimeZoneInfo.ConvertTimeFromUtc(value.Value, CentralTime)
+                .ToString("MMM d, yyyy");
+
+    private sealed record CampaignResult(
+        MarketingContentPackage Content,
+        MarketingPerformanceSnapshot? Latest);
+
+    private sealed record MarketingTotals(
+        int Reach,
+        int Engagements,
+        int Clicks,
+        int Leads,
+        int Orders,
+        decimal Revenue,
+        double? EngagementRate,
+        double? ConversionRate);
+
+    private enum MarketingRange
+    {
+        Last30Days,
+        Last90Days,
+        ThisYear,
+        AllTime
+    }
+}

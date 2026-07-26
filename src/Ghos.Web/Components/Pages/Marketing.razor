@@ -12,6 +12,11 @@
 
 <PageTitle>Marketing Studio | GHOS</PageTitle>
 
+@code {
+    [SupplyParameterFromQuery(Name = "contentId")]
+    public Guid? RequestedContentId { get; set; }
+}
+
 <div class="studio-heading">
     <div>
         <span class="panel-label">GREEN HILLS CONTENT WORKSPACE</span>
@@ -784,7 +789,7 @@ else
             template.Key == SelectedTemplateKey);
 
     protected override async Task OnInitializedAsync() =>
-        await LoadWorkspaceAsync();
+        await LoadWorkspaceAsync(RequestedContentId);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
