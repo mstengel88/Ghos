@@ -1,0 +1,321 @@
+@page "/products/new"
+@page "/products/{ProductId:guid}/edit"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Operations)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsNew ? "Add product" : "Edit product") | GHOS</PageTitle>
+
+<div class="editor-heading">
+    <div>
+        <a href="/products">← Product catalog</a>
+        <span class="panel-label">PRODUCT RECORD</span>
+        <h2>@(IsNew ? "Add a product" : $"Edit {Model.Name}")</h2>
+        <p>Create one approved source for the product information used by search, marketing, sales sheets, and future website integrations.</p>
+    </div>
+    @if (!IsNew)
+    {
+        <div class="editor-score">
+            <span>Completeness</span>
+            <strong>@CurrentCompleteness%</strong>
+        </div>
+    }
+</div>
+
+@if (Loading)
+{
+    <section class="panel editor-loading">Loading product information…</section>
+}
+else if (NotFound)
+{
+    <section class="panel editor-loading">
+        <h3>Product not found</h3>
+        <p>The product record may have been removed or the link is no longer valid.</p>
+        <a class="primary-action" href="/products">Return to products</a>
+    </section>
+}
+else
+{
+    <EditForm Model="Model" OnValidSubmit="SaveAsync" class="product-form">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="validation-summary" />
+
+        @if (!string.IsNullOrWhiteSpace(SaveError))
+        {
+            <div class="auth-alert" role="alert">@SaveError</div>
+        }
+
+        <section class="panel form-section">
+            <div class="form-section-heading">
+                <span>01</span>
+                <div>
+                    <h3>Identity</h3>
+                    <p>The approved product name, internal code, and category.</p>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <label class="wide">
+                    <span>Official product name</span>
+                    <InputText @bind-Value="Model.Name" />
+                    <ValidationMessage For="() => Model.Name" />
+                </label>
+
+                <label>
+                    <span>Product code / SKU</span>
+                    <InputText @bind-Value="Model.ProductCode" />
+                </label>
+
+                <label>
+                    <span>Category</span>
+                    <InputSelect @bind-Value="Model.ProductCategoryId">
+                        <option value="">Select a category</option>
+                        @foreach (var category in Categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => Model.ProductCategoryId" />
+                </label>
+
+                <label>
+                    <span>Status</span>
+                    <InputSelect @bind-Value="Model.Status">
+                        @foreach (var status in Enum.GetValues<ProductStatus>())
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    </InputSelect>
+                </label>
+
+                <label class="wide">
+                    <span>Alternate names and search synonyms</span>
+                    <InputTextArea @bind-Value="Model.AlternateNames" rows="3" />
+                    <small>Separate terms with commas or new lines. Example: #57 Stone for the official product #1 Stone.</small>
+                </label>
+            </div>
+        </section>
+
+        <section class="panel form-section">
+            <div class="form-section-heading">
+                <span>02</span>
+                <div>
+                    <h3>Customer information</h3>
+                    <p>Clear, approved language future channels can reuse.</p>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <label class="wide">
+                    <span>Short description</span>
+                    <InputTextArea @bind-Value="Model.ShortDescription" rows="2" />
+                    <small>Keep this concise enough for product cards and search results.</small>
+                </label>
+
+                <label class="wide">
+                    <span>Full description</span>
+                    <InputTextArea @bind-Value="Model.Description" rows="5" />
+                </label>
+
+                <label>
+                    <span>Best uses</span>
+                    <InputTextArea @bind-Value="Model.BestUses" rows="5" />
+                </label>
+
+                <label>
+                    <span>Limitations / not recommended for</span>
+                    <InputTextArea @bind-Value="Model.Limitations" rows="5" />
+                </label>
+            </div>
+        </section>
+
+        <section class="panel form-section">
+            <div class="form-section-heading">
+                <span>03</span>
+                <div>
+                    <h3>Availability</h3>
+                    <p>How Green Hills currently offers this product.</p>
+                </div>
+            </div>
+
+            <div class="availability-grid">
+                <label><InputCheckbox @bind-Value="Model.AvailableForPickup" /> Pickup</label>
+                <label><InputCheckbox @bind-Value="Model.AvailableForDelivery" /> Delivery</label>
+                <label><InputCheckbox @bind-Value="Model.AvailableInBulk" /> Bulk</label>
+                <label><InputCheckbox @bind-Value="Model.AvailableBagged" /> Bagged</label>
+            </div>
+        </section>
+
+        <div class="form-actions">
+            <a href="/products">Cancel</a>
+            <button type="submit" disabled="@Saving">@(Saving ? "Saving…" : "Save product")</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public Guid? ProductId { get; set; }
+
+    private ProductFormModel Model { get; set; } = new();
+    private List<ProductCategory> Categories { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private bool Saving { get; set; }
+    private bool NotFound { get; set; }
+    private string? SaveError { get; set; }
+    private int CurrentCompleteness { get; set; }
+    private bool IsNew => ProductId is null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Categories = await dbContext.ProductCategories
+            .AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name)
+            .ToListAsync();
+
+        if (ProductId is not null)
+        {
+            var product = await dbContext.Products
+                .AsNoTracking()
+                .Include(item => item.AlternateNames)
+                .SingleOrDefaultAsync(item => item.Id == ProductId);
+
+            if (product is null)
+            {
+                NotFound = true;
+                Loading = false;
+                return;
+            }
+
+            Model = new ProductFormModel
+            {
+                Name = product.Name,
+                ProductCode = product.ProductCode,
+                ProductCategoryId = product.ProductCategoryId,
+                Status = product.Status,
+                ShortDescription = product.ShortDescription,
+                Description = product.Description,
+                BestUses = product.BestUses,
+                Limitations = product.Limitations,
+                AlternateNames = string.Join(Environment.NewLine, product.AlternateNames.Select(name => name.Name)),
+                AvailableForPickup = product.AvailableForPickup,
+                AvailableForDelivery = product.AvailableForDelivery,
+                AvailableInBulk = product.AvailableInBulk,
+                AvailableBagged = product.AvailableBagged
+            };
+
+            CurrentCompleteness = ProductCompleteness.Calculate(product);
+        }
+
+        Loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        Saving = true;
+        SaveError = null;
+
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            Product product;
+
+            if (ProductId is null)
+            {
+                product = new Product();
+                dbContext.Products.Add(product);
+            }
+            else
+            {
+                product = await dbContext.Products
+                    .Include(item => item.AlternateNames)
+                    .SingleAsync(item => item.Id == ProductId);
+                product.AlternateNames.Clear();
+            }
+
+            var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var now = DateTime.UtcNow;
+
+            product.Name = Model.Name.Trim();
+            product.Slug = await CreateUniqueSlugAsync(dbContext, product.Name, product.Id);
+            product.ProductCode = NullIfWhiteSpace(Model.ProductCode);
+            product.ProductCategoryId = Model.ProductCategoryId!.Value;
+            product.Status = Model.Status;
+            product.ShortDescription = NullIfWhiteSpace(Model.ShortDescription);
+            product.Description = NullIfWhiteSpace(Model.Description);
+            product.BestUses = NullIfWhiteSpace(Model.BestUses);
+            product.Limitations = NullIfWhiteSpace(Model.Limitations);
+            product.AvailableForPickup = Model.AvailableForPickup;
+            product.AvailableForDelivery = Model.AvailableForDelivery;
+            product.AvailableInBulk = Model.AvailableInBulk;
+            product.AvailableBagged = Model.AvailableBagged;
+            product.UpdatedAtUtc = now;
+            product.UpdatedByUserId = userId;
+
+            if (ProductId is null)
+            {
+                product.CreatedAtUtc = now;
+                product.CreatedByUserId = userId;
+            }
+
+            foreach (var alternateName in ParseAlternateNames(Model.AlternateNames, product.Name))
+            {
+                product.AlternateNames.Add(new ProductAlternateName
+                {
+                    Name = alternateName,
+                    NormalizedName = alternateName.ToUpperInvariant()
+                });
+            }
+
+            await dbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/products?saved=1", forceLoad: true);
+        }
+        catch (DbUpdateException)
+        {
+            SaveError = "This product conflicts with an existing product name, code, or alternate name. Review the values and try again.";
+        }
+        catch (InvalidOperationException)
+        {
+            SaveError = "The product could not be found or was updated elsewhere. Return to the catalog and try again.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private static async Task<string> CreateUniqueSlugAsync(
+        ApplicationDbContext dbContext,
+        string name,
+        Guid currentProductId)
+    {
+        var baseSlug = ProductSlug.Create(name);
+        var candidate = baseSlug;
+        var suffix = 2;
+
+        while (await dbContext.Products.AnyAsync(product =>
+            product.Id != currentProductId && product.Slug == candidate))
+        {
+            candidate = $"{baseSlug}-{suffix++}";
+        }
+
+        return candidate;
+    }
+
+    private static IEnumerable<string> ParseAlternateNames(string? value, string officialName) =>
+        (value ?? string.Empty)
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(name => !name.Equals(officialName, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

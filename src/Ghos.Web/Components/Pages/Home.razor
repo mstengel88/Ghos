@@ -1,6 +1,6 @@
 @page "/"
 @using Microsoft.EntityFrameworkCore
-@inject ApplicationDbContext DbContext
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 
 <PageTitle>Dashboard | GHOS</PageTitle>
 
@@ -8,20 +8,20 @@
     <div>
         <span class="eyebrow">@DateTimeOffset.Now.ToString("dddd, MMMM d").ToUpperInvariant()</span>
         <h2>@Greeting, @DisplayName.</h2>
-        <p>Your secure Green Hills workspace is ready for the next foundation module.</p>
+        <p>Your secure Green Hills workspace now includes the first operational product catalog.</p>
     </div>
 
-    <a class="primary-action" href="/products">Open product foundation</a>
+    <a class="primary-action" href="/products">Open product catalog</a>
 </div>
 
 <div class="metric-grid">
     <article class="metric-card">
         <div class="metric-heading">
-            <span>Team accounts</span>
-            <span class="metric-icon">●</span>
+            <span>Product records</span>
+            <span class="metric-icon">◆</span>
         </div>
-        <strong>@UserCount</strong>
-        <small>Stored in PostgreSQL Identity</small>
+        <strong>@ProductCount</strong>
+        <small>@CategoryCount approved categories</small>
     </article>
 
     <article class="metric-card">
@@ -44,11 +44,11 @@
 
     <article class="metric-card">
         <div class="metric-heading">
-            <span>Foundation</span>
-            <span class="metric-icon">2</span>
+            <span>Team accounts</span>
+            <span class="metric-icon">●</span>
         </div>
-        <strong>2 of 4</strong>
-        <small>Infrastructure and identity complete</small>
+        <strong>@UserCount</strong>
+        <small>Protected by PostgreSQL Identity</small>
     </article>
 </div>
 
@@ -56,42 +56,42 @@
     <section class="panel activity-panel">
         <div class="panel-header">
             <div>
-                <span class="panel-label">FOUNDATION UPDATE</span>
-                <h3>Secure access is operational</h3>
+                <span class="panel-label">PRODUCT FOUNDATION</span>
+                <h3>The catalog source of truth is ready</h3>
             </div>
         </div>
 
         <div class="empty-state">
             <div class="empty-icon">✓</div>
-            <h4>Identity is connected</h4>
-            <p>GHOS now uses PostgreSQL-backed accounts, protected routes, role policies, and secure sign-in cookies. Future modules can build on the same access model.</p>
+            <h4>Product information is connected</h4>
+            <p>GHOS can now store official product names, categories, alternate search terms, availability, descriptions, and completeness in PostgreSQL.</p>
         </div>
     </section>
 
     <section class="panel">
         <div class="panel-header">
             <div>
-                <span class="panel-label">ACCESS FOUNDATION</span>
-                <h3>Security status</h3>
+                <span class="panel-label">CATALOG STATUS</span>
+                <h3>Product system</h3>
             </div>
         </div>
 
         <div class="status-list">
             <div class="status-row">
-                <span><i></i> PostgreSQL Identity</span>
+                <span><i></i> PostgreSQL catalog</span>
                 <strong>@DatabaseStatus</strong>
             </div>
             <div class="status-row">
-                <span><i></i> Cookie authentication</span>
+                <span><i></i> Approved categories</span>
+                <strong>@CategoryCount</strong>
+            </div>
+            <div class="status-row">
+                <span><i></i> Search synonyms</span>
                 <strong>Enabled</strong>
             </div>
             <div class="status-row">
-                <span><i></i> Role authorization</span>
+                <span><i></i> Role-protected editing</span>
                 <strong>Enabled</strong>
-            </div>
-            <div class="status-row">
-                <span><i></i> Initial setup</span>
-                <strong>Complete</strong>
             </div>
         </div>
     </section>
@@ -121,15 +121,15 @@
                 </div>
             </div>
 
-            <div class="roadmap-item current">
+            <div class="roadmap-item complete">
                 <span>3</span>
                 <div>
                     <strong>Product Information Management</strong>
-                    <p>Products, categories, synonyms, pricing and Shopify data</p>
+                    <p>Products, categories, synonyms and reusable customer information</p>
                 </div>
             </div>
 
-            <div class="roadmap-item">
+            <div class="roadmap-item current">
                 <span>4</span>
                 <div>
                     <strong>Digital Asset Manager</strong>
@@ -145,6 +145,8 @@
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private int UserCount { get; set; }
+    private int ProductCount { get; set; }
+    private int CategoryCount { get; set; }
     private string DatabaseStatus { get; set; } = "Checking";
     private string DisplayName { get; set; } = "team member";
 
@@ -167,7 +169,10 @@
 
         try
         {
-            UserCount = await DbContext.Users.CountAsync();
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            UserCount = await dbContext.Users.CountAsync();
+            ProductCount = await dbContext.Products.CountAsync();
+            CategoryCount = await dbContext.ProductCategories.CountAsync(category => category.IsActive);
             DatabaseStatus = "Connected";
         }
         catch

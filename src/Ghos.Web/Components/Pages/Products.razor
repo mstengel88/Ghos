@@ -1,9 +1,213 @@
 @page "/products"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 
 <PageTitle>Products | GHOS</PageTitle>
 
-<div class="panel">
-    <span class="panel-label">GHOS MODULE</span>
-    <h2>Products</h2>
-    <p>This module is ready for development.</p>
+<div class="module-heading">
+    <div>
+        <span class="panel-label">PRODUCT INFORMATION MANAGEMENT</span>
+        <h2>Product catalog</h2>
+        <p>Manage the approved names, categories, synonyms, availability, and customer-facing information used throughout GHOS.</p>
+    </div>
+
+    <AuthorizeView Policy="@GhosPolicies.Operations">
+        <a class="primary-action" href="/products/new">+ Add product</a>
+    </AuthorizeView>
 </div>
+
+@if (Saved)
+{
+    <div class="module-notice" role="status">Product information saved successfully.</div>
+}
+
+<section class="catalog-summary">
+    <article>
+        <span>Total products</span>
+        <strong>@AllProducts.Count</strong>
+    </article>
+    <article>
+        <span>Active</span>
+        <strong>@AllProducts.Count(product => product.Status == ProductStatus.Active)</strong>
+    </article>
+    <article>
+        <span>Drafts</span>
+        <strong>@AllProducts.Count(product => product.Status == ProductStatus.Draft)</strong>
+    </article>
+    <article>
+        <span>Categories</span>
+        <strong>@Categories.Count</strong>
+    </article>
+</section>
+
+<section class="panel catalog-panel">
+    <div class="catalog-toolbar">
+        <label class="search-field">
+            <span>Search products</span>
+            <input @bind="SearchText"
+                   @bind:event="oninput"
+                   type="search"
+                   placeholder="Name, product code, or alternate name" />
+        </label>
+
+        <label>
+            <span>Category</span>
+            <select @bind="SelectedCategory">
+                <option value="">All categories</option>
+                @foreach (var category in Categories)
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            <span>Status</span>
+            <select @bind="SelectedStatus">
+                <option value="">All statuses</option>
+                @foreach (var status in Enum.GetValues<ProductStatus>())
+                {
+                    <option value="@status">@status</option>
+                }
+            </select>
+        </label>
+    </div>
+
+    @if (Loading)
+    {
+        <div class="catalog-empty">Loading the product catalog…</div>
+    }
+    else if (FilteredProducts.Count == 0)
+    {
+        <div class="catalog-empty">
+            <div class="empty-icon">◆</div>
+            <h3>@(AllProducts.Count == 0 ? "Build the product source of truth" : "No products match these filters")</h3>
+            <p>@(AllProducts.Count == 0
+                ? "Start with an approved product name and add alternate terms customers use when searching."
+                : "Try a broader search or clear one of the filters.")</p>
+            @if (AllProducts.Count == 0)
+            {
+                <AuthorizeView Policy="@GhosPolicies.Operations">
+                    <a class="primary-action" href="/products/new">Add the first product</a>
+                </AuthorizeView>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="catalog-table-wrap">
+            <table class="catalog-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Availability</th>
+                        <th>Completeness</th>
+                        <th>Status</th>
+                        <th><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var product in FilteredProducts)
+                    {
+                        var completeness = ProductCompleteness.Calculate(product);
+                        <tr>
+                            <td>
+                                <strong>@product.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(product.ProductCode))
+                                {
+                                    <small>@product.ProductCode</small>
+                                }
+                                @if (product.AlternateNames.Count > 0)
+                                {
+                                    <div class="synonyms">
+                                        Also: @string.Join(", ", product.AlternateNames.Select(name => name.Name))
+                                    </div>
+                                }
+                            </td>
+                            <td>@product.ProductCategory.Name</td>
+                            <td>
+                                <div class="availability">
+                                    @if (product.AvailableForPickup) { <span>Pickup</span> }
+                                    @if (product.AvailableForDelivery) { <span>Delivery</span> }
+                                    @if (product.AvailableInBulk) { <span>Bulk</span> }
+                                    @if (product.AvailableBagged) { <span>Bagged</span> }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="completeness">
+                                    <div><span style="width:@completeness%"></span></div>
+                                    <strong>@completeness%</strong>
+                                </div>
+                            </td>
+                            <td><span class="status-badge @product.Status.ToString().ToLowerInvariant()">@product.Status</span></td>
+                            <td>
+                                <AuthorizeView Policy="@GhosPolicies.Operations">
+                                    <a class="row-action" href="/products/@product.Id/edit">Edit</a>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "saved")]
+    public string? SavedValue { get; set; }
+
+    private List<Product> AllProducts { get; set; } = [];
+    private List<ProductCategory> Categories { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private string SearchText { get; set; } = string.Empty;
+    private string SelectedCategory { get; set; } = string.Empty;
+    private string SelectedStatus { get; set; } = string.Empty;
+    private bool Saved => SavedValue == "1";
+
+    private List<Product> FilteredProducts => AllProducts
+        .Where(MatchesSearch)
+        .Where(product =>
+            string.IsNullOrWhiteSpace(SelectedCategory) ||
+            product.ProductCategoryId.ToString() == SelectedCategory)
+        .Where(product =>
+            string.IsNullOrWhiteSpace(SelectedStatus) ||
+            product.Status.ToString() == SelectedStatus)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Categories = await dbContext.ProductCategories
+            .AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name)
+            .ToListAsync();
+
+        AllProducts = await dbContext.Products
+            .AsNoTracking()
+            .Include(product => product.ProductCategory)
+            .Include(product => product.AlternateNames)
+            .OrderBy(product => product.Name)
+            .ToListAsync();
+
+        Loading = false;
+    }
+
+    private bool MatchesSearch(Product product)
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            return true;
+        }
+
+        var search = SearchText.Trim();
+        return product.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+            (product.ProductCode?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            product.AlternateNames.Any(name =>
+                name.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+}

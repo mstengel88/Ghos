@@ -28,5 +28,41 @@ public static class DatabaseInitializer
                 throw new InvalidOperationException($"Unable to create the '{roleName}' role: {details}");
             }
         }
+
+        var categories = new[]
+        {
+            CreateCategory("Aggregate", "aggregate", 10),
+            CreateCategory("Mulch", "mulch", 20),
+            CreateCategory("Topsoil & Soil", "topsoil-soil", 30),
+            CreateCategory("Decorative Stone", "decorative-stone", 40),
+            CreateCategory("Sand", "sand", 50),
+            CreateCategory("Bagged Materials", "bagged-materials", 60),
+            CreateCategory("Outdoor Living", "outdoor-living", 70),
+            CreateCategory("Tools & Equipment", "tools-equipment", 80),
+            CreateCategory("Ice Melt", "ice-melt", 90)
+        };
+
+        var existingCategorySlugs = await dbContext.ProductCategories
+            .Select(category => category.Slug)
+            .ToListAsync();
+        var missingCategories = categories
+            .Where(category => !existingCategorySlugs.Contains(
+                category.Slug,
+                StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        if (missingCategories.Count > 0)
+        {
+            dbContext.ProductCategories.AddRange(missingCategories);
+            await dbContext.SaveChangesAsync();
+        }
     }
+
+    private static ProductCategory CreateCategory(string name, string slug, int sortOrder) =>
+        new()
+        {
+            Name = name,
+            Slug = slug,
+            SortOrder = sortOrder
+        };
 }
