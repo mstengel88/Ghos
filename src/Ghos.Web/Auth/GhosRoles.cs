@@ -22,4 +22,5 @@ public static class GhosPolicies
     public const string Management = "Management";
     public const string Operations = "Operations";
     public const string Marketing = "Marketing";
+    public const string Assets = "Assets";
 }

@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Ghos.Web.Assets;
 using Ghos.Web.Auth;
 using Ghos.Web.Components;
 using Ghos.Web.Data;
@@ -29,6 +30,9 @@ builder.Services.AddHttpClient<ShopifyAdminClient>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
 });
 builder.Services.AddScoped<ShopifySyncService>();
+builder.Services.Configure<AssetStorageOptions>(
+    builder.Configuration.GetSection(AssetStorageOptions.SectionName));
+builder.Services.AddScoped<AssetStorageService>();
 
 var dataProtectionKeyPath = builder.Configuration["DataProtection:KeyPath"]
     ?? "/var/lib/ghos/data-protection";
@@ -85,6 +89,12 @@ builder.Services.AddAuthorizationBuilder()
         policy => policy.RequireRole(
             GhosRoles.Administrator,
             GhosRoles.Manager,
+            GhosRoles.Marketing))
+    .AddPolicy(GhosPolicies.Assets,
+        policy => policy.RequireRole(
+            GhosRoles.Administrator,
+            GhosRoles.Manager,
+            GhosRoles.Operations,
             GhosRoles.Marketing));
 
 builder.Services.AddCascadingAuthenticationState();
@@ -129,6 +139,7 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapAccountEndpoints();
+app.MapAssetEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

@@ -98,4 +98,6 @@ public sealed class Product
     public ICollection<ProductAlternateName> AlternateNames { get; set; } = [];
 
     public ICollection<ProductVariant> Variants { get; set; } = [];
+
+    public ICollection<AssetProductLink> AssetLinks { get; set; } = [];
 }

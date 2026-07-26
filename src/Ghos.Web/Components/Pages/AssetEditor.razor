@@ -1,0 +1,316 @@
+@page "/assets/{AssetId:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Assets)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>@(SourceAsset?.Title ?? "Asset") | GHOS</PageTitle>
+
+<div class="asset-editor-heading">
+    <div>
+        <a href="/assets">← Content library</a>
+        <span class="panel-label">ASSET RECORD</span>
+        <h2>@(Loading ? "Loading asset…" : Model.Title)</h2>
+        <p>Review the original file, approve its use, and connect it to the product it supports.</p>
+    </div>
+</div>
+
+@if (Loading)
+{
+    <section class="panel editor-loading">Loading asset information…</section>
+}
+else if (NotFound)
+{
+    <section class="panel editor-loading">
+        <h3>Asset not found</h3>
+        <p>The record may have been removed or the link is no longer valid.</p>
+        <a class="primary-action" href="/assets">Return to the library</a>
+    </section>
+}
+else if (SourceAsset is not null)
+{
+    <div class="asset-editor-grid">
+        <section class="panel original-panel">
+            <div class="original-preview">
+                @if (CanPreviewImage(SourceAsset))
+                {
+                    <img src="/asset-files/@SourceAsset.Id"
+                         alt="@SourceAsset.Title" />
+                }
+                else if (SourceAsset.Kind == AssetKind.Video)
+                {
+                    <video src="/asset-files/@SourceAsset.Id"
+                           controls
+                           preload="metadata"></video>
+                }
+                else
+                {
+                    <div class="document-preview">
+                        <span>DOCUMENT</span>
+                        <strong>@Path.GetExtension(SourceAsset.OriginalFileName).TrimStart('.').ToUpperInvariant()</strong>
+                    </div>
+                }
+            </div>
+
+            <div class="original-details">
+                <div>
+                    <span>Original filename</span>
+                    <strong>@SourceAsset.OriginalFileName</strong>
+                </div>
+                <div>
+                    <span>Type</span>
+                    <strong>@SourceAsset.Kind · @SourceAsset.ContentType</strong>
+                </div>
+                <div>
+                    <span>Size</span>
+                    <strong>@AssetStorageService.FormatBytes(SourceAsset.FileSizeBytes)</strong>
+                </div>
+                <div>
+                    <span>Source</span>
+                    <strong>@SourceAsset.Source</strong>
+                </div>
+                <div>
+                    <span>Secure fingerprint</span>
+                    <strong class="hash">@SourceAsset.Sha256Hash</strong>
+                </div>
+            </div>
+
+            <a class="open-original"
+               href="/asset-files/@SourceAsset.Id"
+               target="_blank"
+               rel="noopener">Open original ↗</a>
+        </section>
+
+        <EditForm Model="Model" OnValidSubmit="SaveAsync" class="asset-form">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="validation-summary" />
+
+            @if (!string.IsNullOrWhiteSpace(SaveError))
+            {
+                <div class="auth-alert" role="alert">@SaveError</div>
+            }
+
+            <section class="panel form-section">
+                <div class="form-grid">
+                    <label class="wide">
+                        <span>Title</span>
+                        <InputText @bind-Value="Model.Title" />
+                        <ValidationMessage For="() => Model.Title" />
+                    </label>
+
+                    <label class="wide">
+                        <span>Description</span>
+                        <InputTextArea @bind-Value="Model.Description" rows="4" />
+                        <ValidationMessage For="() => Model.Description" />
+                    </label>
+
+                    <label class="wide">
+                        <span>Tags</span>
+                        <InputTextArea @bind-Value="Model.Tags" rows="3" />
+                        <small>Separate tags with commas or new lines.</small>
+                        <ValidationMessage For="() => Model.Tags" />
+                    </label>
+
+                    <label>
+                        <span>Approval status</span>
+                        <InputSelect @bind-Value="Model.Status">
+                            @foreach (var status in Enum.GetValues<AssetStatus>())
+                            {
+                                <option value="@status">@FormatStatus(status)</option>
+                            }
+                        </InputSelect>
+                    </label>
+
+                    <label>
+                        <span>Quality rating</span>
+                        <InputSelect @bind-Value="Model.Rating">
+                            <option value="0">Not rated</option>
+                            <option value="1">★ Internal reference</option>
+                            <option value="2">★★ Limited use</option>
+                            <option value="3">★★★ Social ready</option>
+                            <option value="4">★★★★ Website ready</option>
+                            <option value="5">★★★★★ Hero quality</option>
+                        </InputSelect>
+                    </label>
+
+                    <label class="wide">
+                        <span>Linked product</span>
+                        <InputSelect @bind-Value="Model.ProductId">
+                            <option value="">No product link</option>
+                            @foreach (var product in Products)
+                            {
+                                <option value="@product.Id">@product.Name</option>
+                            }
+                        </InputSelect>
+                    </label>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <a href="/assets">Cancel</a>
+                <button type="submit" disabled="@Saving">
+                    @(Saving ? "Saving…" : "Save asset")
+                </button>
+            </div>
+        </EditForm>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid AssetId { get; set; }
+
+    private DigitalAsset? SourceAsset { get; set; }
+    private AssetEditModel Model { get; set; } = new();
+    private List<Product> Products { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private bool NotFound { get; set; }
+    private bool Saving { get; set; }
+    private string? SaveError { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Products = await dbContext.Products
+            .AsNoTracking()
+            .OrderBy(product => product.Name)
+            .ToListAsync();
+        SourceAsset = await dbContext.DigitalAssets
+            .AsNoTracking()
+            .Include(asset => asset.ProductLinks)
+            .SingleOrDefaultAsync(asset => asset.Id == AssetId);
+
+        if (SourceAsset is null)
+        {
+            NotFound = true;
+            Loading = false;
+            return;
+        }
+
+        Model = new AssetEditModel
+        {
+            Title = SourceAsset.Title,
+            Description = SourceAsset.Description,
+            Tags = SourceAsset.Tags,
+            Status = SourceAsset.Status,
+            Rating = SourceAsset.Rating,
+            ProductId = SourceAsset.ProductLinks
+                .OrderBy(link => link.SortOrder)
+                .Select(link => (Guid?)link.ProductId)
+                .FirstOrDefault()
+        };
+        Loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        Saving = true;
+        SaveError = null;
+
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var asset = await dbContext.DigitalAssets
+                .Include(item => item.ProductLinks)
+                .SingleAsync(item => item.Id == AssetId);
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            var now = DateTime.UtcNow;
+
+            asset.Title = Model.Title.Trim();
+            asset.Description = NullIfWhiteSpace(Model.Description);
+            asset.Tags = NormalizeTags(Model.Tags);
+            asset.Rating = Model.Rating;
+            asset.Status = Model.Status;
+            asset.UpdatedAtUtc = now;
+            asset.UpdatedByUserId = userId;
+
+            if (Model.Status == AssetStatus.Approved)
+            {
+                asset.ApprovedAtUtc ??= now;
+                asset.ApprovedByUserId ??= userId;
+            }
+            else
+            {
+                asset.ApprovedAtUtc = null;
+                asset.ApprovedByUserId = null;
+            }
+
+            asset.ProductLinks.Clear();
+
+            if (Model.ProductId is not null)
+            {
+                asset.ProductLinks.Add(new AssetProductLink
+                {
+                    ProductId = Model.ProductId.Value
+                });
+            }
+
+            await dbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/assets?saved=1", forceLoad: true);
+        }
+        catch (DbUpdateException)
+        {
+            SaveError = "The asset information could not be saved. Review the values and try again.";
+        }
+        catch (InvalidOperationException)
+        {
+            SaveError = "The asset could not be found or was updated elsewhere.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private static bool CanPreviewImage(DigitalAsset asset) =>
+        asset.Kind == AssetKind.Image &&
+        asset.ContentType is "image/jpeg" or "image/png" or "image/webp" or "image/gif";
+
+    private static string FormatStatus(AssetStatus status) => status switch
+    {
+        AssetStatus.PendingReview => "Pending review",
+        AssetStatus.Approved => "Approved",
+        AssetStatus.Archived => "Archived",
+        _ => status.ToString()
+    };
+
+    private static string? NormalizeTags(string? tags)
+    {
+        var normalized = (tags ?? string.Empty)
+            .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase);
+        var value = string.Join(", ", normalized);
+
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed class AssetEditModel
+    {
+        [Required]
+        [StringLength(160)]
+        public string Title { get; set; } = string.Empty;
+
+        [StringLength(2000)]
+        public string? Description { get; set; }
+
+        [StringLength(2000)]
+        public string? Tags { get; set; }
+
+        public AssetStatus Status { get; set; } = AssetStatus.PendingReview;
+
+        [Range(0, 5)]
+        public int Rating { get; set; }
+
+        public Guid? ProductId { get; set; }
+    }
+}

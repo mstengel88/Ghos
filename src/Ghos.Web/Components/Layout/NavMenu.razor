@@ -38,10 +38,12 @@
 
     <div class="nav-section">GROWTH</div>
 
-    <NavLink href="/assets">
-        <span class="nav-icon">▣</span>
-        <span>Digital Assets</span>
-    </NavLink>
+    <AuthorizeView Policy="@GhosPolicies.Assets">
+        <NavLink href="/assets">
+            <span class="nav-icon">▣</span>
+            <span>Digital Assets</span>
+        </NavLink>
+    </AuthorizeView>
 
     <AuthorizeView Policy="@GhosPolicies.Marketing">
         <NavLink href="/marketing">

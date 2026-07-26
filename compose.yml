@@ -50,6 +50,7 @@ services:
       Redis__ConnectionString: redis:6379
       Bootstrap__Token: ${GHOS_BOOTSTRAP_TOKEN}
       DataProtection__KeyPath: /var/lib/ghos/data-protection
+      AssetStorage__RootPath: /var/lib/ghos/assets
       Shopify__StoreDomain: ${SHOPIFY_STORE_DOMAIN:-darfaz-2e.myshopify.com}
       Shopify__ApiVersion: ${SHOPIFY_API_VERSION:-2026-07}
       Shopify__ClientId: ${SHOPIFY_CLIENT_ID:-}
@@ -57,6 +58,7 @@ services:
       Shopify__StorefrontUrl: https://greenhillssupply.com
     volumes:
       - ghos-data-protection:/var/lib/ghos/data-protection
+      - ./assets:/var/lib/ghos/assets
     depends_on:
       postgres:
         condition: service_healthy

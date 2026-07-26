@@ -1,9 +1,264 @@
 @page "/assets"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Assets)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 
-<PageTitle>Assets | GHOS</PageTitle>
+<PageTitle>Digital Assets | GHOS</PageTitle>
 
-<div class="panel">
-    <span class="panel-label">GHOS MODULE</span>
-    <h2>Assets</h2>
-    <p>This module is ready for development.</p>
+<div class="module-heading">
+    <div>
+        <span class="panel-label">DIGITAL ASSET MANAGER</span>
+        <h2>Content library</h2>
+        <p>Keep original photos, videos, and documents organized, searchable, approved, and connected to the products they support.</p>
+    </div>
+
+    <AuthorizeView Policy="@GhosPolicies.Assets">
+        <a class="primary-action" href="/assets/upload">+ Upload asset</a>
+    </AuthorizeView>
 </div>
+
+@if (Uploaded)
+{
+    <div class="module-notice" role="status">Asset uploaded and added to the review queue.</div>
+}
+else if (Duplicate)
+{
+    <div class="module-notice" role="status">
+        That file already exists. GHOS reused the original record and added the selected product link.
+    </div>
+}
+else if (Saved)
+{
+    <div class="module-notice" role="status">Asset information saved successfully.</div>
+}
+
+<section class="asset-summary">
+    <article>
+        <span>Total assets</span>
+        <strong>@AllAssets.Count</strong>
+    </article>
+    <article>
+        <span>Awaiting approval</span>
+        <strong>@AllAssets.Count(asset => asset.Status == AssetStatus.PendingReview)</strong>
+    </article>
+    <article>
+        <span>Approved</span>
+        <strong>@AllAssets.Count(asset => asset.Status == AssetStatus.Approved)</strong>
+    </article>
+    <article>
+        <span>Unlinked</span>
+        <strong>@AllAssets.Count(asset => asset.ProductLinks.Count == 0)</strong>
+    </article>
+    <article>
+        <span>Library size</span>
+        <strong>@AssetStorageService.FormatBytes(AllAssets.Sum(asset => asset.FileSizeBytes))</strong>
+    </article>
+</section>
+
+<section class="panel asset-panel">
+    <div class="asset-toolbar">
+        <label class="search-field">
+            <span>Search library</span>
+            <input @bind="SearchText"
+                   @bind:event="oninput"
+                   type="search"
+                   placeholder="Title, filename, tag, or product" />
+        </label>
+
+        <label>
+            <span>Type</span>
+            <select @bind="SelectedKind">
+                <option value="">All types</option>
+                @foreach (var kind in Enum.GetValues<AssetKind>())
+                {
+                    <option value="@kind">@kind</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            <span>Status</span>
+            <select @bind="SelectedStatus">
+                <option value="">All statuses</option>
+                @foreach (var status in Enum.GetValues<AssetStatus>())
+                {
+                    <option value="@status">@FormatStatus(status)</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            <span>Product link</span>
+            <select @bind="SelectedLinkState">
+                <option value="">All assets</option>
+                <option value="linked">Linked</option>
+                <option value="unlinked">Unlinked</option>
+            </select>
+        </label>
+    </div>
+
+    @if (Loading)
+    {
+        <div class="asset-empty">Loading the content library…</div>
+    }
+    else if (FilteredAssets.Count == 0)
+    {
+        <div class="asset-empty">
+            <div class="empty-icon">▣</div>
+            <h3>@(AllAssets.Count == 0 ? "The asset library is ready" : "No assets match these filters")</h3>
+            <p>@(AllAssets.Count == 0
+                ? "Upload the first Green Hills photo, video, or document now. The iCloud collection can be imported later without changing this structure."
+                : "Try a broader search or clear one of the filters.")</p>
+            @if (AllAssets.Count == 0)
+            {
+                <AuthorizeView Policy="@GhosPolicies.Assets">
+                    <a class="primary-action" href="/assets/upload">Upload the first asset</a>
+                </AuthorizeView>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="asset-grid">
+            @foreach (var asset in FilteredAssets)
+            {
+                <article class="asset-card" id="asset-@asset.Id">
+                    <a class="asset-preview" href="/assets/@asset.Id">
+                        @if (CanPreviewImage(asset))
+                        {
+                            <img src="/asset-files/@asset.Id"
+                                 alt="@asset.Title"
+                                 loading="lazy" />
+                        }
+                        else if (asset.Kind == AssetKind.Video)
+                        {
+                            <video src="/asset-files/@asset.Id"
+                                   preload="metadata"
+                                   muted></video>
+                            <span class="preview-kind">▶ Video</span>
+                        }
+                        else
+                        {
+                            <div class="document-preview">
+                                <span>DOC</span>
+                                <strong>@Path.GetExtension(asset.OriginalFileName).TrimStart('.').ToUpperInvariant()</strong>
+                            </div>
+                        }
+                    </a>
+
+                    <div class="asset-card-body">
+                        <div class="asset-card-heading">
+                            <span class="kind-label">@asset.Kind</span>
+                            <span class="status-label @asset.Status.ToString().ToLowerInvariant()">
+                                @FormatStatus(asset.Status)
+                            </span>
+                        </div>
+                        <h3>@asset.Title</h3>
+                        <p>@asset.OriginalFileName · @AssetStorageService.FormatBytes(asset.FileSizeBytes)</p>
+
+                        @if (!string.IsNullOrWhiteSpace(asset.Tags))
+                        {
+                            <div class="asset-tags">@asset.Tags</div>
+                        }
+
+                        <div class="asset-links">
+                            @if (asset.ProductLinks.Count == 0)
+                            {
+                                <span>Not linked to a product</span>
+                            }
+                            else
+                            {
+                                <span>@string.Join(", ", asset.ProductLinks.Select(link => link.Product.Name))</span>
+                            }
+                        </div>
+
+                        <div class="asset-card-footer">
+                            <span>@FormatRating(asset.Rating)</span>
+                            <AuthorizeView Policy="@GhosPolicies.Assets">
+                                <a href="/assets/@asset.Id">Review</a>
+                            </AuthorizeView>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "uploaded")]
+    public string? UploadedValue { get; set; }
+
+    [SupplyParameterFromQuery(Name = "duplicate")]
+    public string? DuplicateValue { get; set; }
+
+    [SupplyParameterFromQuery(Name = "saved")]
+    public string? SavedValue { get; set; }
+
+    private List<DigitalAsset> AllAssets { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private string SearchText { get; set; } = string.Empty;
+    private string SelectedKind { get; set; } = string.Empty;
+    private string SelectedStatus { get; set; } = string.Empty;
+    private string SelectedLinkState { get; set; } = string.Empty;
+    private bool Uploaded => UploadedValue == "1";
+    private bool Duplicate => DuplicateValue == "1";
+    private bool Saved => SavedValue == "1";
+
+    private List<DigitalAsset> FilteredAssets => AllAssets
+        .Where(MatchesSearch)
+        .Where(asset =>
+            string.IsNullOrWhiteSpace(SelectedKind) ||
+            asset.Kind.ToString() == SelectedKind)
+        .Where(asset =>
+            string.IsNullOrWhiteSpace(SelectedStatus) ||
+            asset.Status.ToString() == SelectedStatus)
+        .Where(asset =>
+            string.IsNullOrWhiteSpace(SelectedLinkState) ||
+            (SelectedLinkState == "linked" && asset.ProductLinks.Count > 0) ||
+            (SelectedLinkState == "unlinked" && asset.ProductLinks.Count == 0))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        AllAssets = await dbContext.DigitalAssets
+            .AsNoTracking()
+            .Include(asset => asset.ProductLinks)
+            .ThenInclude(link => link.Product)
+            .OrderByDescending(asset => asset.CreatedAtUtc)
+            .ToListAsync();
+        Loading = false;
+    }
+
+    private bool MatchesSearch(DigitalAsset asset)
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            return true;
+        }
+
+        var search = SearchText.Trim();
+        return asset.Title.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+            asset.OriginalFileName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+            (asset.Tags?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            asset.ProductLinks.Any(link =>
+                link.Product.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool CanPreviewImage(DigitalAsset asset) =>
+        asset.Kind == AssetKind.Image &&
+        asset.ContentType is "image/jpeg" or "image/png" or "image/webp" or "image/gif";
+
+    private static string FormatStatus(AssetStatus status) => status switch
+    {
+        AssetStatus.PendingReview => "Pending review",
+        AssetStatus.Approved => "Approved",
+        AssetStatus.Archived => "Archived",
+        _ => status.ToString()
+    };
+
+    private static string FormatRating(int rating) =>
+        rating == 0 ? "Not rated" : new string('★', rating);
+}

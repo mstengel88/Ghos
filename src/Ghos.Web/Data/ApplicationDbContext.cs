@@ -18,6 +18,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ShopifyConnectionSettings> ShopifyConnectionSettings => Set<ShopifyConnectionSettings>();
 
+    public DbSet<DigitalAsset> DigitalAssets => Set<DigitalAsset>();
+
+    public DbSet<AssetProductLink> AssetProductLinks => Set<AssetProductLink>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -78,6 +82,31 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<ShopifyConnectionSettings>(settings =>
         {
             settings.ToTable("ShopifyConnectionSettings");
+        });
+
+        builder.Entity<DigitalAsset>(asset =>
+        {
+            asset.HasIndex(item => item.Sha256Hash).IsUnique();
+            asset.HasIndex(item => item.CreatedAtUtc);
+            asset.HasIndex(item => new { item.Status, item.Kind });
+            asset.Property(item => item.Kind).HasConversion<string>().HasMaxLength(24);
+            asset.Property(item => item.Status).HasConversion<string>().HasMaxLength(24);
+            asset.Property(item => item.Source).HasConversion<string>().HasMaxLength(24);
+        });
+
+        builder.Entity<AssetProductLink>(link =>
+        {
+            link.HasKey(item => new { item.DigitalAssetId, item.ProductId });
+
+            link.HasOne(item => item.DigitalAsset)
+                .WithMany(asset => asset.ProductLinks)
+                .HasForeignKey(item => item.DigitalAssetId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            link.HasOne(item => item.Product)
+                .WithMany(product => product.AssetLinks)
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

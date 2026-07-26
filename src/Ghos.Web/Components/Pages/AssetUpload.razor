@@ -1,0 +1,246 @@
+@page "/assets/upload"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Assets)]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AssetStorageService StorageService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+@inject ILogger<AssetUpload> Logger
+
+<PageTitle>Upload asset | GHOS</PageTitle>
+
+<div class="upload-heading">
+    <div>
+        <a href="/assets">← Content library</a>
+        <span class="panel-label">DIGITAL ASSET MANAGER</span>
+        <h2>Upload an asset</h2>
+        <p>Add an original photo, video, or document. GHOS calculates a secure fingerprint so duplicate files are reused instead of stored twice.</p>
+    </div>
+</div>
+
+<EditForm Model="Model" OnValidSubmit="UploadAsync" class="upload-form">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="validation-summary" />
+
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="auth-alert" role="alert">@ErrorMessage</div>
+    }
+
+    <section class="panel upload-section">
+        <div class="section-heading">
+            <span>01</span>
+            <div>
+                <h3>Original file</h3>
+                <p>The first release accepts files up to @AssetStorageService.FormatBytes(StorageService.MaxFileSizeBytes).</p>
+            </div>
+        </div>
+
+        <div>
+            <label class="file-picker">
+                <InputFile OnChange="SelectFile"
+                           accept=".jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.mp4,.mov,.m4v,.webm,.pdf,.docx,.xlsx,.pptx,.csv,.txt" />
+                <span>Choose a photo, video, or document</span>
+                <small>The original file remains unchanged after upload.</small>
+            </label>
+
+            @if (SelectedFile is not null)
+            {
+                <div class="selected-file">
+                    <div class="file-icon">@GetFileIcon(SelectedFile.Name)</div>
+                    <div>
+                        <strong>@SelectedFile.Name</strong>
+                        <span>@AssetStorageService.FormatBytes(SelectedFile.Size)</span>
+                    </div>
+                    <button type="button" @onclick="ClearFile">Remove</button>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel upload-section">
+        <div class="section-heading">
+            <span>02</span>
+            <div>
+                <h3>Library information</h3>
+                <p>These fields make the asset easier to find and reuse later.</p>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <label class="wide">
+                <span>Title</span>
+                <InputText @bind-Value="Model.Title"
+                           placeholder="Leave blank to use the filename" />
+                <ValidationMessage For="() => Model.Title" />
+            </label>
+
+            <label class="wide">
+                <span>Description</span>
+                <InputTextArea @bind-Value="Model.Description"
+                               rows="4"
+                               placeholder="What does this asset show, and how should the team use it?" />
+                <ValidationMessage For="() => Model.Description" />
+            </label>
+
+            <label class="wide">
+                <span>Tags</span>
+                <InputTextArea @bind-Value="Model.Tags"
+                               rows="3"
+                               placeholder="Loader, #1 Stone, driveway, summer, customer project" />
+                <small>Separate tags with commas or new lines.</small>
+                <ValidationMessage For="() => Model.Tags" />
+            </label>
+
+            <label>
+                <span>Initial rating</span>
+                <InputSelect @bind-Value="Model.Rating">
+                    <option value="0">Not rated</option>
+                    <option value="1">★ Internal reference</option>
+                    <option value="2">★★ Limited use</option>
+                    <option value="3">★★★ Social ready</option>
+                    <option value="4">★★★★ Website ready</option>
+                    <option value="5">★★★★★ Hero quality</option>
+                </InputSelect>
+            </label>
+
+            <label>
+                <span>Link to product</span>
+                <InputSelect @bind-Value="Model.ProductId">
+                    <option value="">No product link</option>
+                    @foreach (var product in Products)
+                    {
+                        <option value="@product.Id">@product.Name</option>
+                    }
+                </InputSelect>
+            </label>
+        </div>
+    </section>
+
+    <div class="form-actions">
+        <a href="/assets">Cancel</a>
+        <button type="submit" disabled="@(Uploading || SelectedFile is null)">
+            @(Uploading ? "Uploading…" : "Upload to GHOS")
+        </button>
+    </div>
+</EditForm>
+
+@code {
+    private AssetUploadFormModel Model { get; set; } = new();
+    private List<Product> Products { get; set; } = [];
+    private IBrowserFile? SelectedFile { get; set; }
+    private bool Uploading { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Products = await dbContext.Products
+            .AsNoTracking()
+            .OrderBy(product => product.Name)
+            .ToListAsync();
+    }
+
+    private void SelectFile(InputFileChangeEventArgs eventArgs)
+    {
+        SelectedFile = eventArgs.File;
+        ErrorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(Model.Title))
+        {
+            Model.Title = Path.GetFileNameWithoutExtension(SelectedFile.Name);
+        }
+    }
+
+    private void ClearFile()
+    {
+        SelectedFile = null;
+        ErrorMessage = null;
+    }
+
+    private async Task UploadAsync()
+    {
+        if (SelectedFile is null)
+        {
+            ErrorMessage = "Choose a file before uploading.";
+            return;
+        }
+
+        Uploading = true;
+        ErrorMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await using var stream = SelectedFile.OpenReadStream(
+                StorageService.MaxFileSizeBytes);
+            var result = await StorageService.StoreAsync(
+                new AssetUploadRequest(
+                    stream,
+                    SelectedFile.Name,
+                    SelectedFile.Size,
+                    Model.Title,
+                    Model.Description,
+                    Model.Tags,
+                    Model.Rating,
+                    Model.ProductId,
+                    userId));
+
+            Navigation.NavigateTo(
+                result.Created
+                    ? $"/assets?uploaded=1#asset-{result.Asset.Id}"
+                    : $"/assets?duplicate=1#asset-{result.Asset.Id}",
+                forceLoad: true);
+        }
+        catch (AssetStorageException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (IOException)
+        {
+            ErrorMessage = "GHOS could not read or store that file. Confirm its size and try again.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "GHOS could not upload an asset.");
+            ErrorMessage = "The asset could not be uploaded. Nothing was added to the library.";
+        }
+        finally
+        {
+            Uploading = false;
+        }
+    }
+
+    private static string GetFileIcon(string fileName)
+    {
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        return extension switch
+        {
+            ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif" or ".heic" or ".heif" => "IMG",
+            ".mp4" or ".mov" or ".m4v" or ".webm" => "VID",
+            _ => "DOC"
+        };
+    }
+
+    private sealed class AssetUploadFormModel
+    {
+        [StringLength(160)]
+        public string? Title { get; set; }
+
+        [StringLength(2000)]
+        public string? Description { get; set; }
+
+        [StringLength(2000)]
+        public string? Tags { get; set; }
+
+        [Range(0, 5)]
+        public int Rating { get; set; }
+
+        public Guid? ProductId { get; set; }
+    }
+}
