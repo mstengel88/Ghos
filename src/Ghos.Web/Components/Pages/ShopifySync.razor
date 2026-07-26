@@ -5,6 +5,7 @@
 @inject ShopifyCredentialStore CredentialStore
 @inject ShopifyAccessTokenProvider TokenProvider
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<ShopifySync> Logger
 
 <PageTitle>Shopify sync | GHOS</PageTitle>
 
@@ -52,18 +53,20 @@
                 <div class="credential-grid">
                     <label>
                         <span>Client ID</span>
-                        <InputText @bind-Value="CredentialModel.ClientId"
-                                   autocomplete="off"
-                                   placeholder="Paste the Shopify Client ID" />
+                        <input @bind="CredentialModel.ClientId"
+                               @bind:event="oninput"
+                               autocomplete="off"
+                               placeholder="Paste the Shopify Client ID" />
                         <ValidationMessage For="@(() => CredentialModel.ClientId)" />
                     </label>
 
                     <label>
                         <span>Client Secret</span>
-                        <InputText @bind-Value="CredentialModel.ClientSecret"
-                                   type="password"
-                                   autocomplete="new-password"
-                                   placeholder="Paste the Shopify Client Secret" />
+                        <input @bind="CredentialModel.ClientSecret"
+                               @bind:event="oninput"
+                               type="password"
+                               autocomplete="new-password"
+                               placeholder="Paste the Shopify Client Secret" />
                         <ValidationMessage For="@(() => CredentialModel.ClientSecret)" />
                     </label>
                 </div>
@@ -272,9 +275,12 @@ else
             TokenProvider.Invalidate();
             ErrorMessage = exception.Message;
         }
-        catch
+        catch (Exception exception)
         {
             TokenProvider.Invalidate();
+            Logger.LogError(
+                exception,
+                "GHOS could not save the Shopify client credentials.");
             ErrorMessage = "GHOS could not verify or save the Shopify connection. Nothing was changed.";
         }
         finally

@@ -1,10 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY Ghos.Web.csproj ./
-RUN dotnet restore
-
 COPY . .
+RUN dotnet restore
 RUN dotnet publish \
     -c Release \
     -o /app/publish \
