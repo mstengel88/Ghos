@@ -423,6 +423,65 @@ namespace Ghos.Web.Data.Migrations
                     b.ToTable("MarketingContentPackages");
                 });
 
+            modelBuilder.Entity("Ghos.Web.Data.MarketingPerformanceSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CapturedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int?>("FacebookEngagements")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("FacebookReach")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("InstagramEngagements")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("InstagramReach")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Leads")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MarketingContentPackageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("Orders")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("Revenue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("WebsiteClicks")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(
+                        "MarketingContentPackageId",
+                        "CapturedAtUtc")
+                        .HasDatabaseName(
+                            "IX_MarketingPerformance_Content_Captured");
+
+                    b.ToTable("MarketingPerformanceSnapshots");
+                });
+
             modelBuilder.Entity("Ghos.Web.Data.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -995,6 +1054,20 @@ namespace Ghos.Web.Data.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Ghos.Web.Data.MarketingPerformanceSnapshot", b =>
+                {
+                    b.HasOne(
+                            "Ghos.Web.Data.MarketingContentPackage",
+                            "MarketingContentPackage")
+                        .WithMany("PerformanceSnapshots")
+                        .HasForeignKey("MarketingContentPackageId")
+                        .HasConstraintName("FK_MarketingPerformance_Content")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MarketingContentPackage");
+                });
+
             modelBuilder.Entity("Ghos.Web.Data.Product", b =>
                 {
                     b.HasOne("Ghos.Web.Data.ProductCategory", "ProductCategory")
@@ -1101,6 +1174,11 @@ namespace Ghos.Web.Data.Migrations
             modelBuilder.Entity("Ghos.Web.Data.DigitalAsset", b =>
                 {
                     b.Navigation("ProductLinks");
+                });
+
+            modelBuilder.Entity("Ghos.Web.Data.MarketingContentPackage", b =>
+                {
+                    b.Navigation("PerformanceSnapshots");
                 });
 
             modelBuilder.Entity("Ghos.Web.Data.Product", b =>

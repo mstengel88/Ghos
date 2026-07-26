@@ -31,6 +31,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<MarketingContentPackage> MarketingContentPackages =>
         Set<MarketingContentPackage>();
 
+    public DbSet<MarketingPerformanceSnapshot> MarketingPerformanceSnapshots =>
+        Set<MarketingPerformanceSnapshot>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -174,6 +177,23 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany()
                 .HasForeignKey(item => item.DigitalAssetId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<MarketingPerformanceSnapshot>(snapshot =>
+        {
+            snapshot.HasIndex(item => new
+            {
+                item.MarketingContentPackageId,
+                item.CapturedAtUtc
+            }).HasDatabaseName(
+                "IX_MarketingPerformance_Content_Captured");
+            snapshot.Property(item => item.Revenue).HasPrecision(18, 2);
+
+            snapshot.HasOne(item => item.MarketingContentPackage)
+                .WithMany(content => content.PerformanceSnapshots)
+                .HasForeignKey(item => item.MarketingContentPackageId)
+                .HasConstraintName("FK_MarketingPerformance_Content")
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

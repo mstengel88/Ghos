@@ -549,6 +549,132 @@ else
                 </section>
             }
 
+            @if (Content.Status == MarketingContentStatus.Published)
+            {
+                <section class="panel performance-panel">
+                    <div class="section-heading">
+                        <div>
+                            <span class="panel-label">CAMPAIGN PERFORMANCE</span>
+                            <h3>Results over time</h3>
+                        </div>
+                        <span>@PerformanceSnapshots.Count snapshot@(PerformanceSnapshots.Count == 1 ? null : "s")</span>
+                    </div>
+                    <p class="performance-help">
+                        Enter cumulative totals from the social platforms and
+                        GHOS. Add a new snapshot instead of replacing earlier
+                        results.
+                    </p>
+                    @if (PerformanceSnapshots.Count > 0)
+                    {
+                        var latest = PerformanceSnapshots[0];
+                        <div class="performance-summary">
+                            <article>
+                                <span>Combined reach</span>
+                                <strong>@FormatNumber(Sum(latest.FacebookReach, latest.InstagramReach))</strong>
+                            </article>
+                            <article>
+                                <span>Engagements</span>
+                                <strong>@FormatNumber(Sum(latest.FacebookEngagements, latest.InstagramEngagements))</strong>
+                            </article>
+                            <article>
+                                <span>Website clicks</span>
+                                <strong>@FormatNumber(latest.WebsiteClicks)</strong>
+                            </article>
+                            <article>
+                                <span>Orders</span>
+                                <strong>@FormatNumber(latest.Orders)</strong>
+                            </article>
+                            <article>
+                                <span>Revenue</span>
+                                <strong>@FormatCurrency(latest.Revenue)</strong>
+                            </article>
+                        </div>
+                    }
+                    <div class="performance-entry">
+                        <label>
+                            <span>Facebook reach</span>
+                            <input type="number" min="0"
+                                   @bind="PerformanceDraft.FacebookReach" />
+                        </label>
+                        <label>
+                            <span>Facebook engagements</span>
+                            <input type="number" min="0"
+                                   @bind="PerformanceDraft.FacebookEngagements" />
+                        </label>
+                        <label>
+                            <span>Instagram reach</span>
+                            <input type="number" min="0"
+                                   @bind="PerformanceDraft.InstagramReach" />
+                        </label>
+                        <label>
+                            <span>Instagram engagements</span>
+                            <input type="number" min="0"
+                                   @bind="PerformanceDraft.InstagramEngagements" />
+                        </label>
+                        <label>
+                            <span>Website clicks</span>
+                            <input type="number" min="0"
+                                   @bind="PerformanceDraft.WebsiteClicks" />
+                        </label>
+                        <label>
+                            <span>Leads</span>
+                            <input type="number" min="0"
+                                   @bind="PerformanceDraft.Leads" />
+                        </label>
+                        <label>
+                            <span>Orders</span>
+                            <input type="number" min="0"
+                                   @bind="PerformanceDraft.Orders" />
+                        </label>
+                        <label>
+                            <span>Attributed revenue</span>
+                            <input type="number" min="0" step="0.01"
+                                   @bind="PerformanceDraft.Revenue" />
+                        </label>
+                        <label class="wide">
+                            <span>Snapshot notes</span>
+                            <textarea rows="3"
+                                      maxlength="1000"
+                                      @bind="PerformanceDraft.Notes"
+                                      placeholder="What changed, what worked, or what should the team try next?"></textarea>
+                        </label>
+                    </div>
+                    <div class="performance-actions">
+                        <span>Snapshot time: now</span>
+                        <button type="button"
+                                disabled="@SavingPerformance"
+                                @onclick="SavePerformanceSnapshotAsync">
+                            @(SavingPerformance ? "Saving…" : "Add performance snapshot")
+                        </button>
+                    </div>
+                    @if (PerformanceSnapshots.Count > 0)
+                    {
+                        <div class="performance-history">
+                            @foreach (var snapshot in PerformanceSnapshots)
+                            {
+                                <article>
+                                    <div>
+                                        <strong>@FormatSnapshotDate(snapshot.CapturedAtUtc)</strong>
+                                        <span>
+                                            Reach @FormatNumber(Sum(snapshot.FacebookReach, snapshot.InstagramReach))
+                                            · Engagements @FormatNumber(Sum(snapshot.FacebookEngagements, snapshot.InstagramEngagements))
+                                            · Clicks @FormatNumber(snapshot.WebsiteClicks)
+                                            · Leads @FormatNumber(snapshot.Leads)
+                                            · Orders @FormatNumber(snapshot.Orders)
+                                            · @FormatCurrency(snapshot.Revenue)
+                                        </span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(snapshot.Notes))
+                                    {
+                                        <p>@snapshot.Notes</p>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+
             <section class="panel readiness-panel">
                 @{
                     var readiness = GetReadiness();
@@ -630,11 +756,18 @@ else
     private MarketingContentPackage? Content { get; set; }
     private List<MarketingContentPackage> ContentQueue { get; set; } = [];
     private List<Product> EligibleProducts { get; set; } = [];
+    private List<MarketingPerformanceSnapshot> PerformanceSnapshots
+    {
+        get;
+        set;
+    } = [];
+    private MarketingPerformanceDraft PerformanceDraft { get; set; } = new();
     private MarketingLayoutSettings LayoutSettings { get; set; } = new();
     private bool Loading { get; set; } = true;
     private bool Saving { get; set; }
     private bool CreatingDraft { get; set; }
     private bool RefreshingProduct { get; set; }
+    private bool SavingPerformance { get; set; }
     private bool ConfirmingDelete { get; set; }
     private Guid? NewPackageProductId { get; set; }
     private string SelectedTemplateKey { get; set; } =
@@ -704,6 +837,15 @@ else
                 .FirstOrDefault()
             ?? ContentQueue.OrderByDescending(item => item.UpdatedAtUtc)
                 .FirstOrDefault();
+        PerformanceSnapshots = Content is null
+            ? []
+            : await dbContext.MarketingPerformanceSnapshots
+                .AsNoTracking()
+                .Where(snapshot =>
+                    snapshot.MarketingContentPackageId == Content.Id)
+                .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
+                .ToListAsync();
+        PerformanceDraft = new MarketingPerformanceDraft();
         LayoutSettings = MarketingLayoutSettings.Parse(
             Content?.LayoutSettingsJson);
         ConfirmingDelete = false;
@@ -879,6 +1021,77 @@ else
         finally
         {
             Saving = false;
+        }
+    }
+
+    private async Task SavePerformanceSnapshotAsync()
+    {
+        if (Content is null ||
+            Content.Status != MarketingContentStatus.Published)
+        {
+            return;
+        }
+
+        if (!PerformanceDraft.HasMetric)
+        {
+            ErrorMessage =
+                "Enter at least one performance metric before saving a snapshot.";
+            return;
+        }
+
+        if (!PerformanceDraft.HasValidValues)
+        {
+            ErrorMessage = "Performance metrics cannot be negative.";
+            return;
+        }
+
+        SavingPerformance = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            var now = DateTime.UtcNow;
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+
+            dbContext.MarketingPerformanceSnapshots.Add(
+                new MarketingPerformanceSnapshot
+                {
+                    MarketingContentPackageId = Content.Id,
+                    CapturedAtUtc = now,
+                    FacebookReach = PerformanceDraft.FacebookReach,
+                    FacebookEngagements =
+                        PerformanceDraft.FacebookEngagements,
+                    InstagramReach = PerformanceDraft.InstagramReach,
+                    InstagramEngagements =
+                        PerformanceDraft.InstagramEngagements,
+                    WebsiteClicks = PerformanceDraft.WebsiteClicks,
+                    Leads = PerformanceDraft.Leads,
+                    Orders = PerformanceDraft.Orders,
+                    Revenue = PerformanceDraft.Revenue,
+                    Notes = NullIfWhiteSpace(PerformanceDraft.Notes),
+                    CreatedByUserId = userId,
+                    CreatedAtUtc = now
+                });
+            await dbContext.SaveChangesAsync();
+
+            SuccessMessage =
+                $"Performance snapshot added for {Content.Title}.";
+            await LoadWorkspaceAsync(Content.Id);
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The performance snapshot could not be saved. Existing results were not changed.";
+        }
+        finally
+        {
+            SavingPerformance = false;
         }
     }
 
@@ -1437,6 +1650,21 @@ else
             : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
                 .ToString("'Published' MMM d 'at' h:mm tt 'CT'");
 
+    private static string FormatSnapshotDate(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(utc, CentralTime)
+            .ToString("MMM d, yyyy · h:mm tt 'CT'");
+
+    private static int? Sum(int? first, int? second) =>
+        first is null && second is null
+            ? null
+            : first.GetValueOrDefault() + second.GetValueOrDefault();
+
+    private static string FormatNumber(int? value) =>
+        value?.ToString("N0", CultureInfo.InvariantCulture) ?? "—";
+
+    private static string FormatCurrency(decimal? value) =>
+        value?.ToString("C2", CultureInfo.GetCultureInfo("en-US")) ?? "—";
+
     private static bool IsAllowedSocialUrl(
         string value,
         params string[] allowedDomains)
@@ -1654,5 +1882,49 @@ else
         return lines.Length == 0
             ? null
             : string.Join(Environment.NewLine, lines);
+    }
+
+    private sealed class MarketingPerformanceDraft
+    {
+        public int? FacebookReach { get; set; }
+
+        public int? FacebookEngagements { get; set; }
+
+        public int? InstagramReach { get; set; }
+
+        public int? InstagramEngagements { get; set; }
+
+        public int? WebsiteClicks { get; set; }
+
+        public int? Leads { get; set; }
+
+        public int? Orders { get; set; }
+
+        public decimal? Revenue { get; set; }
+
+        public string? Notes { get; set; }
+
+        public bool HasMetric =>
+            FacebookReach is not null ||
+            FacebookEngagements is not null ||
+            InstagramReach is not null ||
+            InstagramEngagements is not null ||
+            WebsiteClicks is not null ||
+            Leads is not null ||
+            Orders is not null ||
+            Revenue is not null;
+
+        public bool HasValidValues =>
+            IsNonNegative(FacebookReach) &&
+            IsNonNegative(FacebookEngagements) &&
+            IsNonNegative(InstagramReach) &&
+            IsNonNegative(InstagramEngagements) &&
+            IsNonNegative(WebsiteClicks) &&
+            IsNonNegative(Leads) &&
+            IsNonNegative(Orders) &&
+            (Revenue is null || Revenue >= 0);
+
+        private static bool IsNonNegative(int? value) =>
+            value is null || value >= 0;
     }
 }

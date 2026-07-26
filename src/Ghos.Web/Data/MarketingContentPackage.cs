@@ -86,6 +86,12 @@ public sealed class MarketingContentPackage
     [MaxLength(1000)]
     public string? PublicationNotes { get; set; }
 
+    public ICollection<MarketingPerformanceSnapshot> PerformanceSnapshots
+    {
+        get;
+        set;
+    } = [];
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
