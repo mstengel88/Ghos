@@ -337,3 +337,22 @@
         flex-direction: column;
     }
 }
+.review-notice {
+    margin-bottom: 18px;
+    padding: 14px 16px;
+    border: 1px solid #e8d9a7;
+    border-radius: 10px;
+    background: #fffaf0;
+    color: #6e5615;
+    display: grid;
+    gap: 3px;
+    font-size: .8rem;
+}
+
+.review-notice strong {
+    color: #5e4710;
+}
+
+.review-notice span {
+    line-height: 1.5;
+}

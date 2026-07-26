@@ -57,6 +57,11 @@ public sealed class Product
 
     public DateTime? ShopifyLastSyncedAtUtc { get; set; }
 
+    public DateTime? ReviewedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? ReviewedByUserId { get; set; }
+
     public Guid ProductCategoryId { get; set; }
 
     public ProductCategory ProductCategory { get; set; } = null!;

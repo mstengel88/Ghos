@@ -44,6 +44,15 @@ else
         <DataAnnotationsValidator />
         <ValidationSummary class="validation-summary" />
 
+        @if (SourceProduct?.ShopifyProductId is not null &&
+            SourceProduct.ReviewedAtUtc is null)
+        {
+            <div class="review-notice">
+                <strong>Shopify import awaiting review</strong>
+                <span>Confirm the category, status, availability, and customer-facing information below. Saving marks this product reviewed.</span>
+            </div>
+        }
+
         @if (!string.IsNullOrWhiteSpace(SaveError))
         {
             <div class="auth-alert" role="alert">@SaveError</div>
@@ -152,7 +161,14 @@ else
 
         <div class="form-actions">
             <a href="/products">Cancel</a>
-            <button type="submit" disabled="@Saving">@(Saving ? "Saving…" : "Save product")</button>
+            <button type="submit" disabled="@Saving">
+                @(Saving
+                    ? "Saving…"
+                    : SourceProduct?.ShopifyProductId is not null &&
+                      SourceProduct.ReviewedAtUtc is null
+                        ? "Save & mark reviewed"
+                        : "Save product")
+            </button>
         </div>
     </EditForm>
 
@@ -313,6 +329,8 @@ else
             product.AvailableForDelivery = Model.AvailableForDelivery;
             product.AvailableInBulk = Model.AvailableInBulk;
             product.AvailableBagged = Model.AvailableBagged;
+            product.ReviewedAtUtc = now;
+            product.ReviewedByUserId = userId;
             product.UpdatedAtUtc = now;
             product.UpdatedByUserId = userId;
 

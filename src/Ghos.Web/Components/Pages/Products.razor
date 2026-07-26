@@ -13,6 +13,14 @@
     </div>
 
     <div class="module-actions">
+        @if (NeedsReviewCount > 0)
+        {
+            <AuthorizeView Policy="@GhosPolicies.Operations">
+                <a class="review-link" href="/products?review=needed">
+                    Review imports <span>@NeedsReviewCount</span>
+                </a>
+            </AuthorizeView>
+        }
         <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
             <a class="secondary-link" href="/products/shopify">Sync Shopify</a>
         </AuthorizeView>
@@ -38,9 +46,7 @@
     </article>
     <article>
         <span>Needs review</span>
-        <strong>@AllProducts.Count(product =>
-            product.Status == ProductStatus.Draft ||
-            (!product.AvailableForPickup && !product.AvailableForDelivery))</strong>
+        <strong>@NeedsReviewCount</strong>
     </article>
     <article>
         <span>Linked to Shopify</span>
@@ -81,6 +87,15 @@
                 {
                     <option value="@status">@status</option>
                 }
+            </select>
+        </label>
+
+        <label>
+            <span>Review</span>
+            <select @bind="SelectedReview">
+                <option value="">All products</option>
+                <option value="needed">Needs review</option>
+                <option value="reviewed">Reviewed</option>
             </select>
         </label>
     </div>
@@ -140,6 +155,9 @@
                                 @if (product.ShopifyProductId is not null)
                                 {
                                     <div class="source-label">Shopify · @product.ShopifyHandle</div>
+                                    <div class="review-state @(product.ReviewedAtUtc is null ? "needed" : "reviewed")">
+                                        @(product.ReviewedAtUtc is null ? "Needs review" : "Reviewed")
+                                    </div>
                                 }
                             </td>
                             <td>@product.ProductCategory.Name</td>
@@ -176,13 +194,19 @@
     [SupplyParameterFromQuery(Name = "saved")]
     public string? SavedValue { get; set; }
 
+    [SupplyParameterFromQuery(Name = "review")]
+    public string? ReviewValue { get; set; }
+
     private List<Product> AllProducts { get; set; } = [];
     private List<ProductCategory> Categories { get; set; } = [];
     private bool Loading { get; set; } = true;
     private string SearchText { get; set; } = string.Empty;
     private string SelectedCategory { get; set; } = string.Empty;
     private string SelectedStatus { get; set; } = string.Empty;
+    private string SelectedReview { get; set; } = string.Empty;
     private bool Saved => SavedValue == "1";
+    private int NeedsReviewCount => AllProducts.Count(product =>
+        product.ShopifyProductId is not null && product.ReviewedAtUtc is null);
 
     private List<Product> FilteredProducts => AllProducts
         .Where(MatchesSearch)
@@ -192,6 +216,14 @@
         .Where(product =>
             string.IsNullOrWhiteSpace(SelectedStatus) ||
             product.Status.ToString() == SelectedStatus)
+        .Where(product =>
+            string.IsNullOrWhiteSpace(SelectedReview) ||
+            (SelectedReview == "needed" &&
+                product.ShopifyProductId is not null &&
+                product.ReviewedAtUtc is null) ||
+            (SelectedReview == "reviewed" &&
+                product.ShopifyProductId is not null &&
+                product.ReviewedAtUtc is not null))
         .ToList();
 
     protected override async Task OnInitializedAsync()
@@ -212,6 +244,9 @@
             .OrderBy(product => product.Name)
             .ToListAsync();
 
+        SelectedReview = ReviewValue is "needed" or "reviewed"
+            ? ReviewValue
+            : string.Empty;
         Loading = false;
     }
 
