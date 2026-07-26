@@ -152,6 +152,7 @@ app.MapAccountEndpoints();
 app.MapAssetEndpoints();
 app.MapCsvExportEndpoints();
 app.MapMarketingCreativeEndpoints();
+app.MapMarketingPublicationPackageEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

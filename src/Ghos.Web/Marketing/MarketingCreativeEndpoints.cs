@@ -79,7 +79,7 @@ public static class MarketingCreativeEndpoints
             fileName);
     }
 
-    private static string RenderSvg(
+    internal static string RenderSvg(
         MarketingContentPackage content,
         MarketingTemplateDefinition template,
         string imageData)

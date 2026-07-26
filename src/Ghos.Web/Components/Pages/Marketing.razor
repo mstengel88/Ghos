@@ -318,6 +318,13 @@ else
                         Download full-size @SelectedTemplate.Format SVG
                     </a>
                 }
+                @if (GetReadiness().IsReady)
+                {
+                    <a class="download-publication-pack"
+                       href="@GetPublicationPackUrl()">
+                        Download complete publication pack
+                    </a>
+                }
             </section>
         </section>
 
@@ -408,19 +415,32 @@ else
             </section>
 
             <section class="panel readiness-panel">
-                <div>
-                    <span class="panel-label">PUBLICATION READINESS</span>
-                    <h3>@GetReadinessHeading()</h3>
-                    <p>GHOS records approval and the planned time. It does not publish to social accounts automatically.</p>
+                @{
+                    var readiness = GetReadiness();
+                }
+                <div class="readiness-heading">
+                    <div>
+                        <span class="panel-label">PUBLICATION READINESS</span>
+                        <h3>@GetReadinessHeading(readiness)</h3>
+                        <p>GHOS records approval and the planned time. It does not publish to social accounts automatically.</p>
+                    </div>
+                    <strong>@readiness.CompletedCount / @readiness.Items.Count checks</strong>
                 </div>
                 <div class="readiness-checks">
-                    <span class="ready">✓ Verified @(Content.Product?.Name ?? "product") information</span>
-                    <span class="@(Content.DigitalAsset is null ? "missing" : "ready")">
-                        @(Content.DigitalAsset is null ? "○ Approved image needed" : "✓ Approved primary image")
-                    </span>
-                    <span class="ready">✓ Facebook, Instagram, Story, and Reel copy</span>
-                    <span class="ready">✓ Correct product link</span>
+                    @foreach (var item in readiness.Items)
+                    {
+                        <span class="@(item.IsReady ? "ready" : "missing")">
+                            @(item.IsReady ? "✓" : "○") @item.Label
+                        </span>
+                    }
                 </div>
+                @if (readiness.IsReady)
+                {
+                    <a class="readiness-pack-link"
+                       href="@GetPublicationPackUrl()">
+                        ↓ Download all artwork, captions, video notes, and posting checklist
+                    </a>
+                }
                 <div class="editor-actions">
                     <button class="delete-button"
                             type="button"
@@ -435,7 +455,7 @@ else
                     {
                         <button class="schedule-button"
                                 type="button"
-                                disabled="@(Saving || Content.DigitalAsset is null)"
+                                disabled="@(Saving || !readiness.IsReady)"
                                 @onclick="ApproveAndScheduleAsync">
                             Approve and schedule
                         </button>
@@ -567,9 +587,16 @@ else
 
     private async Task ApproveAndScheduleAsync()
     {
-        if (Content?.DigitalAsset is null)
+        if (Content is null)
         {
-            ErrorMessage = "Assign an approved product image before scheduling.";
+            return;
+        }
+
+        var readiness = MarketingReadiness.Evaluate(Content);
+        if (!readiness.IsReady)
+        {
+            ErrorMessage =
+                $"Complete all publication checks before scheduling ({readiness.CompletedCount} of {readiness.Items.Count} ready).";
             return;
         }
 
@@ -1010,10 +1037,20 @@ else
     private string GetDownloadUrl() =>
         $"/marketing-content/{Content!.Id}/creative/{SelectedTemplateKey}.svg";
 
-    private string GetReadinessHeading() =>
+    private string GetPublicationPackUrl() =>
+        $"/marketing-content/{Content!.Id}/publication-pack.zip";
+
+    private MarketingReadinessResult GetReadiness() =>
+        Content is null
+            ? new MarketingReadinessResult { Items = [] }
+            : MarketingReadiness.Evaluate(Content);
+
+    private string GetReadinessHeading(MarketingReadinessResult readiness) =>
         Content?.Status == MarketingContentStatus.Scheduled
             ? "Approved and scheduled"
-            : "Ready for final team approval";
+            : readiness.IsReady
+                ? "Ready for final team approval"
+                : "Needs attention before approval";
 
     private static string FormatStatus(MarketingContentStatus status) =>
         status switch
