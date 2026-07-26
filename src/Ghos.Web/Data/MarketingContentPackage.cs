@@ -72,6 +72,20 @@ public sealed class MarketingContentPackage
     [MaxLength(450)]
     public string? ApprovedByUserId { get; set; }
 
+    public DateTime? PublishedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? PublishedByUserId { get; set; }
+
+    [MaxLength(2048)]
+    public string? FacebookPublishedUrl { get; set; }
+
+    [MaxLength(2048)]
+    public string? InstagramPublishedUrl { get; set; }
+
+    [MaxLength(1000)]
+    public string? PublicationNotes { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;

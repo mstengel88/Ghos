@@ -175,6 +175,8 @@ public static class MarketingPublicationPackageEndpoints
         Planned time: {localTime}
         Product: {content.Product?.Name ?? "Linked product"}
         Product page: {content.DestinationUrl}
+        Facebook post: {content.FacebookPublishedUrl ?? "Not yet recorded"}
+        Instagram post: {content.InstagramPublishedUrl ?? "Not yet recorded"}
 
         BEFORE PUBLISHING
         [ ] Open and visually inspect all three SVG creative files.

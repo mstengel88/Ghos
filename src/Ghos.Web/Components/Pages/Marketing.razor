@@ -82,6 +82,7 @@ else
                 <span><strong>@ContentQueue.Count</strong> Total</span>
                 <span><strong>@ContentQueue.Count(item => item.Status == MarketingContentStatus.ReadyForReview)</strong> Review</span>
                 <span><strong>@ContentQueue.Count(item => item.Status == MarketingContentStatus.Scheduled)</strong> Scheduled</span>
+                <span><strong>@ContentQueue.Count(item => item.Status == MarketingContentStatus.Published)</strong> Published</span>
             </div>
         </div>
 
@@ -479,6 +480,75 @@ else
                 </label>
             </section>
 
+            @if (Content.Status is MarketingContentStatus.Scheduled or
+                MarketingContentStatus.Published)
+            {
+                <section class="panel publication-panel">
+                    <div class="section-heading">
+                        <div>
+                            <span class="panel-label">LIVE PUBLICATION RECORD</span>
+                            <h3>@(Content.Status == MarketingContentStatus.Published
+                                ? "Published campaign"
+                                : "Record the live posts")</h3>
+                        </div>
+                        @if (Content.PublishedAtUtc is not null)
+                        {
+                            <span>@FormatPublishedTime(Content.PublishedAtUtc)</span>
+                        }
+                    </div>
+                    <p class="publication-help">
+                        Paste the live post links after publishing. At least one
+                        Facebook or Instagram link is required.
+                    </p>
+                    <div class="publication-fields">
+                        <label>
+                            <span>Facebook post URL</span>
+                            <InputText @bind-Value="Content.FacebookPublishedUrl"
+                                       placeholder="https://www.facebook.com/…" />
+                        </label>
+                        <label>
+                            <span>Instagram post URL</span>
+                            <InputText @bind-Value="Content.InstagramPublishedUrl"
+                                       placeholder="https://www.instagram.com/p/…" />
+                        </label>
+                        <label class="wide">
+                            <span>Publication notes</span>
+                            <InputTextArea @bind-Value="Content.PublicationNotes"
+                                           rows="3"
+                                           placeholder="Optional handoff notes, results to watch, or follow-up needed." />
+                        </label>
+                    </div>
+                    @if (Content.Status == MarketingContentStatus.Published)
+                    {
+                        <div class="published-links">
+                            @if (!string.IsNullOrWhiteSpace(Content.FacebookPublishedUrl))
+                            {
+                                <a href="@Content.FacebookPublishedUrl"
+                                   target="_blank"
+                                   rel="noopener noreferrer">Open Facebook post ↗</a>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Content.InstagramPublishedUrl))
+                            {
+                                <a href="@Content.InstagramPublishedUrl"
+                                   target="_blank"
+                                   rel="noopener noreferrer">Open Instagram post ↗</a>
+                            }
+                        </div>
+                    }
+                    <div class="publication-actions">
+                        <button type="button"
+                                disabled="@Saving"
+                                @onclick="RecordPublicationAsync">
+                            @(Saving
+                                ? "Saving…"
+                                : Content.Status == MarketingContentStatus.Published
+                                    ? "Update publication record"
+                                    : "Mark as published")
+                        </button>
+                    </div>
+                </section>
+            }
+
             <section class="panel readiness-panel">
                 @{
                     var readiness = GetReadiness();
@@ -516,7 +586,8 @@ else
                     <button class="save-button" type="submit" disabled="@Saving">
                         @(Saving ? "Saving…" : "Save changes")
                     </button>
-                    @if (Content.Status != MarketingContentStatus.Scheduled)
+                    @if (Content.Status is MarketingContentStatus.Draft or
+                        MarketingContentStatus.ReadyForReview)
                     {
                         <button class="schedule-button"
                                 type="button"
@@ -732,6 +803,78 @@ else
         catch (DbUpdateException)
         {
             ErrorMessage = "The marketing package could not be saved. Nothing was published.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private async Task RecordPublicationAsync()
+    {
+        if (Content is null)
+        {
+            return;
+        }
+
+        var facebookUrl = NullIfWhiteSpace(Content.FacebookPublishedUrl);
+        var instagramUrl = NullIfWhiteSpace(Content.InstagramPublishedUrl);
+        if (facebookUrl is null && instagramUrl is null)
+        {
+            ErrorMessage =
+                "Add at least one live Facebook or Instagram post link.";
+            return;
+        }
+
+        if (facebookUrl is not null &&
+            !IsAllowedSocialUrl(facebookUrl, "facebook.com", "fb.com"))
+        {
+            ErrorMessage = "Enter a valid Facebook post URL.";
+            return;
+        }
+
+        if (instagramUrl is not null &&
+            !IsAllowedSocialUrl(instagramUrl, "instagram.com"))
+        {
+            ErrorMessage = "Enter a valid Instagram post URL.";
+            return;
+        }
+
+        Saving = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var stored = await dbContext.MarketingContentPackages
+                .SingleAsync(item => item.Id == Content.Id);
+            var now = DateTime.UtcNow;
+
+            stored.FacebookPublishedUrl = facebookUrl;
+            stored.InstagramPublishedUrl = instagramUrl;
+            stored.PublicationNotes = NullIfWhiteSpace(
+                Content.PublicationNotes);
+            stored.PublishedAtUtc ??= now;
+            stored.PublishedByUserId ??= userId;
+            stored.Status = MarketingContentStatus.Published;
+            stored.UpdatedAtUtc = now;
+            stored.UpdatedByUserId = userId;
+
+            await dbContext.SaveChangesAsync();
+            SuccessMessage =
+                $"{stored.Title} is recorded as published.";
+            await LoadWorkspaceAsync(stored.Id);
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The publication record could not be saved. The campaign was not changed.";
         }
         finally
         {
@@ -1249,11 +1392,13 @@ else
             : MarketingReadiness.Evaluate(Content);
 
     private string GetReadinessHeading(MarketingReadinessResult readiness) =>
-        Content?.Status == MarketingContentStatus.Scheduled
-            ? "Approved and scheduled"
-            : readiness.IsReady
-                ? "Ready for final team approval"
-                : "Needs attention before approval";
+        Content?.Status switch
+        {
+            MarketingContentStatus.Published => "Published and recorded",
+            MarketingContentStatus.Scheduled => "Approved and scheduled",
+            _ when readiness.IsReady => "Ready for final team approval",
+            _ => "Needs attention before approval"
+        };
 
     private static string FormatStatus(MarketingContentStatus status) =>
         status switch
@@ -1285,6 +1430,29 @@ else
             ? "Not scheduled"
             : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
                 .ToString("h:mm tt 'CT'");
+
+    private static string FormatPublishedTime(DateTime? utc) =>
+        utc is null
+            ? "Not published"
+            : TimeZoneInfo.ConvertTimeFromUtc(utc.Value, CentralTime)
+                .ToString("'Published' MMM d 'at' h:mm tt 'CT'");
+
+    private static bool IsAllowedSocialUrl(
+        string value,
+        params string[] allowedDomains)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            uri.Scheme is not ("http" or "https"))
+        {
+            return false;
+        }
+
+        return allowedDomains.Any(domain =>
+            uri.Host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
+            uri.Host.EndsWith(
+                $".{domain}",
+                StringComparison.OrdinalIgnoreCase));
+    }
 
     private static string GetScheduleBadgeLabel(DateTime? utc)
     {

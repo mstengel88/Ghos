@@ -313,6 +313,10 @@ namespace Ghos.Web.Data.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<string>("FacebookPublishedUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<string>("FactItems")
                         .HasMaxLength(1200)
                         .HasColumnType("character varying(1200)");
@@ -331,6 +335,10 @@ namespace Ghos.Web.Data.Migrations
                         .HasMaxLength(2200)
                         .HasColumnType("character varying(2200)");
 
+                    b.Property<string>("InstagramPublishedUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
                     b.Property<string>("LayoutSettingsJson")
                         .IsRequired()
                         .HasMaxLength(12000)
@@ -338,6 +346,17 @@ namespace Ghos.Web.Data.Migrations
 
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PublishedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("PublicationNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("ReelScript")
                         .IsRequired()
