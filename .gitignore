@@ -1,0 +1,38 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+postgres/
+redis/
+portainer/
+backups/
+
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Certificates and keys
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+
+# Operating system files
+.DS_Store
+Thumbs.db

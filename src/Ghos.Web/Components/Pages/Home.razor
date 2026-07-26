@@ -1,0 +1,140 @@
+@page "/"
+
+<PageTitle>Dashboard | GHOS</PageTitle>
+
+<div class="welcome">
+    <div>
+        <span class="eyebrow">SATURDAY, JULY 25</span>
+        <h2>Good evening, Matthew.</h2>
+        <p>Here is what is happening across Green Hills Supply.</p>
+    </div>
+
+    <button class="primary-action">+ Quick action</button>
+</div>
+
+<div class="metric-grid">
+    <article class="metric-card">
+        <div class="metric-heading">
+            <span>Sales today</span>
+            <span class="metric-icon">$</span>
+        </div>
+        <strong>$0.00</strong>
+        <small>CounterPoint connection pending</small>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-heading">
+            <span>Today's deliveries</span>
+            <span class="metric-icon">▰</span>
+        </div>
+        <strong>0</strong>
+        <small>No delivery data connected</small>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-heading">
+            <span>Open quotes</span>
+            <span class="metric-icon">▤</span>
+        </div>
+        <strong>0</strong>
+        <small>Quote module coming soon</small>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-heading">
+            <span>Product records</span>
+            <span class="metric-icon">◆</span>
+        </div>
+        <strong>0</strong>
+        <small>Ready for initial product import</small>
+    </article>
+</div>
+
+<div class="dashboard-grid">
+    <section class="panel activity-panel">
+        <div class="panel-header">
+            <div>
+                <span class="panel-label">ACTIVITY</span>
+                <h3>Recent activity</h3>
+            </div>
+            <button class="text-button">View all</button>
+        </div>
+
+        <div class="empty-state">
+            <div class="empty-icon">✓</div>
+            <h4>GHOS is online</h4>
+            <p>Your application, PostgreSQL database, Redis cache and management services are running.</p>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <span class="panel-label">SYSTEMS</span>
+                <h3>Platform status</h3>
+            </div>
+        </div>
+
+        <div class="status-list">
+            <div class="status-row">
+                <span><i></i> GHOS Web</span>
+                <strong>Online</strong>
+            </div>
+            <div class="status-row">
+                <span><i></i> PostgreSQL</span>
+                <strong>Healthy</strong>
+            </div>
+            <div class="status-row">
+                <span><i></i> Redis</span>
+                <strong>Healthy</strong>
+            </div>
+            <div class="status-row">
+                <span><i></i> Portainer</span>
+                <strong>Online</strong>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel large-panel">
+        <div class="panel-header">
+            <div>
+                <span class="panel-label">PRIORITIES</span>
+                <h3>Foundation roadmap</h3>
+            </div>
+        </div>
+
+        <div class="roadmap">
+            <div class="roadmap-item complete">
+                <span>1</span>
+                <div>
+                    <strong>Infrastructure foundation</strong>
+                    <p>Hyper-V, Ubuntu, Docker and private network</p>
+                </div>
+            </div>
+
+            <div class="roadmap-item current">
+                <span>2</span>
+                <div>
+                    <strong>Application foundation</strong>
+                    <p>Brand shell, database access, authentication and permissions</p>
+                </div>
+            </div>
+
+            <div class="roadmap-item">
+                <span>3</span>
+                <div>
+                    <strong>Product Information Management</strong>
+                    <p>Products, categories, synonyms, pricing and Shopify data</p>
+                </div>
+            </div>
+
+            <div class="roadmap-item">
+                <span>4</span>
+                <div>
+                    <strong>Digital Asset Manager</strong>
+                    <p>Photos, videos, documents, tags and product relationships</p>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>

@@ -1,0 +1,283 @@
+html, body {
+    margin: 0;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    background: #f3f5f2;
+    color: #172019;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+button {
+    font: inherit;
+}
+
+.welcome {
+    margin-bottom: 26px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.eyebrow,
+.panel-label {
+    color: #7b887c;
+    font-size: .68rem;
+    font-weight: 850;
+    letter-spacing: .13em;
+}
+
+.welcome h2 {
+    margin: 6px 0 5px;
+    font-size: clamp(1.65rem, 3vw, 2.35rem);
+    line-height: 1.1;
+}
+
+.welcome p {
+    margin: 0;
+    color: #6d786e;
+}
+
+.primary-action {
+    padding: 11px 17px;
+    border: 0;
+    border-radius: 9px;
+    background: #9BC623;
+    color: #142116;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.metric-grid {
+    margin-bottom: 22px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.metric-card,
+.panel {
+    background: white;
+    border: 1px solid #e2e7e0;
+    border-radius: 14px;
+    box-shadow: 0 4px 18px rgba(25, 40, 27, .035);
+}
+
+.metric-card {
+    padding: 20px;
+}
+
+.metric-heading {
+    color: #687469;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: .82rem;
+    font-weight: 700;
+}
+
+.metric-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #eef5dc;
+    color: #587411;
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+}
+
+.metric-card > strong {
+    margin: 17px 0 5px;
+    display: block;
+    font-size: 1.7rem;
+}
+
+.metric-card small {
+    color: #8b958c;
+    font-size: .72rem;
+}
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(280px, .8fr);
+    gap: 18px;
+}
+
+.panel {
+    padding: 22px;
+}
+
+.large-panel {
+    grid-column: 1 / -1;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.panel-header h3 {
+    margin: 5px 0 0;
+    font-size: 1.05rem;
+}
+
+.text-button {
+    border: 0;
+    background: transparent;
+    color: #608112;
+    font-size: .8rem;
+    font-weight: 800;
+}
+
+.empty-state {
+    min-height: 250px;
+    padding: 40px 20px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    text-align: center;
+}
+
+.empty-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #edf5db;
+    color: #658713;
+    display: grid;
+    place-items: center;
+    font-size: 1.25rem;
+    font-weight: 900;
+}
+
+.empty-state h4 {
+    margin: 14px 0 5px;
+}
+
+.empty-state p {
+    max-width: 460px;
+    margin: 0;
+    color: #7a857b;
+    font-size: .86rem;
+    line-height: 1.55;
+}
+
+.status-list {
+    margin-top: 20px;
+}
+
+.status-row {
+    padding: 15px 0;
+    border-bottom: 1px solid #edf0ec;
+    display: flex;
+    justify-content: space-between;
+    font-size: .84rem;
+}
+
+.status-row:last-child {
+    border-bottom: 0;
+}
+
+.status-row span {
+    color: #59655a;
+}
+
+.status-row strong {
+    color: #5b7b0e;
+    font-size: .74rem;
+}
+
+.status-row i {
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: #9BC623;
+    display: inline-block;
+}
+
+.roadmap {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.roadmap-item {
+    min-height: 145px;
+    padding: 17px;
+    border: 1px solid #e6eae4;
+    border-radius: 11px;
+    background: #fafbf9;
+}
+
+.roadmap-item > span {
+    width: 29px;
+    height: 29px;
+    margin-bottom: 18px;
+    border-radius: 50%;
+    background: #e9ede8;
+    color: #59655a;
+    display: grid;
+    place-items: center;
+    font-size: .76rem;
+    font-weight: 850;
+}
+
+.roadmap-item.complete > span,
+.roadmap-item.current > span {
+    background: #9BC623;
+    color: #142116;
+}
+
+.roadmap-item.current {
+    border-color: #9BC623;
+    background: #fbfdf5;
+}
+
+.roadmap-item strong {
+    font-size: .86rem;
+}
+
+.roadmap-item p {
+    margin: 7px 0 0;
+    color: #7a857b;
+    font-size: .75rem;
+    line-height: 1.45;
+}
+
+#blazor-error-ui {
+    display: none;
+}
+
+@media (max-width: 1150px) {
+    .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .roadmap {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .welcome {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .metric-grid,
+    .dashboard-grid,
+    .roadmap {
+        grid-template-columns: 1fr;
+    }
+
+    .large-panel {
+        grid-column: auto;
+    }
+}

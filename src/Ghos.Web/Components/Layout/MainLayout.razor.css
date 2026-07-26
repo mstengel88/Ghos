@@ -1,0 +1,106 @@
+.ghos-app {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    min-height: 100vh;
+    background: #f3f5f2;
+}
+
+.ghos-sidebar {
+    min-height: 100vh;
+    background: #142116;
+    color: white;
+    position: sticky;
+    top: 0;
+}
+
+.ghos-main {
+    min-width: 0;
+}
+
+.ghos-header {
+    min-height: 92px;
+    padding: 20px 32px;
+    background: white;
+    border-bottom: 1px solid #e3e8e1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.ghos-header h1 {
+    margin: 2px 0 0;
+    color: #172019;
+    font-size: 1.65rem;
+    font-weight: 750;
+}
+
+.ghos-page-label {
+    color: #718072;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+}
+
+.ghos-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ghos-user-text {
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+}
+
+.ghos-user-text strong {
+    color: #1b251c;
+    font-size: .95rem;
+}
+
+.ghos-user-text span {
+    color: #7d887e;
+    font-size: .78rem;
+}
+
+.ghos-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: #9BC623;
+    color: #142116;
+    display: grid;
+    place-items: center;
+    font-weight: 850;
+}
+
+.ghos-content {
+    padding: 30px 32px 48px;
+}
+
+@media (max-width: 900px) {
+    .ghos-app {
+        display: block;
+    }
+
+    .ghos-sidebar {
+        min-height: auto;
+        position: static;
+    }
+
+    .ghos-header {
+        position: static;
+        padding: 18px 20px;
+    }
+
+    .ghos-content {
+        padding: 22px 18px 40px;
+    }
+
+    .ghos-user-text {
+        display: none;
+    }
+}
