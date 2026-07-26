@@ -241,14 +241,33 @@ else if (SourceAsset is not null)
                 asset.ApprovedByUserId = null;
             }
 
-            asset.ProductLinks.Clear();
-
-            if (Model.ProductId is not null)
+            var selectedLink = Model.ProductId is null
+                ? null
+                : asset.ProductLinks.SingleOrDefault(
+                    link => link.ProductId == Model.ProductId.Value);
+            foreach (var link in asset.ProductLinks
+                .Where(link => link != selectedLink)
+                .ToList())
             {
-                asset.ProductLinks.Add(new AssetProductLink
+                asset.ProductLinks.Remove(link);
+            }
+
+            if (Model.ProductId is not null && selectedLink is null)
+            {
+                selectedLink = new AssetProductLink
                 {
                     ProductId = Model.ProductId.Value
-                });
+                };
+                asset.ProductLinks.Add(selectedLink);
+            }
+
+            if (selectedLink is not null &&
+                (Model.Status != AssetStatus.Approved ||
+                 asset.Kind != AssetKind.Image))
+            {
+                selectedLink.IsPrimary = false;
+                selectedLink.PrimaryAssignedAtUtc = null;
+                selectedLink.PrimaryAssignedByUserId = null;
             }
 
             await dbContext.SaveChangesAsync();

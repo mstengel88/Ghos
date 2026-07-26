@@ -100,6 +100,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<AssetProductLink>(link =>
         {
             link.HasKey(item => new { item.DigitalAssetId, item.ProductId });
+            link.HasIndex(item => item.ProductId);
+            link.HasIndex(item => new { item.ProductId, item.IsPrimary })
+                .IsUnique()
+                .HasFilter("\"IsPrimary\" = TRUE");
+            link.Property(item => item.PrimaryAssignedByUserId)
+                .HasMaxLength(450);
 
             link.HasOne(item => item.DigitalAsset)
                 .WithMany(asset => asset.ProductLinks)

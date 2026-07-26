@@ -55,12 +55,12 @@ else if (ReviewCompleted)
         <strong>@NeedsReviewCount</strong>
     </article>
     <article>
-        <span>Linked to Shopify</span>
-        <strong>@AllProducts.Count(product => product.ShopifyProductId is not null)</strong>
+        <span>With approved media</span>
+        <strong>@AllProducts.Count(HasApprovedMedia)</strong>
     </article>
     <article>
-        <span>Categories</span>
-        <strong>@Categories.Count</strong>
+        <span>Primary image set</span>
+        <strong>@AllProducts.Count(HasPrimaryImage)</strong>
     </article>
 </section>
 
@@ -136,6 +136,7 @@ else if (ReviewCompleted)
                         <th>Category</th>
                         <th>Availability</th>
                         <th>Price</th>
+                        <th>Media</th>
                         <th>Completeness</th>
                         <th>Status</th>
                         <th><span class="visually-hidden">Actions</span></th>
@@ -176,6 +177,20 @@ else if (ReviewCompleted)
                                 </div>
                             </td>
                             <td>@FormatPrice(product)</td>
+                            <td>
+                                <div class="media-state @(HasPrimaryImage(product) ? "ready" : HasApprovedMedia(product) ? "partial" : "missing")">
+                                    <strong>@product.AssetLinks.Count</strong>
+                                    <span>
+                                        @(HasPrimaryImage(product)
+                                            ? "Primary ready"
+                                            : HasApprovedMedia(product)
+                                                ? "Choose primary"
+                                                : product.AssetLinks.Count > 0
+                                                    ? "Needs approval"
+                                                    : "No media")
+                                    </span>
+                                </div>
+                            </td>
                             <td>
                                 <div class="completeness">
                                     <div><span style="width:@completeness%"></span></div>
@@ -251,6 +266,9 @@ else if (ReviewCompleted)
             .Include(product => product.ProductCategory)
             .Include(product => product.AlternateNames)
             .Include(product => product.Variants)
+            .Include(product => product.AssetLinks)
+                .ThenInclude(link => link.DigitalAsset)
+            .AsSplitQuery()
             .OrderBy(product => product.Name)
             .ToListAsync();
 
@@ -294,4 +312,15 @@ else if (ReviewCompleted)
 
         return prices.Count > 1 ? $"From {minimum:C}" : minimum.ToString("C");
     }
+
+    private static bool HasApprovedMedia(Product product) =>
+        product.AssetLinks.Any(link =>
+            link.DigitalAsset.Kind == AssetKind.Image &&
+            link.DigitalAsset.Status == AssetStatus.Approved);
+
+    private static bool HasPrimaryImage(Product product) =>
+        product.AssetLinks.Any(link =>
+            link.IsPrimary &&
+            link.DigitalAsset.Kind == AssetKind.Image &&
+            link.DigitalAsset.Status == AssetStatus.Approved);
 }

@@ -11,4 +11,10 @@ public sealed class AssetProductLink
     public Product Product { get; set; } = null!;
 
     public int SortOrder { get; set; }
+
+    public bool IsPrimary { get; set; }
+
+    public DateTime? PrimaryAssignedAtUtc { get; set; }
+
+    public string? PrimaryAssignedByUserId { get; set; }
 }

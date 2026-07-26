@@ -195,6 +195,93 @@ else
         </div>
     </EditForm>
 
+    @if (!IsNew)
+    {
+        <section class="panel product-media">
+            <div class="product-media-heading">
+                <div>
+                    <span class="panel-label">PRODUCT MEDIA</span>
+                    <h3>Approved product imagery</h3>
+                    <p>Review every linked asset and choose one approved image as the primary image used by future product cards and marketing tools.</p>
+                </div>
+                <div class="media-coverage">
+                    <strong>@ProductMedia.Count</strong>
+                    <span>linked · @ApprovedImageCount approved</span>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(MediaMessage))
+            {
+                <div class="module-notice" role="status">@MediaMessage</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(MediaError))
+            {
+                <div class="auth-alert" role="alert">@MediaError</div>
+            }
+
+            @if (ProductMedia.Count == 0)
+            {
+                <div class="media-empty">
+                    <div class="empty-icon">▣</div>
+                    <h4>No media linked yet</h4>
+                    <p>Import the Shopify featured image or upload an asset and link it to this product.</p>
+                    <div>
+                        <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
+                            <a class="secondary-link" href="/assets/shopify">Import Shopify images</a>
+                        </AuthorizeView>
+                        <a class="primary-action" href="/assets/upload">Upload an asset</a>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="product-media-grid">
+                    @foreach (var link in ProductMedia)
+                    {
+                        var asset = link.DigitalAsset;
+                        <article class="product-media-card @(link.IsPrimary ? "primary" : null)">
+                            <div class="product-media-preview">
+                                @if (CanPreviewImage(asset))
+                                {
+                                    <img src="/asset-files/@asset.Id"
+                                         alt="@asset.Title"
+                                         loading="lazy" />
+                                }
+                                else
+                                {
+                                    <div class="media-file-kind">@asset.Kind</div>
+                                }
+                                @if (link.IsPrimary)
+                                {
+                                    <span class="primary-image-badge">Primary image</span>
+                                }
+                            </div>
+                            <div class="product-media-details">
+                                <strong>@asset.Title</strong>
+                                <span>@FormatAssetSource(asset.Source) · @FormatAssetStatus(asset.Status)</span>
+                                <div class="product-media-actions">
+                                    <a href="/assets/@asset.Id/edit">Review asset</a>
+                                    @if (!link.IsPrimary && CanSetPrimary(asset))
+                                    {
+                                        <button type="button"
+                                                disabled="@SettingPrimary"
+                                                @onclick="() => SetPrimaryImageAsync(asset.Id)">
+                                            @(SettingPrimary ? "Saving…" : "Set as primary")
+                                        </button>
+                                    }
+                                    else if (!link.IsPrimary)
+                                    {
+                                        <small>Approve this image before selecting it.</small>
+                                    }
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+
     @if (SourceProduct?.ShopifyProductId is not null)
     {
         <section class="panel shopify-source">
@@ -265,6 +352,12 @@ else
     private int CurrentCompleteness { get; set; }
     private int PendingReviewCount { get; set; }
     private Product? SourceProduct { get; set; }
+    private List<AssetProductLink> ProductMedia { get; set; } = [];
+    private bool SettingPrimary { get; set; }
+    private string? MediaMessage { get; set; }
+    private string? MediaError { get; set; }
+    private int ApprovedImageCount => ProductMedia.Count(link =>
+        CanSetPrimary(link.DigitalAsset));
     private bool IsNew => ProductId is null;
     private bool IsReviewMode =>
         !IsNew &&
@@ -291,6 +384,9 @@ else
                 .AsNoTracking()
                 .Include(item => item.AlternateNames)
                 .Include(item => item.Variants)
+                .Include(item => item.AssetLinks)
+                    .ThenInclude(link => link.DigitalAsset)
+                .AsSplitQuery()
                 .SingleOrDefaultAsync(item => item.Id == ProductId);
 
             if (product is null)
@@ -318,6 +414,7 @@ else
             };
 
             SourceProduct = product;
+            ProductMedia = OrderProductMedia(product.AssetLinks);
             CurrentCompleteness = ProductCompleteness.Calculate(product);
 
             if (ReviewValue == "1" &&
@@ -332,6 +429,78 @@ else
         }
 
         Loading = false;
+    }
+
+    private async Task SetPrimaryImageAsync(Guid assetId)
+    {
+        if (ProductId is null)
+        {
+            return;
+        }
+
+        SettingPrimary = true;
+        MediaMessage = null;
+        MediaError = null;
+
+        try
+        {
+            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            var selectedLink = await dbContext.AssetProductLinks
+                .Include(link => link.DigitalAsset)
+                .SingleOrDefaultAsync(link =>
+                    link.ProductId == ProductId.Value &&
+                    link.DigitalAssetId == assetId);
+
+            if (selectedLink is null)
+            {
+                MediaError = "That image is no longer linked to this product.";
+                return;
+            }
+
+            if (!CanSetPrimary(selectedLink.DigitalAsset))
+            {
+                MediaError = "Only an approved image can be selected as the primary product image.";
+                return;
+            }
+
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            var now = DateTime.UtcNow;
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync();
+            await dbContext.AssetProductLinks
+                .Where(link =>
+                    link.ProductId == ProductId.Value &&
+                    link.IsPrimary)
+                .ExecuteUpdateAsync(updates => updates
+                    .SetProperty(link => link.IsPrimary, false)
+                    .SetProperty(link => link.PrimaryAssignedAtUtc, (DateTime?)null)
+                    .SetProperty(link => link.PrimaryAssignedByUserId, (string?)null));
+
+            selectedLink.IsPrimary = true;
+            selectedLink.PrimaryAssignedAtUtc = now;
+            selectedLink.PrimaryAssignedByUserId = userId;
+            await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            ProductMedia = await dbContext.AssetProductLinks
+                .AsNoTracking()
+                .Where(link => link.ProductId == ProductId.Value)
+                .Include(link => link.DigitalAsset)
+                .ToListAsync();
+            ProductMedia = OrderProductMedia(ProductMedia);
+            MediaMessage = $"{selectedLink.DigitalAsset.Title} is now the primary product image.";
+        }
+        catch (DbUpdateException)
+        {
+            MediaError = "The primary image could not be updated. Refresh the page and try again.";
+        }
+        finally
+        {
+            SettingPrimary = false;
+        }
     }
 
     private async Task SaveAsync()
@@ -467,4 +636,36 @@ else
         timestamp is null
             ? "Not recorded"
             : timestamp.Value.ToLocalTime().ToString("MMM d, yyyy · h:mm tt");
+
+    private static List<AssetProductLink> OrderProductMedia(
+        IEnumerable<AssetProductLink> links) =>
+        links
+            .OrderByDescending(link => link.IsPrimary)
+            .ThenBy(link => link.SortOrder)
+            .ThenByDescending(link => link.DigitalAsset.CreatedAtUtc)
+            .ToList();
+
+    private static bool CanPreviewImage(DigitalAsset asset) =>
+        asset.Kind == AssetKind.Image &&
+        asset.ContentType is "image/jpeg" or "image/png" or "image/webp" or "image/gif";
+
+    private static bool CanSetPrimary(DigitalAsset asset) =>
+        asset.Kind == AssetKind.Image &&
+        asset.Status == AssetStatus.Approved;
+
+    private static string FormatAssetSource(AssetSource source) => source switch
+    {
+        AssetSource.Shopify => "Shopify",
+        AssetSource.Upload => "Uploaded",
+        AssetSource.ICloudImport => "iCloud import",
+        _ => source.ToString()
+    };
+
+    private static string FormatAssetStatus(AssetStatus status) => status switch
+    {
+        AssetStatus.PendingReview => "Pending review",
+        AssetStatus.Approved => "Approved",
+        AssetStatus.Archived => "Archived",
+        _ => status.ToString()
+    };
 }

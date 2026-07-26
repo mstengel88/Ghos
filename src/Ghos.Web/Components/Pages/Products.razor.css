@@ -253,6 +253,36 @@
     font-weight: 750;
 }
 
+.media-state {
+    display: grid;
+    gap: 2px;
+}
+
+.media-state strong {
+    font-size: .82rem;
+}
+
+.media-state span {
+    color: #89938a;
+    font-size: .63rem;
+    font-weight: 750;
+    white-space: nowrap;
+}
+
+.media-state.ready strong,
+.media-state.ready span {
+    color: #587510;
+}
+
+.media-state.partial strong,
+.media-state.partial span {
+    color: #856614;
+}
+
+.media-state.missing strong {
+    color: #7b867c;
+}
+
 .completeness {
     min-width: 115px;
     display: flex;
