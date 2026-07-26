@@ -1,10 +1,305 @@
 @page "/orders"
+@rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.Operations)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 
 <PageTitle>Orders | GHOS</PageTitle>
 
-<div class="panel">
-    <span class="panel-label">GHOS MODULE</span>
-    <h2>Orders</h2>
-    <p>This module is ready for development.</p>
+<div class="orders-heading">
+    <div>
+        <span class="panel-label">ORDER OPERATIONS</span>
+        <h2>Orders</h2>
+        <p>A unified operational view of customer orders and their linked delivery tickets.</p>
+    </div>
+    <a href="/deliveries">Open Delivery Board →</a>
 </div>
+
+@if (Loading)
+{
+    <section class="panel orders-empty">Preparing orders…</section>
+}
+else
+{
+    var visibleOrders = GetVisibleOrders();
+    <section class="order-summary">
+        <article>
+            <span>Active orders</span>
+            <strong>@OrderItems.Count(item => item.Status is not
+                SalesOrderStatus.Delivered and not
+                SalesOrderStatus.Cancelled)</strong>
+            <small>Open across all connected sources</small>
+        </article>
+        <article>
+            <span>Needs scheduling</span>
+            <strong>@OrderItems.Count(item =>
+                item.Deliveries.Any(delivery =>
+                    delivery.Status == DeliveryStatus.Unscheduled))</strong>
+            <small>Orders with an unscheduled ticket</small>
+        </article>
+        <article>
+            <span>Out for delivery</span>
+            <strong>@OrderItems.Sum(item =>
+                item.Deliveries.Count(delivery =>
+                    delivery.Status is DeliveryStatus.EnRoute or
+                        DeliveryStatus.Arrived))</strong>
+            <small>Live delivery tickets</small>
+        </article>
+        <article>
+            <span>Delivered</span>
+            <strong>@OrderItems.Count(item =>
+                item.Status == SalesOrderStatus.Delivered)</strong>
+            <small>Completed orders in GHOS</small>
+        </article>
+    </section>
+
+    <div class="orders-layout">
+        <section class="panel order-list-panel">
+            <div class="list-toolbar">
+                <label>
+                    <span>Search orders</span>
+                    <input @bind="SearchText"
+                           @bind:event="oninput"
+                           placeholder="Order, customer, city, or material…" />
+                </label>
+                <label>
+                    <span>Status</span>
+                    <select @bind="StatusFilter">
+                        <option value="Active">Active</option>
+                        <option value="All">All</option>
+                        @foreach (var status in Enum.GetValues<SalesOrderStatus>())
+                        {
+                            <option value="@status.ToString()">@GetStatusLabel(status)</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            @if (OrderItems.Count == 0)
+            {
+                <div class="orders-empty integration-empty">
+                    <div class="empty-icon">↔</div>
+                    <h3>Ready for dispatch synchronization</h3>
+                    <p>The GHOS order model is installed. Connecting the signed dispatch feed will populate this view without changing routing data in the dispatch app.</p>
+                    <div>
+                        <span>GHOS owns</span>
+                        <strong>Unified reporting and links</strong>
+                    </div>
+                    <div>
+                        <span>Dispatch owns</span>
+                        <strong>Routes, drivers, status, and proof</strong>
+                    </div>
+                </div>
+            }
+            else if (visibleOrders.Count == 0)
+            {
+                <div class="orders-empty">
+                    <strong>No orders match these filters.</strong>
+                </div>
+            }
+            else
+            {
+                <div class="order-table">
+                    <div class="order-row order-table-header">
+                        <span>Order</span>
+                        <span>Customer</span>
+                        <span>Delivery</span>
+                        <span>Tickets</span>
+                        <span>Status</span>
+                    </div>
+                    @foreach (var order in visibleOrders)
+                    {
+                        <button type="button"
+                                class="order-row @(SelectedOrderId == order.Id ? "selected" : null)"
+                                @onclick="() => SelectOrder(order.Id)">
+                            <span class="order-number">
+                                <strong>#@order.OrderNumber</strong>
+                                <small>@order.Source</small>
+                            </span>
+                            <span>
+                                <strong>@order.CustomerName</strong>
+                                <small>@order.Contact</small>
+                            </span>
+                            <span>
+                                <strong>@GetAddressSummary(order)</strong>
+                                <small>@order.RequestedWindow</small>
+                            </span>
+                            <span class="ticket-count">@order.Deliveries.Count</span>
+                            <span class="status-pill @GetStatusClass(order.Status)">
+                                @GetStatusLabel(order.Status)
+                            </span>
+                        </button>
+                    }
+                </div>
+            }
+        </section>
+
+        <aside class="panel order-detail">
+            @if (SelectedOrder is null)
+            {
+                <div class="detail-empty">
+                    <div class="empty-icon">▤</div>
+                    <h3>Select an order</h3>
+                    <p>Review its source, customer, delivery address, and all linked dispatch tickets.</p>
+                </div>
+            }
+            else
+            {
+                <span class="status-pill @GetStatusClass(SelectedOrder.Status)">
+                    @GetStatusLabel(SelectedOrder.Status)
+                </span>
+                <h3>Order #@SelectedOrder.OrderNumber</h3>
+                <p class="detail-source">@SelectedOrder.Source · Last synchronized @FormatSyncTime(SelectedOrder.LastSyncedAtUtc)</p>
+
+                <dl>
+                    <div>
+                        <dt>Customer</dt>
+                        <dd>@SelectedOrder.CustomerName</dd>
+                    </div>
+                    <div>
+                        <dt>Contact</dt>
+                        <dd>@(SelectedOrder.Contact ?? "Not provided")</dd>
+                    </div>
+                    <div>
+                        <dt>Delivery address</dt>
+                        <dd>@GetFullAddress(SelectedOrder)</dd>
+                    </div>
+                    <div>
+                        <dt>Requested window</dt>
+                        <dd>@(SelectedOrder.RequestedWindow ?? "Not specified")</dd>
+                    </div>
+                </dl>
+
+                <div class="ticket-heading">
+                    <strong>Delivery tickets</strong>
+                    <span>@SelectedOrder.Deliveries.Count</span>
+                </div>
+                @if (SelectedOrder.Deliveries.Count == 0)
+                {
+                    <p class="no-tickets">No delivery tickets are linked yet.</p>
+                }
+                else
+                {
+                    <div class="ticket-list">
+                        @foreach (var delivery in SelectedOrder.Deliveries
+                            .OrderBy(item => item.StopSequence))
+                        {
+                            <a href="/deliveries?deliveryId=@delivery.Id">
+                                <span class="delivery-status @GetDeliveryStatusClass(delivery.Status)"></span>
+                                <span>
+                                    <strong>@delivery.Material</strong>
+                                    <small>@delivery.Quantity @delivery.Unit · @GetDeliveryStatusLabel(delivery.Status)</small>
+                                </span>
+                                <span>→</span>
+                            </a>
+                        }
+                    </div>
+                }
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    private List<SalesOrder> OrderItems { get; set; } = [];
+    private Guid? SelectedOrderId { get; set; }
+    private SalesOrder? SelectedOrder =>
+        OrderItems.FirstOrDefault(item => item.Id == SelectedOrderId);
+    private string SearchText { get; set; } = string.Empty;
+    private string StatusFilter { get; set; } = "Active";
+    private bool Loading { get; set; } = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        OrderItems = await dbContext.SalesOrders
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.Deliveries)
+            .OrderByDescending(item => item.SourceUpdatedAtUtc)
+            .ThenByDescending(item => item.UpdatedAtUtc)
+            .ToListAsync();
+        SelectedOrderId = OrderItems.FirstOrDefault()?.Id;
+        Loading = false;
+    }
+
+    private List<SalesOrder> GetVisibleOrders()
+    {
+        var query = OrderItems.AsEnumerable();
+        query = StatusFilter switch
+        {
+            "Active" => query.Where(item =>
+                item.Status is not SalesOrderStatus.Delivered and
+                    not SalesOrderStatus.Cancelled),
+            "All" => query,
+            _ when Enum.TryParse<SalesOrderStatus>(
+                StatusFilter,
+                out var status) =>
+                query.Where(item => item.Status == status),
+            _ => query
+        };
+
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var search = SearchText.Trim();
+            query = query.Where(item =>
+                item.OrderNumber.Contains(
+                    search,
+                    StringComparison.OrdinalIgnoreCase) ||
+                item.CustomerName.Contains(
+                    search,
+                    StringComparison.OrdinalIgnoreCase) ||
+                (item.DeliveryCity?.Contains(
+                    search,
+                    StringComparison.OrdinalIgnoreCase) ?? false) ||
+                item.Deliveries.Any(delivery =>
+                    delivery.Material.Contains(
+                        search,
+                        StringComparison.OrdinalIgnoreCase)));
+        }
+
+        return query.ToList();
+    }
+
+    private void SelectOrder(Guid id) => SelectedOrderId = id;
+
+    private static string GetAddressSummary(SalesOrder order) =>
+        string.IsNullOrWhiteSpace(order.DeliveryCity)
+            ? order.DeliveryAddress
+            : $"{order.DeliveryCity}, {order.DeliveryState ?? "WI"}";
+
+    private static string GetFullAddress(SalesOrder order)
+    {
+        var locality = string.Join(
+            " ",
+            new[]
+            {
+                order.DeliveryCity,
+                order.DeliveryState,
+                order.DeliveryPostalCode
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrWhiteSpace(locality)
+            ? order.DeliveryAddress
+            : $"{order.DeliveryAddress}, {locality}";
+    }
+
+    private static string GetStatusLabel(SalesOrderStatus status) =>
+        status.ToString();
+
+    private static string GetStatusClass(SalesOrderStatus status) =>
+        $"order-{status.ToString().ToLowerInvariant()}";
+
+    private static string GetDeliveryStatusLabel(DeliveryStatus status) =>
+        status switch
+        {
+            DeliveryStatus.EnRoute => "En route",
+            _ => status.ToString()
+        };
+
+    private static string GetDeliveryStatusClass(DeliveryStatus status) =>
+        $"delivery-{status.ToString().ToLowerInvariant()}";
+
+    private static string FormatSyncTime(DateTime? utc) =>
+        utc is null ? "never" : utc.Value.ToString("MMM d, h:mm tt 'UTC'");
+}

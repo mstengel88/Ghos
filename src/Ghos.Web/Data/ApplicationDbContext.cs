@@ -34,6 +34,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<MarketingPerformanceSnapshot> MarketingPerformanceSnapshots =>
         Set<MarketingPerformanceSnapshot>();
 
+    public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
+
+    public DbSet<Delivery> Deliveries => Set<Delivery>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -193,6 +197,43 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(content => content.PerformanceSnapshots)
                 .HasForeignKey(item => item.MarketingContentPackageId)
                 .HasConstraintName("FK_MarketingPerformance_Content")
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SalesOrder>(order =>
+        {
+            order.HasIndex(item => item.ExternalKey).IsUnique();
+            order.HasIndex(item => item.OrderNumber);
+            order.HasIndex(item => new { item.Status, item.UpdatedAtUtc });
+            order.Property(item => item.Source)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+            order.Property(item => item.Status)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+        });
+
+        builder.Entity<Delivery>(delivery =>
+        {
+            delivery.HasIndex(item => item.ExternalDispatchId).IsUnique();
+            delivery.HasIndex(item => item.SalesOrderId);
+            delivery.HasIndex(item => item.ScheduledForUtc);
+            delivery.HasIndex(item => new
+            {
+                item.Status,
+                item.ScheduledForUtc
+            });
+            delivery.Property(item => item.Status)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+            delivery.Property(item => item.TravelMinutes)
+                .HasPrecision(10, 2);
+            delivery.Property(item => item.TravelMiles)
+                .HasPrecision(10, 2);
+
+            delivery.HasOne(item => item.SalesOrder)
+                .WithMany(order => order.Deliveries)
+                .HasForeignKey(item => item.SalesOrderId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

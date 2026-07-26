@@ -1,10 +1,388 @@
 @page "/deliveries"
+@rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.Operations)]
+@using Microsoft.AspNetCore.Components
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 
 <PageTitle>Deliveries | GHOS</PageTitle>
 
-<div class="panel">
-    <span class="panel-label">GHOS MODULE</span>
-    <h2>Deliveries</h2>
-    <p>This module is ready for development.</p>
+<div class="delivery-heading">
+    <div>
+        <span class="panel-label">DELIVERY OPERATIONS</span>
+        <h2>Delivery Board</h2>
+        <p>A read-only GHOS mirror of dispatch assignments, route progress, and proof-of-delivery status.</p>
+    </div>
+    <a href="/orders">Open Orders →</a>
 </div>
+
+@if (Loading)
+{
+    <section class="panel delivery-empty">Preparing deliveries…</section>
+}
+else
+{
+    var visibleDeliveries = GetVisibleDeliveries();
+    <section class="delivery-summary">
+        <article>
+            <span>Unscheduled</span>
+            <strong>@DeliveryItems.Count(item =>
+                item.Status == DeliveryStatus.Unscheduled)</strong>
+            <small>Waiting for a route</small>
+        </article>
+        <article>
+            <span>Scheduled</span>
+            <strong>@DeliveryItems.Count(item =>
+                item.Status == DeliveryStatus.Scheduled)</strong>
+            <small>Assigned and not started</small>
+        </article>
+        <article>
+            <span>On the road</span>
+            <strong>@DeliveryItems.Count(item =>
+                item.Status is DeliveryStatus.EnRoute or
+                    DeliveryStatus.Arrived)</strong>
+            <small>En route or at the jobsite</small>
+        </article>
+        <article>
+            <span>Issues</span>
+            <strong>@DeliveryItems.Count(item =>
+                item.Status == DeliveryStatus.Issue)</strong>
+            <small>Needs dispatcher attention</small>
+        </article>
+    </section>
+
+    <div class="delivery-layout">
+        <section class="panel delivery-board">
+            <div class="board-toolbar">
+                <label>
+                    <span>Search deliveries</span>
+                    <input @bind="SearchText"
+                           @bind:event="oninput"
+                           placeholder="Order, customer, route, or material…" />
+                </label>
+                <label>
+                    <span>Delivery status</span>
+                    <select @bind="StatusFilter">
+                        <option value="Active">Active</option>
+                        <option value="All">All</option>
+                        @foreach (var status in Enum.GetValues<DeliveryStatus>())
+                        {
+                            <option value="@status.ToString()">@GetStatusLabel(status)</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            @if (DeliveryItems.Count == 0)
+            {
+                <div class="delivery-empty integration-empty">
+                    <div class="empty-icon">▰</div>
+                    <h3>Dispatch feed not connected yet</h3>
+                    <p>Once the signed read-only endpoint is enabled, GHOS will mirror delivery tickets here while the dispatch app remains responsible for routes, drivers, and delivery proof.</p>
+                    <div class="integration-flow">
+                        <span>Dispatch app</span>
+                        <i>signed feed →</i>
+                        <span>GHOS mirror</span>
+                    </div>
+                </div>
+            }
+            else if (visibleDeliveries.Count == 0)
+            {
+                <div class="delivery-empty">No delivery tickets match these filters.</div>
+            }
+            else
+            {
+                <div class="delivery-columns">
+                    @foreach (var lane in ActiveLanes)
+                    {
+                        var laneItems = visibleDeliveries
+                            .Where(item => LaneContains(lane.Statuses, item.Status))
+                            .OrderBy(item => item.StopSequence ?? int.MaxValue)
+                            .ThenBy(item => item.ScheduledForUtc)
+                            .ToList();
+                        <section class="delivery-lane">
+                            <div class="lane-heading">
+                                <span class="@lane.CssClass"></span>
+                                <strong>@lane.Label</strong>
+                                <small>@laneItems.Count</small>
+                            </div>
+                            @if (laneItems.Count == 0)
+                            {
+                                <p>No tickets</p>
+                            }
+                            else
+                            {
+                                @foreach (var delivery in laneItems)
+                                {
+                                    <button type="button"
+                                            class="delivery-card @(SelectedDeliveryId == delivery.Id ? "selected" : null)"
+                                            @onclick="() => SelectDelivery(delivery.Id)">
+                                        <div>
+                                            <span>#@delivery.SalesOrder.OrderNumber</span>
+                                            <span>@GetRouteLabel(delivery)</span>
+                                        </div>
+                                        <strong>@delivery.SalesOrder.CustomerName</strong>
+                                        <p>@delivery.Material · @delivery.Quantity @delivery.Unit</p>
+                                        <small>@GetLocation(delivery.SalesOrder)</small>
+                                    </button>
+                                }
+                            }
+                        </section>
+                    }
+                </div>
+            }
+        </section>
+
+        <aside class="panel delivery-detail">
+            @if (SelectedDelivery is null)
+            {
+                <div class="detail-empty">
+                    <div class="empty-icon">▰</div>
+                    <h3>Select a delivery</h3>
+                    <p>Review the linked order, material, route, driver, ETA, and proof status.</p>
+                </div>
+            }
+            else
+            {
+                <span class="status-pill @GetStatusClass(SelectedDelivery.Status)">
+                    @GetStatusLabel(SelectedDelivery.Status)
+                </span>
+                <h3>@SelectedDelivery.Material</h3>
+                <p class="detail-subtitle">
+                    Order #@SelectedDelivery.SalesOrder.OrderNumber ·
+                    @SelectedDelivery.Quantity @SelectedDelivery.Unit
+                </p>
+
+                <dl>
+                    <div>
+                        <dt>Customer</dt>
+                        <dd>@SelectedDelivery.SalesOrder.CustomerName</dd>
+                    </div>
+                    <div>
+                        <dt>Address</dt>
+                        <dd>@GetFullAddress(SelectedDelivery.SalesOrder)</dd>
+                    </div>
+                    <div>
+                        <dt>Route / stop</dt>
+                        <dd>@GetRouteDetail(SelectedDelivery)</dd>
+                    </div>
+                    <div>
+                        <dt>Truck / driver</dt>
+                        <dd>@GetTruckDriver(SelectedDelivery)</dd>
+                    </div>
+                    <div>
+                        <dt>ETA</dt>
+                        <dd>@(SelectedDelivery.Eta ?? "Not available")</dd>
+                    </div>
+                    <div>
+                        <dt>Travel estimate</dt>
+                        <dd>@GetTravelEstimate(SelectedDelivery)</dd>
+                    </div>
+                </dl>
+
+                <div class="proof-panel">
+                    <span>Delivery proof</span>
+                    <strong>@GetProofSummary(SelectedDelivery)</strong>
+                    @if (!string.IsNullOrWhiteSpace(SelectedDelivery.ProofNotes))
+                    {
+                        <p>@SelectedDelivery.ProofNotes</p>
+                    }
+                </div>
+
+                <a href="/orders">View linked order →</a>
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "deliveryId")]
+    public Guid? RequestedDeliveryId { get; set; }
+
+    private static readonly DeliveryLane[] ActiveLanes =
+    [
+        new(
+            "Needs route",
+            "lane-unscheduled",
+            [DeliveryStatus.Unscheduled]),
+        new(
+            "Scheduled",
+            "lane-scheduled",
+            [DeliveryStatus.Scheduled]),
+        new(
+            "On the road",
+            "lane-enroute",
+            [DeliveryStatus.EnRoute, DeliveryStatus.Arrived]),
+        new(
+            "Completed / issue",
+            "lane-complete",
+            [
+                DeliveryStatus.Delivered,
+                DeliveryStatus.Issue,
+                DeliveryStatus.Cancelled
+            ])
+    ];
+
+    private List<Delivery> DeliveryItems { get; set; } = [];
+    private Guid? SelectedDeliveryId { get; set; }
+    private Delivery? SelectedDelivery =>
+        DeliveryItems.FirstOrDefault(item => item.Id == SelectedDeliveryId);
+    private string SearchText { get; set; } = string.Empty;
+    private string StatusFilter { get; set; } = "Active";
+    private bool Loading { get; set; } = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        DeliveryItems = await dbContext.Deliveries
+            .AsNoTracking()
+            .Include(item => item.SalesOrder)
+            .OrderBy(item => item.StopSequence)
+            .ThenBy(item => item.ScheduledForUtc)
+            .ToListAsync();
+        SelectedDeliveryId = DeliveryItems.Any(item =>
+                item.Id == RequestedDeliveryId)
+            ? RequestedDeliveryId
+            : DeliveryItems.FirstOrDefault()?.Id;
+        Loading = false;
+    }
+
+    private List<Delivery> GetVisibleDeliveries()
+    {
+        var query = DeliveryItems.AsEnumerable();
+        query = StatusFilter switch
+        {
+            "Active" => query.Where(item =>
+                item.Status is not DeliveryStatus.Delivered and
+                    not DeliveryStatus.Cancelled),
+            "All" => query,
+            _ when Enum.TryParse<DeliveryStatus>(
+                StatusFilter,
+                out var status) =>
+                query.Where(item => item.Status == status),
+            _ => query
+        };
+
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var search = SearchText.Trim();
+            query = query.Where(item =>
+                item.SalesOrder.OrderNumber.Contains(
+                    search,
+                    StringComparison.OrdinalIgnoreCase) ||
+                item.SalesOrder.CustomerName.Contains(
+                    search,
+                    StringComparison.OrdinalIgnoreCase) ||
+                item.Material.Contains(
+                    search,
+                    StringComparison.OrdinalIgnoreCase) ||
+                (item.RouteCode?.Contains(
+                    search,
+                    StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+        return query.ToList();
+    }
+
+    private void SelectDelivery(Guid id) => SelectedDeliveryId = id;
+
+    private static bool LaneContains(
+        IReadOnlyCollection<DeliveryStatus> statuses,
+        DeliveryStatus status) =>
+        statuses.Contains(status);
+
+    private static string GetStatusLabel(DeliveryStatus status) =>
+        status switch
+        {
+            DeliveryStatus.EnRoute => "En route",
+            _ => status.ToString()
+        };
+
+    private static string GetStatusClass(DeliveryStatus status) =>
+        $"delivery-{status.ToString().ToLowerInvariant()}";
+
+    private static string GetRouteLabel(Delivery delivery) =>
+        string.IsNullOrWhiteSpace(delivery.RouteCode)
+            ? "No route"
+            : delivery.StopSequence is null
+                ? delivery.RouteCode
+                : $"{delivery.RouteCode} · Stop {delivery.StopSequence}";
+
+    private static string GetRouteDetail(Delivery delivery) =>
+        string.IsNullOrWhiteSpace(delivery.RouteCode)
+            ? "Not assigned"
+            : delivery.StopSequence is null
+                ? delivery.RouteCode
+                : $"{delivery.RouteCode}, stop {delivery.StopSequence}";
+
+    private static string GetTruckDriver(Delivery delivery)
+    {
+        var values = new[] { delivery.Truck, delivery.DriverName }
+            .Where(value => !string.IsNullOrWhiteSpace(value));
+        var result = string.Join(" · ", values);
+        return string.IsNullOrWhiteSpace(result)
+            ? "Not assigned"
+            : result;
+    }
+
+    private static string GetLocation(SalesOrder order) =>
+        string.IsNullOrWhiteSpace(order.DeliveryCity)
+            ? order.DeliveryAddress
+            : order.DeliveryCity;
+
+    private static string GetFullAddress(SalesOrder order)
+    {
+        var locality = string.Join(
+            " ",
+            new[]
+            {
+                order.DeliveryCity,
+                order.DeliveryState,
+                order.DeliveryPostalCode
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrWhiteSpace(locality)
+            ? order.DeliveryAddress
+            : $"{order.DeliveryAddress}, {locality}";
+    }
+
+    private static string GetTravelEstimate(Delivery delivery)
+    {
+        var details = new List<string>();
+        if (delivery.TravelMinutes is not null)
+        {
+            details.Add($"{delivery.TravelMinutes:0} min");
+        }
+        if (delivery.TravelMiles is not null)
+        {
+            details.Add($"{delivery.TravelMiles:0.0} mi");
+        }
+        return details.Count == 0
+            ? "Not calculated"
+            : string.Join(" · ", details);
+    }
+
+    private static string GetProofSummary(Delivery delivery)
+    {
+        if (delivery.Status != DeliveryStatus.Delivered)
+        {
+            return "Pending delivery";
+        }
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(delivery.ProofName))
+        {
+            parts.Add($"Received by {delivery.ProofName}");
+        }
+        if (delivery.ProofPhotoCount > 0)
+        {
+            parts.Add($"{delivery.ProofPhotoCount} photo(s)");
+        }
+        return parts.Count == 0
+            ? "Delivered; proof not recorded"
+            : string.Join(" · ", parts);
+    }
+
+    private sealed record DeliveryLane(
+        string Label,
+        string CssClass,
+        IReadOnlyCollection<DeliveryStatus> Statuses);
+}
