@@ -215,6 +215,23 @@
     white-space: nowrap;
 }
 
+.delivery-card-date {
+    width: max-content;
+    margin-top: 8px;
+    padding: 3px 6px;
+    border-radius: 5px;
+    background: #eef6dc;
+    color: #5b741b;
+    display: block;
+    font-size: .5rem;
+    font-weight: 850;
+}
+
+.delivery-card-date i {
+    margin-right: 3px;
+    font-style: normal;
+}
+
 .delivery-card p {
     margin: 5px 0 0;
     color: #5f6b61;

@@ -127,6 +127,11 @@ else
                                             <span>#@delivery.SalesOrder.OrderNumber</span>
                                             <span>@GetRouteLabel(delivery)</span>
                                         </div>
+                                        <span class="delivery-card-date">
+                                            <i>▦</i>
+                                            @FormatDeliveryDate(
+                                                delivery.ScheduledForUtc)
+                                        </span>
                                         <strong>@delivery.SalesOrder.CustomerName</strong>
                                         <p>@delivery.Material · @delivery.Quantity @delivery.Unit</p>
                                         <small>@GetLocation(delivery.SalesOrder)</small>
@@ -167,6 +172,11 @@ else
                     <div>
                         <dt>Address</dt>
                         <dd>@GetFullAddress(SelectedDelivery.SalesOrder)</dd>
+                    </div>
+                    <div>
+                        <dt>Delivery date</dt>
+                        <dd>@FormatDeliveryDate(
+                            SelectedDelivery.ScheduledForUtc)</dd>
                     </div>
                     <div>
                         <dt>Route / stop</dt>
@@ -307,6 +317,19 @@ else
 
     private static string GetStatusClass(DeliveryStatus status) =>
         $"delivery-{status.ToString().ToLowerInvariant()}";
+
+    private static string FormatDeliveryDate(DateTime? scheduledForUtc)
+    {
+        if (scheduledForUtc is null)
+        {
+            return "Date not set";
+        }
+
+        var date = DateOnly.FromDateTime(scheduledForUtc.Value);
+        return date == DispatchOperationalTime.Today
+            ? $"Today · {date:ddd, MMM d}"
+            : date.ToString("ddd, MMM d, yyyy");
+    }
 
     private static string GetRouteLabel(Delivery delivery) =>
         string.IsNullOrWhiteSpace(delivery.RouteCode)

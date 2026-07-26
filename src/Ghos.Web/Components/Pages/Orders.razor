@@ -108,6 +108,7 @@ else
                         <span>Order</span>
                         <span>Customer</span>
                         <span>Delivery</span>
+                        <span>Delivery date</span>
                         <span>Tickets</span>
                         <span>Status</span>
                     </div>
@@ -126,7 +127,12 @@ else
                             </span>
                             <span>
                                 <strong>@GetAddressSummary(order)</strong>
-                                <small>@order.RequestedWindow</small>
+                                <small>@order.DeliveryAddress</small>
+                            </span>
+                            <span class="order-date">
+                                <strong>@FormatOrderDate(order)</strong>
+                                <small>@(order.TimePreference ??
+                                    "Time not specified")</small>
                             </span>
                             <span class="ticket-count">@order.Deliveries.Count</span>
                             <span class="status-pill @GetStatusClass(order.Status)">
@@ -170,7 +176,12 @@ else
                     </div>
                     <div>
                         <dt>Requested window</dt>
-                        <dd>@(SelectedOrder.RequestedWindow ?? "Not specified")</dd>
+                        <dd>@FormatOrderDate(SelectedOrder)</dd>
+                    </div>
+                    <div>
+                        <dt>Time preference</dt>
+                        <dd>@(SelectedOrder.TimePreference ??
+                            "Not specified")</dd>
                     </div>
                 </dl>
 
@@ -300,6 +311,32 @@ else
 
     private static string GetStatusClass(SalesOrderStatus status) =>
         $"order-{status.ToString().ToLowerInvariant()}";
+
+    private static string FormatOrderDate(SalesOrder order)
+    {
+        var date = order.Deliveries
+            .Where(delivery => delivery.ScheduledForUtc is not null)
+            .Select(delivery =>
+                DateOnly.FromDateTime(
+                    delivery.ScheduledForUtc!.Value))
+            .OrderBy(value => value)
+            .FirstOrDefault();
+
+        if (date == default)
+        {
+            date = DispatchOperationalTime.ParseBusinessDate(
+                order.RequestedWindow) ?? default;
+        }
+
+        if (date == default)
+        {
+            return "Date not set";
+        }
+
+        return date == DispatchOperationalTime.Today
+            ? $"Today · {date:ddd, MMM d}"
+            : date.ToString("ddd, MMM d, yyyy");
+    }
 
     private static string GetDeliveryStatusLabel(DeliveryStatus status) =>
         status switch
