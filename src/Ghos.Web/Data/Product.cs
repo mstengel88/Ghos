@@ -100,4 +100,6 @@ public sealed class Product
     public ICollection<ProductVariant> Variants { get; set; } = [];
 
     public ICollection<AssetProductLink> AssetLinks { get; set; } = [];
+
+    public ICollection<ProductShopifyCollection> ShopifyCollectionLinks { get; set; } = [];
 }

@@ -24,6 +24,7 @@
         <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
             <a class="secondary-link" href="/products/shopify">Sync Shopify</a>
         </AuthorizeView>
+        <a class="secondary-link" href="/products/collections">Shopify collections</a>
         <AuthorizeView Policy="@GhosPolicies.Operations">
             <a class="secondary-link" href="/exports/products.csv">Export CSV</a>
             <a class="secondary-link" href="/products/bulk">Bulk edit</a>
@@ -83,6 +84,17 @@ else if (ReviewCompleted)
                 @foreach (var category in Categories)
                 {
                     <option value="@category.Id">@category.Name</option>
+                }
+            </select>
+        </label>
+
+        <label>
+            <span>Shopify collection</span>
+            <select @bind="SelectedShopifyCollection">
+                <option value="">All collections</option>
+                @foreach (var collection in ShopifyCollections)
+                {
+                    <option value="@collection.Handle">@collection.Title</option>
                 }
             </select>
         </label>
@@ -223,11 +235,16 @@ else if (ReviewCompleted)
     [SupplyParameterFromQuery(Name = "reviewComplete")]
     public string? ReviewCompleteValue { get; set; }
 
+    [SupplyParameterFromQuery(Name = "collection")]
+    public string? CollectionValue { get; set; }
+
     private List<Product> AllProducts { get; set; } = [];
     private List<ProductCategory> Categories { get; set; } = [];
+    private List<ShopifyCollection> ShopifyCollections { get; set; } = [];
     private bool Loading { get; set; } = true;
     private string SearchText { get; set; } = string.Empty;
     private string SelectedCategory { get; set; } = string.Empty;
+    private string SelectedShopifyCollection { get; set; } = string.Empty;
     private string SelectedStatus { get; set; } = string.Empty;
     private string SelectedReview { get; set; } = string.Empty;
     private bool Saved => SavedValue == "1";
@@ -240,6 +257,10 @@ else if (ReviewCompleted)
         .Where(product =>
             string.IsNullOrWhiteSpace(SelectedCategory) ||
             product.ProductCategoryId.ToString() == SelectedCategory)
+        .Where(product =>
+            string.IsNullOrWhiteSpace(SelectedShopifyCollection) ||
+            product.ShopifyCollectionLinks.Any(link =>
+                link.ShopifyCollection.Handle == SelectedShopifyCollection))
         .Where(product =>
             string.IsNullOrWhiteSpace(SelectedStatus) ||
             product.Status.ToString() == SelectedStatus)
@@ -263,6 +284,11 @@ else if (ReviewCompleted)
             .ThenBy(category => category.Name)
             .ToListAsync();
 
+        ShopifyCollections = await dbContext.ShopifyCollections
+            .AsNoTracking()
+            .OrderBy(collection => collection.Title)
+            .ToListAsync();
+
         AllProducts = await dbContext.Products
             .AsNoTracking()
             .Include(product => product.ProductCategory)
@@ -270,6 +296,8 @@ else if (ReviewCompleted)
             .Include(product => product.Variants)
             .Include(product => product.AssetLinks)
                 .ThenInclude(link => link.DigitalAsset)
+            .Include(product => product.ShopifyCollectionLinks)
+                .ThenInclude(link => link.ShopifyCollection)
             .AsSplitQuery()
             .OrderBy(product => product.Name)
             .ToListAsync();
@@ -277,6 +305,11 @@ else if (ReviewCompleted)
         SelectedReview = ReviewValue is "needed" or "reviewed"
             ? ReviewValue
             : string.Empty;
+        SelectedShopifyCollection = ShopifyCollections.Any(collection =>
+            collection.Handle.Equals(CollectionValue, StringComparison.OrdinalIgnoreCase))
+                ? ShopifyCollections.First(collection =>
+                    collection.Handle.Equals(CollectionValue, StringComparison.OrdinalIgnoreCase)).Handle
+                : string.Empty;
         Loading = false;
     }
 

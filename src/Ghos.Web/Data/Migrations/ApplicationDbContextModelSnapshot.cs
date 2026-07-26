@@ -499,6 +499,21 @@ namespace Ghos.Web.Data.Migrations
                     b.ToTable("ProductCategories");
                 });
 
+            modelBuilder.Entity("Ghos.Web.Data.ProductShopifyCollection", b =>
+                {
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ShopifyCollectionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ProductId", "ShopifyCollectionId");
+
+                    b.HasIndex("ShopifyCollectionId");
+
+                    b.ToTable("ProductShopifyCollections");
+                });
+
             modelBuilder.Entity("Ghos.Web.Data.ProductVariant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -548,6 +563,43 @@ namespace Ghos.Web.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProductVariants");
+                });
+
+            modelBuilder.Entity("Ghos.Web.Data.ShopifyCollection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Handle")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime>("LastSyncedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ShopifyCollectionId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Handle")
+                        .IsUnique();
+
+                    b.HasIndex("ShopifyCollectionId")
+                        .IsUnique();
+
+                    b.HasIndex("Title");
+
+                    b.ToTable("ShopifyCollections");
                 });
 
             modelBuilder.Entity("Ghos.Web.Data.ShopifyConnectionSettings", b =>
@@ -797,6 +849,25 @@ namespace Ghos.Web.Data.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("Ghos.Web.Data.ProductShopifyCollection", b =>
+                {
+                    b.HasOne("Ghos.Web.Data.Product", "Product")
+                        .WithMany("ShopifyCollectionLinks")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ghos.Web.Data.ShopifyCollection", "ShopifyCollection")
+                        .WithMany("ProductLinks")
+                        .HasForeignKey("ShopifyCollectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ShopifyCollection");
+                });
+
             modelBuilder.Entity("Ghos.Web.Data.ProductVariant", b =>
                 {
                     b.HasOne("Ghos.Web.Data.Product", "Product")
@@ -870,12 +941,19 @@ namespace Ghos.Web.Data.Migrations
 
                     b.Navigation("AssetLinks");
 
+                    b.Navigation("ShopifyCollectionLinks");
+
                     b.Navigation("Variants");
                 });
 
             modelBuilder.Entity("Ghos.Web.Data.ProductCategory", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("Ghos.Web.Data.ShopifyCollection", b =>
+                {
+                    b.Navigation("ProductLinks");
                 });
 #pragma warning restore 612, 618
         }

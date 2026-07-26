@@ -18,6 +18,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ShopifyConnectionSettings> ShopifyConnectionSettings => Set<ShopifyConnectionSettings>();
 
+    public DbSet<ShopifyCollection> ShopifyCollections => Set<ShopifyCollection>();
+
+    public DbSet<ProductShopifyCollection> ProductShopifyCollections => Set<ProductShopifyCollection>();
+
     public DbSet<DigitalAsset> DigitalAssets => Set<DigitalAsset>();
 
     public DbSet<AssetProductLink> AssetProductLinks => Set<AssetProductLink>();
@@ -84,6 +88,29 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<ShopifyConnectionSettings>(settings =>
         {
             settings.ToTable("ShopifyConnectionSettings");
+        });
+
+        builder.Entity<ShopifyCollection>(collection =>
+        {
+            collection.HasIndex(item => item.ShopifyCollectionId).IsUnique();
+            collection.HasIndex(item => item.Handle).IsUnique();
+            collection.HasIndex(item => item.Title);
+        });
+
+        builder.Entity<ProductShopifyCollection>(link =>
+        {
+            link.HasKey(item => new { item.ProductId, item.ShopifyCollectionId });
+            link.HasIndex(item => item.ShopifyCollectionId);
+
+            link.HasOne(item => item.Product)
+                .WithMany(product => product.ShopifyCollectionLinks)
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            link.HasOne(item => item.ShopifyCollection)
+                .WithMany(collection => collection.ProductLinks)
+                .HasForeignKey(item => item.ShopifyCollectionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<DigitalAsset>(asset =>

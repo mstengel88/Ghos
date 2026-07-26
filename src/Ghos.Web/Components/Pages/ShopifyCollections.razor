@@ -1,0 +1,169 @@
+@page "/products/collections"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+
+<PageTitle>Shopify Collections | GHOS</PageTitle>
+
+<div class="collections-heading">
+    <div>
+        <a href="/products">← Product catalog</a>
+        <span class="panel-label">SHOPIFY COLLECTION COVERAGE</span>
+        <h2>Store collections</h2>
+        <p>Shopify collection membership is preserved separately from GHOS categories, so products can appear in every storefront collection without changing their operational classification.</p>
+    </div>
+    <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
+        <a class="primary-action" href="/products/shopify">Refresh from Shopify</a>
+    </AuthorizeView>
+</div>
+
+<section class="collection-summary">
+    <article>
+        <span>Collections</span>
+        <strong>@Collections.Count</strong>
+    </article>
+    <article>
+        <span>Memberships</span>
+        <strong>@Collections.Sum(collection => collection.ProductLinks.Count)</strong>
+    </article>
+    <article>
+        <span>Products represented</span>
+        <strong>@Collections.SelectMany(collection => collection.ProductLinks).Select(link => link.ProductId).Distinct().Count()</strong>
+    </article>
+    <article>
+        <span>Shopify products ungrouped</span>
+        <strong>@UngroupedProductCount</strong>
+    </article>
+</section>
+
+<section class="panel collection-panel">
+    <div class="collection-toolbar">
+        <label>
+            <span>Search collections or products</span>
+            <input @bind="SearchText"
+                   @bind:event="oninput"
+                   type="search"
+                   placeholder="Landscape Essentials, stone, mulch…" />
+        </label>
+        <label>
+            <span>Coverage</span>
+            <select @bind="CoverageFilter">
+                <option value="">All collections</option>
+                <option value="with-products">With products</option>
+                <option value="empty">Empty</option>
+            </select>
+        </label>
+    </div>
+
+    @if (Loading)
+    {
+        <div class="collection-empty">Loading Shopify collections…</div>
+    }
+    else if (Collections.Count == 0)
+    {
+        <div class="collection-empty">
+            <h3>Collection membership is ready to import</h3>
+            <p>Run the next Shopify product sync. GHOS will preserve every collection and its product membership automatically.</p>
+            <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
+                <a class="primary-action" href="/products/shopify">Open Shopify sync</a>
+            </AuthorizeView>
+        </div>
+    }
+    else if (FilteredCollections.Count == 0)
+    {
+        <div class="collection-empty">
+            <h3>No collections match these filters</h3>
+            <p>Try a broader search or change the coverage filter.</p>
+        </div>
+    }
+    else
+    {
+        <div class="collection-list">
+            @foreach (var collection in FilteredCollections)
+            {
+                var productLinks = collection.ProductLinks
+                    .OrderBy(link => link.Product.Name)
+                    .ToList();
+                <article class="collection-card">
+                    <div class="collection-card-heading">
+                        <div>
+                            <span class="collection-handle">/@collection.Handle</span>
+                            <h3>@collection.Title</h3>
+                        </div>
+                        <strong>@productLinks.Count @(productLinks.Count == 1 ? "product" : "products")</strong>
+                    </div>
+
+                    @if (productLinks.Count == 0)
+                    {
+                        <p class="no-products">No synchronized products currently belong to this collection.</p>
+                    }
+                    else
+                    {
+                        <div class="product-chips">
+                            @foreach (var link in productLinks.Take(8))
+                            {
+                                <span>@link.Product.Name</span>
+                            }
+                            @if (productLinks.Count > 8)
+                            {
+                                <span class="more-chip">+@(productLinks.Count - 8) more</span>
+                            }
+                        </div>
+                    }
+
+                    <footer>
+                        <span>Last synchronized @FormatTimestamp(collection.LastSyncedAtUtc)</span>
+                        <div>
+                            <a href="@($"https://greenhillssupply.com/collections/{collection.Handle}")"
+                               target="_blank"
+                               rel="noopener noreferrer">Open storefront</a>
+                            <a href="@($"/products?collection={Uri.EscapeDataString(collection.Handle)}")">View in GHOS</a>
+                        </div>
+                    </footer>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private List<ShopifyCollection> Collections { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private int UngroupedProductCount { get; set; }
+    private string SearchText { get; set; } = string.Empty;
+    private string CoverageFilter { get; set; } = string.Empty;
+
+    private List<ShopifyCollection> FilteredCollections => Collections
+        .Where(collection =>
+            string.IsNullOrWhiteSpace(SearchText) ||
+            collection.Title.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase) ||
+            collection.Handle.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase) ||
+            collection.ProductLinks.Any(link =>
+                link.Product.Name.Contains(SearchText.Trim(), StringComparison.OrdinalIgnoreCase)))
+        .Where(collection =>
+            string.IsNullOrWhiteSpace(CoverageFilter) ||
+            (CoverageFilter == "with-products" && collection.ProductLinks.Count > 0) ||
+            (CoverageFilter == "empty" && collection.ProductLinks.Count == 0))
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Collections = await dbContext.ShopifyCollections
+            .AsNoTracking()
+            .Include(collection => collection.ProductLinks)
+                .ThenInclude(link => link.Product)
+            .AsSplitQuery()
+            .OrderBy(collection => collection.Title)
+            .ToListAsync();
+        UngroupedProductCount = await dbContext.Products
+            .AsNoTracking()
+            .CountAsync(product =>
+                product.ShopifyProductId != null &&
+                !product.ShopifyCollectionLinks.Any());
+        Loading = false;
+    }
+
+    private static string FormatTimestamp(DateTime timestamp) =>
+        timestamp.ToString("MMM d, yyyy · h:mm tt 'UTC'");
+}

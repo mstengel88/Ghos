@@ -57,6 +57,8 @@ public sealed class ShopifySyncService(
         var existingProducts = await dbContext.Products
             .AsNoTracking()
             .Include(product => product.Variants)
+            .Include(product => product.ShopifyCollectionLinks)
+                .ThenInclude(link => link.ShopifyCollection)
             .Where(product => product.ShopifyProductId != null)
             .ToListAsync(cancellationToken);
         var categories = await dbContext.ProductCategories
@@ -77,6 +79,7 @@ public sealed class ShopifySyncService(
                 var action = !byShopifyId.TryGetValue(snapshot.Id, out var existing)
                     ? ShopifySyncAction.Create
                     : SourceHasChanged(existing, snapshot) ||
+                        CollectionMembershipsChanged(existing, snapshot) ||
                         ShouldRecoverCategory(existing, resolvedCategory, fallbackCategory)
                         ? ShopifySyncAction.Update
                         : ShopifySyncAction.Unchanged;
@@ -119,7 +122,14 @@ public sealed class ShopifySyncService(
         {
             var products = await dbContext.Products
                 .Include(product => product.Variants)
+                .Include(product => product.ShopifyCollectionLinks)
+                    .ThenInclude(link => link.ShopifyCollection)
                 .ToListAsync(cancellationToken);
+            var shopifyCollections = await dbContext.ShopifyCollections
+                .ToListAsync(cancellationToken);
+            var collectionsByShopifyId = shopifyCollections.ToDictionary(
+                collection => collection.ShopifyCollectionId,
+                StringComparer.Ordinal);
             var categories = await dbContext.ProductCategories
                 .Where(category => category.IsActive)
                 .OrderBy(category => category.SortOrder)
@@ -172,6 +182,7 @@ public sealed class ShopifySyncService(
                     created++;
                 }
                 else if (SourceHasChanged(product, snapshot) ||
+                    CollectionMembershipsChanged(product, snapshot) ||
                     product.ShopifyProductId is null ||
                     ShouldRecoverCategory(product, resolvedCategory, fallbackCategory))
                 {
@@ -189,10 +200,15 @@ public sealed class ShopifySyncService(
                 else
                 {
                     unchanged++;
-                    continue;
                 }
 
                 product.ShopifyProductId = snapshot.Id;
+                MergeCollections(
+                    product,
+                    snapshot,
+                    collectionsByShopifyId,
+                    dbContext,
+                    now);
                 byShopifyId[snapshot.Id] = product;
                 byHandle[snapshot.Handle] = product;
             }
@@ -343,6 +359,56 @@ public sealed class ShopifySyncService(
         }
     }
 
+    private static void MergeCollections(
+        Product product,
+        ShopifyProductSnapshot snapshot,
+        IDictionary<string, ShopifyCollection> collectionsByShopifyId,
+        ApplicationDbContext dbContext,
+        DateTime syncedAtUtc)
+    {
+        var incomingIds = snapshot.Collections
+            .Select(collection => collection.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var removedLinks = product.ShopifyCollectionLinks
+            .Where(link => !incomingIds.Contains(link.ShopifyCollection.ShopifyCollectionId))
+            .ToList();
+
+        foreach (var removedLink in removedLinks)
+        {
+            product.ShopifyCollectionLinks.Remove(removedLink);
+        }
+
+        var linkedCollectionIds = product.ShopifyCollectionLinks
+            .Select(link => link.ShopifyCollection.ShopifyCollectionId)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var snapshotCollection in snapshot.Collections)
+        {
+            if (!collectionsByShopifyId.TryGetValue(snapshotCollection.Id, out var collection))
+            {
+                collection = new ShopifyCollection
+                {
+                    ShopifyCollectionId = snapshotCollection.Id
+                };
+                collectionsByShopifyId[snapshotCollection.Id] = collection;
+                dbContext.ShopifyCollections.Add(collection);
+            }
+
+            collection.Title = snapshotCollection.Title.Trim();
+            collection.Handle = snapshotCollection.Handle.Trim();
+            collection.LastSyncedAtUtc = syncedAtUtc;
+
+            if (linkedCollectionIds.Add(snapshotCollection.Id))
+            {
+                product.ShopifyCollectionLinks.Add(new ProductShopifyCollection
+                {
+                    Product = product,
+                    ShopifyCollection = collection
+                });
+            }
+        }
+    }
+
     private static bool SourceHasChanged(Product product, ShopifyProductSnapshot snapshot)
     {
         if (product.ShopifyTitle != snapshot.Title ||
@@ -376,6 +442,20 @@ public sealed class ShopifySyncService(
         }
 
         return false;
+    }
+
+    private static bool CollectionMembershipsChanged(
+        Product product,
+        ShopifyProductSnapshot snapshot)
+    {
+        var existing = product.ShopifyCollectionLinks
+            .Select(link => link.ShopifyCollection.ShopifyCollectionId)
+            .ToHashSet(StringComparer.Ordinal);
+        var incoming = snapshot.Collections
+            .Select(collection => collection.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
+        return !existing.SetEquals(incoming);
     }
 
     private static ProductCategory ResolveCategory(
