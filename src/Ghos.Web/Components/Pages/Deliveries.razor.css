@@ -430,6 +430,23 @@
     font-size: .47rem;
 }
 
+.calendar-order-timing {
+    margin-top: 7px;
+    padding-top: 6px;
+    border-top: 1px solid #edf0eb;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 4px 7px;
+    color: #526054;
+    font-size: .43rem;
+    font-weight: 850;
+}
+
+.calendar-order-timing span:last-child {
+    color: #5d7d0f;
+}
+
 .calendar-no-date {
     margin: 0 12px 12px;
     padding: 12px;

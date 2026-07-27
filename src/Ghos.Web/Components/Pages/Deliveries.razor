@@ -170,6 +170,17 @@ else
                                                 <strong>@delivery.SalesOrder.CustomerName</strong>
                                                 <small>@delivery.Material · @delivery.Quantity @delivery.Unit</small>
                                                 <small>@GetRouteLabel(delivery)</small>
+                                                <div class="calendar-order-timing">
+                                                    <span>
+                                                        Window:
+                                                        @GetDeliveryWindow(delivery)
+                                                    </span>
+                                                    <span>
+                                                        @GetRoundTripTime(
+                                                            delivery,
+                                                            compact: true)
+                                                    </span>
+                                                </div>
                                             </button>
                                         }
                                     }
@@ -307,6 +318,10 @@ else
                             SelectedDelivery.ScheduledForUtc)</dd>
                     </div>
                     <div>
+                        <dt>Delivery window</dt>
+                        <dd>@GetDeliveryWindow(SelectedDelivery)</dd>
+                    </div>
+                    <div>
                         <dt>Route / stop</dt>
                         <dd>@GetRouteDetail(SelectedDelivery)</dd>
                     </div>
@@ -319,8 +334,12 @@ else
                         <dd>@(SelectedDelivery.Eta ?? "Not available")</dd>
                     </div>
                     <div>
-                        <dt>Travel estimate</dt>
-                        <dd>@GetTravelEstimate(SelectedDelivery)</dd>
+                        <dt>Round trip time</dt>
+                        <dd>@GetRoundTripTime(SelectedDelivery)</dd>
+                    </div>
+                    <div>
+                        <dt>Travel distance</dt>
+                        <dd>@GetTravelDistance(SelectedDelivery)</dd>
                     </div>
                 </dl>
 
@@ -579,21 +598,54 @@ else
             : $"{order.DeliveryAddress}, {locality}";
     }
 
-    private static string GetTravelEstimate(Delivery delivery)
+    private static string GetDeliveryWindow(Delivery delivery) =>
+        string.IsNullOrWhiteSpace(
+            delivery.SalesOrder.TimePreference)
+            ? "Not specified"
+            : delivery.SalesOrder.TimePreference.Trim();
+
+    private static string GetRoundTripTime(
+        Delivery delivery,
+        bool compact = false)
     {
-        var details = new List<string>();
-        if (delivery.TravelMinutes is not null)
+        if (delivery.TravelMinutes is null)
         {
-            details.Add($"{delivery.TravelMinutes:0} min");
+            return compact
+                ? "RT not calculated"
+                : "Not calculated";
         }
-        if (delivery.TravelMiles is not null)
+
+        var totalMinutes = Math.Max(
+            0,
+            (int)Math.Round(
+                delivery.TravelMinutes.Value,
+                MidpointRounding.AwayFromZero));
+        if (totalMinutes < 60)
         {
-            details.Add($"{delivery.TravelMiles:0.0} mi");
+            return compact
+                ? $"RT: {totalMinutes} min"
+                : $"{totalMinutes} min";
         }
-        return details.Count == 0
-            ? "Not calculated"
-            : string.Join(" · ", details);
+
+        var hours = totalMinutes / 60;
+        var minutes = totalMinutes % 60;
+        if (compact)
+        {
+            return minutes == 0
+                ? $"RT: {hours}h"
+                : $"RT: {hours}h {minutes}m";
+        }
+
+        var hourLabel = hours == 1 ? "hr" : "hrs";
+        return minutes == 0
+            ? $"{hours} {hourLabel}"
+            : $"{hours} {hourLabel} {minutes} min";
     }
+
+    private static string GetTravelDistance(Delivery delivery) =>
+        delivery.TravelMiles is null
+            ? "Not calculated"
+            : $"{delivery.TravelMiles:0.0} mi";
 
     private static string GetProofSummary(Delivery delivery)
     {
