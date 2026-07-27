@@ -1,0 +1,44 @@
+{
+  "applications": [
+    {
+      "label": "Dump Site / Green Hills mobile backend",
+      "path": "/Users/mattstengel/Documents/GreenHills APP",
+      "classification": "production-candidate"
+    },
+    {
+      "label": "Dispatch V2 sandbox",
+      "path": "/Users/mattstengel/local-delivery/dispatch-v2-sandbox",
+      "classification": "integration-source"
+    },
+    {
+      "label": "GreenHills Quote Live candidate",
+      "path": "/Users/mattstengel/local-contractor",
+      "classification": "production-candidate"
+    },
+    {
+      "label": "Edit My Ticket",
+      "path": "/Users/mattstengel/edit-my-ticket",
+      "classification": "production-candidate"
+    },
+    {
+      "label": "Help Desk source placeholder",
+      "path": "/Users/mattstengel/help-desk",
+      "classification": "source-not-located"
+    },
+    {
+      "label": "Shipping Calculator",
+      "path": "/Users/mattstengel/shipcalc2",
+      "classification": "production-candidate"
+    },
+    {
+      "label": "WinterWatch",
+      "path": "/Users/mattstengel/winterwatch",
+      "classification": "production-candidate"
+    },
+    {
+      "label": "WinterWatch legacy source",
+      "path": "/Users/mattstengel/build-my-app",
+      "classification": "legacy-duplicate"
+    }
+  ]
+}

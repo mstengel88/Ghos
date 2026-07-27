@@ -1,0 +1,47 @@
+project:
+  application_name: replace-me
+  canonical_repository: /absolute/path/to/canonical/repository
+  managed_project_ref: replace-me
+  owner: replace-me
+  criticality: critical
+
+database:
+  postgres_version: unknown
+  size_bytes: unknown
+  extensions: []
+  schemas: []
+  migration_source: unknown
+  scheduled_jobs: []
+  external_readers: []
+  external_writers: []
+
+auth:
+  enabled: unknown
+  user_count: unknown
+  providers: []
+  mfa_enabled: unknown
+  redirect_urls: []
+  smtp_dependency: unknown
+
+storage:
+  enabled: unknown
+  total_bytes: unknown
+  buckets: []
+  public_url_consumers: []
+
+realtime:
+  enabled: unknown
+  publications: []
+  client_channels: []
+
+edge_functions:
+  functions: []
+  secret_names: []
+  schedules: []
+  public_callbacks: []
+
+cutover:
+  maintenance_window_required: unknown
+  rollback_owner: replace-me
+  observation_days: 14
+  acceptance_tests: []

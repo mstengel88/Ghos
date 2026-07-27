@@ -3,6 +3,13 @@
 .env.*
 !.env.example
 
+# Local Supabase migration discovery and production exports
+migration/supabase/apps.local.json
+migration/supabase/generated/
+migration/supabase/exports/
+migration/supabase/secrets/
+migration/supabase/runtime/
+
 # Runtime data
 postgres/
 redis/
