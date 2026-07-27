@@ -12,31 +12,43 @@
                 <h1>GHOS Workspace</h1>
             </div>
 
-            <AuthorizeView>
-                <Authorized Context="auth">
-                    <div class="ghos-user">
-                        <button id="ghos-pwa-action"
-                                class="pwa-action"
-                                type="button"
-                                hidden>
-                            Install GHOS
-                        </button>
-                        <div class="ghos-user-text">
-                            <strong>@GetDisplayName(auth.User)</strong>
-                            <span>@GetPrimaryRole(auth.User)</span>
+            <div class="ghos-header-actions">
+                <button id="ghos-theme-toggle"
+                        class="theme-toggle"
+                        type="button"
+                        aria-label="Switch color theme"
+                        title="Switch color theme">
+                    <span class="theme-toggle-icon"
+                          aria-hidden="true">◐</span>
+                    <span data-theme-label>Dark mode</span>
+                </button>
+
+                <AuthorizeView>
+                    <Authorized Context="auth">
+                        <div class="ghos-user">
+                            <button id="ghos-pwa-action"
+                                    class="pwa-action"
+                                    type="button"
+                                    hidden>
+                                Install GHOS
+                            </button>
+                            <div class="ghos-user-text">
+                                <strong>@GetDisplayName(auth.User)</strong>
+                                <span>@GetPrimaryRole(auth.User)</span>
+                            </div>
+                            <div class="ghos-avatar">@GetInitials(auth.User)</div>
+                            <form method="post" action="/account/logout">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="returnUrl" value="/account/login" />
+                                <button class="sign-out-button" type="submit">Sign out</button>
+                            </form>
                         </div>
-                        <div class="ghos-avatar">@GetInitials(auth.User)</div>
-                        <form method="post" action="/account/logout">
-                            <AntiforgeryToken />
-                            <input type="hidden" name="returnUrl" value="/account/login" />
-                            <button class="sign-out-button" type="submit">Sign out</button>
-                        </form>
-                    </div>
-                </Authorized>
-                <NotAuthorized>
-                    <a class="sign-in-link" href="/account/login">Sign in</a>
-                </NotAuthorized>
-            </AuthorizeView>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a class="sign-in-link" href="/account/login">Sign in</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
         </header>
 
         <section class="ghos-content">

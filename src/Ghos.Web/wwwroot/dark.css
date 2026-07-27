@@ -1,0 +1,163 @@
+/*
+ * GHOS dark-theme finishing layer.
+ * Loaded after component-scoped styles so every operational module follows
+ * the same theme without changing branded creative previews or product media.
+ */
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] .ghos-app,
+:root[data-theme="dark"] .auth-shell {
+    background: var(--ghos-page-bg) !important;
+    color: var(--ghos-text);
+}
+
+:root[data-theme="dark"] .ghos-header,
+:root[data-theme="dark"] .metric-card,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .auth-card,
+:root[data-theme="dark"] .connection-state,
+:root[data-theme="dark"] .filter-toolbar,
+:root[data-theme="dark"] .asset-summary article,
+:root[data-theme="dark"] .asset-toolbar,
+:root[data-theme="dark"] .asset-card,
+:root[data-theme="dark"] .delivery-summary article,
+:root[data-theme="dark"] .delivery-view-switch > div,
+:root[data-theme="dark"] .delivery-card,
+:root[data-theme="dark"] .calendar-day,
+:root[data-theme="dark"] .calendar-order,
+:root[data-theme="dark"] .calendar-no-date,
+:root[data-theme="dark"] .order-summary article,
+:root[data-theme="dark"] .order-row,
+:root[data-theme="dark"] .catalog-summary article,
+:root[data-theme="dark"] .catalog-toolbar,
+:root[data-theme="dark"] .collection-summary article,
+:root[data-theme="dark"] .collection-toolbar,
+:root[data-theme="dark"] .collection-card,
+:root[data-theme="dark"] .import-summary article,
+:root[data-theme="dark"] .preview-summary article,
+:root[data-theme="dark"] .studio-summary article,
+:root[data-theme="dark"] .analytics-summary article,
+:root[data-theme="dark"] .calendar-summary article,
+:root[data-theme="dark"] .queue-card,
+:root[data-theme="dark"] .series-card,
+:root[data-theme="dark"] .reconciliation-heading > div:last-child,
+:root[data-theme="dark"] .candidate-list > button,
+:root[data-theme="dark"] .reconciliation-history article button,
+:root[data-theme="dark"] .user-row,
+:root[data-theme="dark"] .role-option,
+:root[data-theme="dark"] .active-toggle,
+:root[data-theme="dark"] .product-media-card,
+:root[data-theme="dark"] .availability-grid label {
+    background: var(--ghos-surface) !important;
+    border-color: var(--ghos-border) !important;
+    color: var(--ghos-text) !important;
+    box-shadow: 0 7px 24px var(--ghos-shadow);
+}
+
+:root[data-theme="dark"] .roadmap-item,
+:root[data-theme="dark"] .attention-grid > a,
+:root[data-theme="dark"] .security-notes span,
+:root[data-theme="dark"] .sync-counts span,
+:root[data-theme="dark"] .ownership-flow article,
+:root[data-theme="dark"] .ticket-summary span,
+:root[data-theme="dark"] .system-values span,
+:root[data-theme="dark"] .integration-flow span,
+:root[data-theme="dark"] .queue-counts span,
+:root[data-theme="dark"] .draft-builder,
+:root[data-theme="dark"] .layout-editor,
+:root[data-theme="dark"] .image-editor,
+:root[data-theme="dark"] .weekday-row,
+:root[data-theme="dark"] .calendar-day.outside-month,
+:root[data-theme="dark"] .product-chips span {
+    background: var(--ghos-surface-muted) !important;
+    border-color: var(--ghos-border) !important;
+    color: var(--ghos-text-secondary) !important;
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .copy-field,
+:root[data-theme="dark"] .file-picker {
+    background: var(--ghos-surface-raised) !important;
+    border-color: var(--ghos-border-strong) !important;
+    color: var(--ghos-text) !important;
+}
+
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder {
+    color: #7f9085;
+    opacity: 1;
+}
+
+:root[data-theme="dark"] button:not(.primary-action):not(.auth-submit),
+:root[data-theme="dark"] .secondary-link,
+:root[data-theme="dark"] .secondary-action,
+:root[data-theme="dark"] .close-button,
+:root[data-theme="dark"] .clear-schedule {
+    border-color: var(--ghos-border-strong);
+}
+
+:root[data-theme="dark"] .calendar-day > header,
+:root[data-theme="dark"] .bulk-table th,
+:root[data-theme="dark"] .catalog-table th,
+:root[data-theme="dark"] .variant-table th,
+:root[data-theme="dark"] .preview-table th {
+    background: #1b2920 !important;
+    border-color: var(--ghos-border) !important;
+    color: var(--ghos-text-muted) !important;
+}
+
+:root[data-theme="dark"] .calendar-order:hover,
+:root[data-theme="dark"] .calendar-order.selected,
+:root[data-theme="dark"] .order-row:hover,
+:root[data-theme="dark"] .order-row.selected,
+:root[data-theme="dark"] .candidate-list > button:hover,
+:root[data-theme="dark"] .candidate-list > button.selected {
+    background: #213019 !important;
+    border-color: #9BC623 !important;
+}
+
+:root[data-theme="dark"] h1,
+:root[data-theme="dark"] h2,
+:root[data-theme="dark"] h3,
+:root[data-theme="dark"] h4,
+:root[data-theme="dark"] strong,
+:root[data-theme="dark"] dt,
+:root[data-theme="dark"] label {
+    color: var(--ghos-text);
+}
+
+:root[data-theme="dark"] p,
+:root[data-theme="dark"] small,
+:root[data-theme="dark"] dd,
+:root[data-theme="dark"] .detail-subtitle,
+:root[data-theme="dark"] .metric-heading,
+:root[data-theme="dark"] .panel-label,
+:root[data-theme="dark"] .eyebrow {
+    color: var(--ghos-text-muted);
+}
+
+:root[data-theme="dark"] hr,
+:root[data-theme="dark"] td,
+:root[data-theme="dark"] th,
+:root[data-theme="dark"] .status-row,
+:root[data-theme="dark"] .calendar-order-timing {
+    border-color: var(--ghos-border) !important;
+}
+
+:root[data-theme="dark"] .auth-alert {
+    background: #3a201f;
+    border-color: #70413d;
+    color: #f1b8b2;
+}
+
+:root[data-theme="dark"] .auth-notice {
+    background: #243019;
+    border-color: #4d6327;
+    color: #d4e8a1;
+}
+
+:root[data-theme="dark"] ::selection {
+    background: #739b18;
+    color: #ffffff;
+}

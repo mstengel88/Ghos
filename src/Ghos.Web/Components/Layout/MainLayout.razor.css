@@ -2,7 +2,7 @@
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);
     min-height: 100vh;
-    background: #f3f5f2;
+    background: var(--ghos-page-bg);
 }
 
 .ghos-sidebar {
@@ -20,8 +20,8 @@
 .ghos-header {
     min-height: 92px;
     padding: 20px 32px;
-    background: white;
-    border-bottom: 1px solid #e3e8e1;
+    background: var(--ghos-surface);
+    border-bottom: 1px solid var(--ghos-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -32,16 +32,47 @@
 
 .ghos-header h1 {
     margin: 2px 0 0;
-    color: #172019;
+    color: var(--ghos-text);
     font-size: 1.65rem;
     font-weight: 750;
 }
 
 .ghos-page-label {
-    color: #718072;
+    color: var(--ghos-text-muted);
     font-size: .72rem;
     font-weight: 800;
     letter-spacing: .12em;
+}
+
+.ghos-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.theme-toggle {
+    min-height: 38px;
+    padding: 8px 11px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 9px;
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: .75rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.theme-toggle:hover {
+    border-color: #9BC623;
+    color: var(--ghos-accent-text);
+}
+
+.theme-toggle-icon {
+    font-size: 1rem;
+    line-height: 1;
 }
 
 .ghos-user {
@@ -73,12 +104,12 @@
 }
 
 .ghos-user-text strong {
-    color: #1b251c;
+    color: var(--ghos-text);
     font-size: .95rem;
 }
 
 .ghos-user-text span {
-    color: #7d887e;
+    color: var(--ghos-text-muted);
     font-size: .78rem;
 }
 
@@ -96,10 +127,10 @@
 .sign-out-button,
 .sign-in-link {
     padding: 8px 11px;
-    border: 1px solid #dce3da;
+    border: 1px solid var(--ghos-border);
     border-radius: 8px;
-    background: white;
-    color: #475248;
+    background: var(--ghos-surface);
+    color: var(--ghos-text-secondary);
     font-size: .76rem;
     font-weight: 750;
     text-decoration: none;
@@ -141,5 +172,9 @@
 
     .pwa-action {
         padding-inline: 10px;
+    }
+
+    .theme-toggle [data-theme-label] {
+        display: none;
     }
 }

@@ -1,9 +1,11 @@
-const CACHE_NAME = "ghos-static-v1";
+const CACHE_NAME = "ghos-static-v2";
 const STATIC_ASSETS = [
     "/offline.html",
     "/manifest.webmanifest",
     "/favicon.png",
     "/app.css",
+    "/dark.css",
+    "/theme.js",
     "/icons/icon-192.png",
     "/icons/icon-512.png",
     "/icons/icon-maskable-512.png",
@@ -52,6 +54,8 @@ self.addEventListener("fetch", (event) => {
     const isSafeStaticAsset =
         url.pathname === "/favicon.png" ||
         url.pathname === "/app.css" ||
+        url.pathname === "/dark.css" ||
+        url.pathname === "/theme.js" ||
         url.pathname === "/manifest.webmanifest" ||
         url.pathname === "/offline.html" ||
         url.pathname.startsWith("/icons/");
