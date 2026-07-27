@@ -354,6 +354,8 @@ public sealed class ShopifySyncService(
             variant.Barcode = incoming.Barcode;
             variant.Price = incoming.Price;
             variant.CompareAtPrice = incoming.CompareAtPrice;
+            variant.UnitLabel = snapshot.UnitLabel;
+            variant.ImageUrl = incoming.ImageUrl;
             variant.AvailableForSale = incoming.AvailableForSale;
             variant.SortOrder = index;
         }
@@ -435,6 +437,8 @@ public sealed class ShopifySyncService(
                 existing.Barcode != incoming.Barcode ||
                 existing.Price != incoming.Price ||
                 existing.CompareAtPrice != incoming.CompareAtPrice ||
+                existing.UnitLabel != snapshot.UnitLabel ||
+                existing.ImageUrl != incoming.ImageUrl ||
                 existing.AvailableForSale != incoming.AvailableForSale)
             {
                 return true;

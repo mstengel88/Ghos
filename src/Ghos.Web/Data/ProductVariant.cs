@@ -26,6 +26,16 @@ public sealed class ProductVariant
 
     public decimal? CompareAtPrice { get; set; }
 
+    public decimal? ContractorTier1Price { get; set; }
+
+    public decimal? ContractorTier2Price { get; set; }
+
+    [MaxLength(40)]
+    public string? UnitLabel { get; set; }
+
+    [MaxLength(2048)]
+    public string? ImageUrl { get; set; }
+
     public bool AvailableForSale { get; set; }
 
     public int SortOrder { get; set; }

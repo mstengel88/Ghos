@@ -51,6 +51,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<CustomerQuoteLine> CustomerQuoteLines => Set<CustomerQuoteLine>();
 
+    public DbSet<QuoteConfiguration> QuoteConfigurations =>
+        Set<QuoteConfiguration>();
+
+    public DbSet<QuoteMaterialRule> QuoteMaterialRules =>
+        Set<QuoteMaterialRule>();
+
+    public DbSet<QuoteOriginAddress> QuoteOriginAddresses =>
+        Set<QuoteOriginAddress>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -96,6 +105,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             variant.HasIndex(item => item.ShopifyVariantId).IsUnique();
             variant.Property(item => item.Price).HasPrecision(18, 2);
             variant.Property(item => item.CompareAtPrice).HasPrecision(18, 2);
+            variant.Property(item => item.ContractorTier1Price).HasPrecision(18, 2);
+            variant.Property(item => item.ContractorTier2Price).HasPrecision(18, 2);
 
             variant.HasOne(item => item.Product)
                 .WithMany(product => product.Variants)
@@ -286,8 +297,19 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             quote.Property(item => item.Status)
                 .HasConversion<string>()
                 .HasMaxLength(32);
+            quote.Property(item => item.Audience)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+            quote.Property(item => item.ContractorTier)
+                .HasConversion<string>()
+                .HasMaxLength(24);
             quote.Property(item => item.Subtotal).HasPrecision(18, 2);
             quote.Property(item => item.DeliveryAmount).HasPrecision(18, 2);
+            quote.Property(item => item.CalculatedDeliveryAmount).HasPrecision(18, 2);
+            quote.Property(item => item.CustomDeliveryAmount).HasPrecision(18, 2);
+            quote.Property(item => item.RatePerMinute).HasPrecision(10, 2);
+            quote.Property(item => item.ShippingQuantity).HasPrecision(18, 3);
+            quote.Property(item => item.ShippingRate).HasPrecision(18, 2);
             quote.Property(item => item.TaxRate).HasPrecision(8, 6);
             quote.Property(item => item.TaxAmount).HasPrecision(18, 2);
             quote.Property(item => item.Total).HasPrecision(18, 2);
@@ -299,6 +321,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             line.Property(item => item.Quantity).HasPrecision(18, 3);
             line.Property(item => item.UnitPrice).HasPrecision(18, 2);
             line.Property(item => item.LineTotal).HasPrecision(18, 2);
+            line.Property(item => item.Audience)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+            line.Property(item => item.ContractorTier)
+                .HasConversion<string>()
+                .HasMaxLength(24);
 
             line.HasOne(item => item.CustomerQuote)
                 .WithMany(quote => quote.Lines)
@@ -314,6 +342,27 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany()
                 .HasForeignKey(item => item.ProductVariantId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<QuoteConfiguration>(configuration =>
+        {
+            configuration.ToTable("QuoteConfiguration");
+            configuration.Property(item => item.TestFlatRate).HasPrecision(18, 2);
+            configuration.Property(item => item.DefaultTaxRate).HasPrecision(8, 6);
+            configuration.Property(item => item.DefaultRatePerMinute).HasPrecision(10, 2);
+            configuration.Property(item => item.MaximumDeliveryRadiusMiles)
+                .HasPrecision(10, 2);
+        });
+
+        builder.Entity<QuoteMaterialRule>(rule =>
+        {
+            rule.HasIndex(item => item.SkuPrefix).IsUnique();
+            rule.Property(item => item.TruckCapacity).HasPrecision(18, 3);
+        });
+
+        builder.Entity<QuoteOriginAddress>(origin =>
+        {
+            origin.HasIndex(item => item.Label).IsUnique();
         });
     }
 }

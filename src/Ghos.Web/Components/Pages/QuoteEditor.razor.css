@@ -37,6 +37,54 @@
     font-weight: 850;
 }
 
+.heading-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.heading-actions .secondary-action {
+    margin: 0;
+}
+
+.audience-picker {
+    margin-bottom: 18px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.audience-picker button {
+    padding: 15px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 11px;
+    background: var(--ghos-surface);
+    color: var(--ghos-text);
+    text-align: left;
+    cursor: pointer;
+}
+
+.audience-picker button.active {
+    border-color: var(--ghos-accent);
+    background: var(--ghos-accent-soft);
+    box-shadow: inset 0 0 0 1px var(--ghos-accent);
+}
+
+.audience-picker strong,
+.audience-picker span {
+    display: block;
+}
+
+.audience-picker strong {
+    font-size: .82rem;
+}
+
+.audience-picker span {
+    margin-top: 4px;
+    color: var(--ghos-text-muted);
+    font-size: .64rem;
+}
+
 .quote-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 310px;
@@ -105,6 +153,13 @@
     font-weight: 800;
 }
 
+.form-grid label > small,
+.adjustments label > small {
+    color: var(--ghos-text-muted);
+    font-size: .57rem;
+    line-height: 1.35;
+}
+
 .form-grid ::deep input,
 .form-grid ::deep textarea,
 .form-grid ::deep select,
@@ -142,6 +197,97 @@
     accent-color: var(--ghos-accent);
 }
 
+.contractor-strip {
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid var(--ghos-accent);
+    border-radius: 10px;
+    background: var(--ghos-accent-soft);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.contractor-strip label,
+.contractor-strip > div {
+    display: grid;
+    gap: 5px;
+}
+
+.contractor-strip span {
+    color: var(--ghos-text-muted);
+    font-size: .62rem;
+    font-weight: 800;
+}
+
+.contractor-strip select {
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 7px;
+    background: var(--ghos-surface);
+    color: var(--ghos-text);
+}
+
+.billing-details {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ghos-border);
+}
+
+.billing-details summary {
+    margin-bottom: 14px;
+    color: var(--ghos-accent-text);
+    font-size: .7rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.product-search {
+    display: grid;
+    grid-template-columns: minmax(220px, .8fr) minmax(260px, 1fr) auto;
+    gap: 9px;
+    align-items: end;
+}
+
+.product-search label {
+    display: grid;
+    gap: 6px;
+}
+
+.product-search label span {
+    color: var(--ghos-text-secondary);
+    font-size: .68rem;
+    font-weight: 800;
+}
+
+.product-search input,
+.product-search select,
+.product-search button {
+    min-height: 42px;
+    padding: 9px 10px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 7px;
+    font: inherit;
+}
+
+.product-search input,
+.product-search select {
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text);
+}
+
+.product-search button {
+    border-color: transparent;
+    background: var(--ghos-accent);
+    color: #142116;
+    font-weight: 900;
+}
+
+.product-search button:disabled {
+    opacity: .45;
+}
+
 .add-line {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -166,6 +312,196 @@
 
 .quote-lines {
     margin-top: 14px;
+    display: grid;
+    gap: 10px;
+}
+
+.quote-line {
+    padding: 12px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 11px;
+    background: var(--ghos-surface-muted);
+    display: grid;
+    grid-template-columns: 56px minmax(180px, 1.5fr) .45fr .45fr .55fr .55fr 32px;
+    align-items: center;
+    gap: 10px;
+}
+
+.quote-line > img,
+.line-image-placeholder {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+}
+
+.quote-line > img {
+    object-fit: cover;
+}
+
+.line-image-placeholder {
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+}
+
+.line-main {
+    min-width: 0;
+}
+
+.line-main ::deep input,
+.quote-line > label ::deep input,
+.line-calculator ::deep input {
+    width: 100%;
+    min-height: 37px;
+    padding: 7px 8px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 6px;
+    background: var(--ghos-surface);
+    color: var(--ghos-text);
+}
+
+.line-main > span {
+    margin-top: 4px;
+    color: var(--ghos-text-muted);
+    display: block;
+    overflow: hidden;
+    font-size: .57rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quote-line > label {
+    display: grid;
+    gap: 4px;
+}
+
+.quote-line > label > span {
+    color: var(--ghos-text-muted);
+    font-size: .56rem;
+    font-weight: 800;
+}
+
+.line-total {
+    text-align: right;
+    font-size: .72rem;
+}
+
+.line-actions {
+    margin-top: 6px;
+    display: flex;
+    gap: 10px;
+}
+
+.line-actions button,
+.line-actions a,
+.calculator-topline button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ghos-accent-text);
+    font-size: .57rem;
+    font-weight: 850;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.line-calculator {
+    grid-column: 1 / -1;
+    padding: 14px;
+    border-top: 1px solid var(--ghos-border);
+    background: var(--ghos-surface);
+}
+
+.calculator-topline,
+.calculator-result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.calculator-topline {
+    margin-bottom: 10px;
+}
+
+.shape-mini {
+    max-width: 240px;
+    margin-bottom: 10px;
+    padding: 3px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 7px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.shape-mini button {
+    padding: 6px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ghos-text-muted);
+    font-size: .6rem;
+    font-weight: 800;
+}
+
+.shape-mini button.active {
+    background: var(--ghos-accent);
+    color: #142116;
+}
+
+.calculator-fields {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(90px, 1fr));
+    gap: 8px;
+}
+
+.calculator-fields label {
+    display: grid;
+    gap: 4px;
+}
+
+.calculator-fields label span {
+    color: var(--ghos-text-muted);
+    font-size: .56rem;
+    font-weight: 800;
+}
+
+.calculator-fields select {
+    min-height: 37px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 6px;
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text);
+}
+
+.calculator-result {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--ghos-accent-soft);
+}
+
+.calculator-result span {
+    color: var(--ghos-text-muted);
+    font-size: .62rem;
+}
+
+.calculator-result strong {
+    color: var(--ghos-accent-text);
+    font-size: .8rem;
+}
+
+.calculator-result button,
+.delivery-actions > button {
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--ghos-accent);
+    color: #142116;
+    font-size: .64rem;
+    font-weight: 900;
 }
 
 .line-row {
@@ -220,11 +556,59 @@
     font-size: .67rem;
 }
 
+.delivery-actions {
+    margin-bottom: 17px;
+    padding: 14px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 10px;
+    background: var(--ghos-surface-muted);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.delivery-actions > div {
+    display: grid;
+    gap: 3px;
+}
+
+.delivery-actions strong {
+    font-size: .72rem;
+}
+
+.delivery-actions span {
+    color: var(--ghos-text-muted);
+    font-size: .62rem;
+}
+
+.adjustments {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .totals-panel {
     padding: 20px;
     align-self: start;
     position: sticky;
     top: 110px;
+}
+
+.price-source {
+    margin-top: 14px;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--ghos-accent-soft);
+    display: flex;
+    justify-content: space-between;
+}
+
+.price-source span {
+    color: var(--ghos-text-muted);
+    font-size: .62rem;
+}
+
+.price-source strong {
+    color: var(--ghos-accent-text);
+    font-size: .67rem;
 }
 
 .totals-panel label {
@@ -269,6 +653,36 @@
     min-height: 44px;
 }
 
+.totals-panel > button.secondary-save,
+.totals-panel > button.shopify-draft {
+    margin-top: 8px;
+    border: 1px solid var(--ghos-border);
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text);
+}
+
+.totals-panel > button.shopify-draft:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.shipping-math {
+    margin: -12px 0 15px;
+    color: var(--ghos-text-muted);
+    font-size: .6rem;
+}
+
+.quote-success {
+    margin-bottom: 14px;
+    padding: 12px;
+    border: 1px solid var(--ghos-accent);
+    border-radius: 8px;
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
+    font-size: .7rem;
+    font-weight: 800;
+}
+
 .totals-panel > small {
     margin-top: 10px;
     color: var(--ghos-text-muted);
@@ -296,7 +710,11 @@
 
 @media (max-width: 780px) {
     .form-grid,
-    .add-line {
+    .add-line,
+    .audience-picker,
+    .product-search,
+    .adjustments,
+    .contractor-strip {
         grid-template-columns: 1fr;
     }
 
@@ -304,11 +722,31 @@
         grid-column: auto;
     }
 
-    .line-head {
-        display: none;
+    .quote-line {
+        grid-template-columns: 46px minmax(0, 1fr) 32px;
     }
 
-    .line-row {
-        grid-template-columns: 1fr 1fr;
+    .quote-line > img,
+    .line-image-placeholder {
+        width: 46px;
+        height: 46px;
+    }
+
+    .quote-line > label,
+    .line-total {
+        grid-column: span 1;
+    }
+
+    .quote-line > label:nth-of-type(1) {
+        grid-column: 1 / 2;
+    }
+
+    .calculator-fields {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .delivery-actions {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }

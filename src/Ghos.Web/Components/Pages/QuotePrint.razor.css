@@ -1,0 +1,211 @@
+.print-toolbar {
+    max-width: 960px;
+    margin: 0 auto 18px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.print-toolbar a {
+    color: var(--ghos-accent-text);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.print-toolbar button {
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: var(--ghos-accent);
+    color: #142116;
+    font-weight: 900;
+}
+
+.quote-document {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 42px;
+    background: #fff;
+    color: #172019;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, .08);
+}
+
+.quote-document header,
+.quote-document header > div:first-child,
+.quote-title,
+.customer-grid,
+.quote-notes,
+.totals {
+    display: flex;
+}
+
+.quote-document header,
+.quote-title,
+.totals {
+    justify-content: space-between;
+}
+
+.quote-document header > div:first-child {
+    align-items: center;
+    gap: 13px;
+}
+
+.quote-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    background: #9BC623;
+    display: grid;
+    place-items: center;
+    font-weight: 950;
+}
+
+.quote-document header span,
+.customer-grid span,
+.quote-title span,
+.quote-document td span,
+.quote-document footer span {
+    display: block;
+    color: #6f796f;
+    font-size: .76rem;
+    line-height: 1.55;
+}
+
+.company-contact {
+    text-align: right;
+}
+
+.quote-title {
+    margin: 36px 0 28px;
+    padding: 24px 0;
+    border-top: 2px solid #172019;
+    border-bottom: 1px solid #dfe4dc;
+}
+
+.quote-title h1 {
+    margin: 3px 0 0;
+}
+
+.quote-title dl,
+.totals dl {
+    margin: 0;
+}
+
+.quote-title dl > div,
+.totals dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 40px;
+}
+
+.quote-title dt,
+.totals dt {
+    color: #6f796f;
+    font-size: .75rem;
+}
+
+.quote-title dd,
+.totals dd {
+    margin: 0;
+    font-size: .78rem;
+    font-weight: 800;
+}
+
+.customer-grid,
+.quote-notes {
+    gap: 60px;
+}
+
+.customer-grid > div,
+.quote-notes > div {
+    flex: 1;
+}
+
+.section-label {
+    margin-bottom: 7px;
+    color: #718072 !important;
+    font-size: .64rem !important;
+    font-weight: 900;
+    letter-spacing: .12em;
+}
+
+.quote-document table {
+    width: 100%;
+    margin: 30px 0 20px;
+    border-collapse: collapse;
+}
+
+.quote-document th,
+.quote-document td {
+    padding: 13px 10px;
+    border-bottom: 1px solid #e3e7e1;
+    text-align: right;
+    font-size: .78rem;
+}
+
+.quote-document th:first-child,
+.quote-document td:first-child {
+    text-align: left;
+}
+
+.quote-document th {
+    background: #f2f5ef;
+    color: #637063;
+    font-size: .66rem;
+    text-transform: uppercase;
+}
+
+.totals dl {
+    width: 340px;
+}
+
+.totals dl > div {
+    padding: 7px 0;
+}
+
+.totals .total {
+    margin-top: 5px;
+    padding-top: 13px;
+    border-top: 2px solid #172019;
+}
+
+.totals .total dt,
+.totals .total dd {
+    color: #172019;
+    font-size: 1rem;
+}
+
+.quote-notes {
+    margin-top: 28px;
+    padding: 22px;
+    background: #f5f7f2;
+}
+
+.quote-notes p {
+    margin: 4px 0 0;
+    white-space: pre-line;
+}
+
+.quote-document footer {
+    margin-top: 36px;
+    padding-top: 18px;
+    border-top: 1px solid #dfe4dc;
+    text-align: center;
+}
+
+.print-loading {
+    min-height: 300px;
+    display: grid;
+    place-items: center;
+}
+
+@media print {
+    .print-toolbar {
+        display: none;
+    }
+
+    .quote-document {
+        max-width: none;
+        padding: 0;
+        box-shadow: none;
+    }
+}

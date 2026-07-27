@@ -24,6 +24,12 @@ public sealed class ShopifyAdminClient(
                 descriptionHtml
                 vendor
                 productType
+                unitLabel: metafield(namespace: "green_hills", key: "price_unit_label") {
+                  value
+                }
+                legacyUnitLabel: metafield(namespace: "$app", key: "price_unit_label") {
+                  value
+                }
                 tags
                 createdAt
                 updatedAt
@@ -56,6 +62,9 @@ public sealed class ShopifyAdminClient(
                     price
                     compareAtPrice
                     availableForSale
+                    image {
+                      url
+                    }
                   }
                 }
               }
@@ -164,6 +173,7 @@ public sealed class ShopifyAdminClient(
                 NullIfWhiteSpace(variant.Barcode),
                 ParseMoney(variant.Price),
                 ParseNullableMoney(variant.CompareAtPrice),
+                variant.Image?.Url,
                 variant.AvailableForSale))
             .ToList();
 
@@ -182,6 +192,8 @@ public sealed class ShopifyAdminClient(
             node.DescriptionHtml,
             NullIfWhiteSpace(node.Vendor),
             NullIfWhiteSpace(node.ProductType),
+            NullIfWhiteSpace(
+                node.UnitLabel?.Value ?? node.LegacyUnitLabel?.Value),
             node.Tags,
             NullIfWhiteSpace(node.Seo?.Title),
             NullIfWhiteSpace(node.Seo?.Description),
@@ -261,6 +273,10 @@ public sealed class ShopifyAdminClient(
 
         public string? ProductType { get; init; }
 
+        public MetafieldData? UnitLabel { get; init; }
+
+        public MetafieldData? LegacyUnitLabel { get; init; }
+
         public List<string> Tags { get; init; } = [];
 
         public DateTime? CreatedAt { get; init; }
@@ -283,6 +299,11 @@ public sealed class ShopifyAdminClient(
         public string? Title { get; init; }
 
         public string? Description { get; init; }
+    }
+
+    private sealed class MetafieldData
+    {
+        public string? Value { get; init; }
     }
 
     private sealed class FeaturedMediaData
@@ -329,6 +350,8 @@ public sealed class ShopifyAdminClient(
         public string Price { get; init; } = "0";
 
         public string? CompareAtPrice { get; init; }
+
+        public ImageData? Image { get; init; }
 
         public bool AvailableForSale { get; init; }
     }

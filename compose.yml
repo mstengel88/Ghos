@@ -59,6 +59,7 @@ services:
       DispatchSync__Enabled: ${DISPATCH_SYNC_ENABLED:-true}
       DispatchSync__IntervalMinutes: ${DISPATCH_SYNC_INTERVAL_MINUTES:-5}
       DispatchSync__InitialDelaySeconds: ${DISPATCH_SYNC_INITIAL_DELAY_SECONDS:-30}
+      Quote__GoogleMapsApiKey: ${GOOGLE_MAPS_API_KEY:-}
     volumes:
       - ghos-data-protection:/var/lib/ghos/data-protection
       - ./assets:/var/lib/ghos/assets

@@ -8,6 +8,7 @@ public sealed record ShopifyProductSnapshot(
     string? DescriptionHtml,
     string? Vendor,
     string? ProductType,
+    string? UnitLabel,
     IReadOnlyList<string> Tags,
     string? SeoTitle,
     string? SeoDescription,
@@ -26,6 +27,7 @@ public sealed record ShopifyVariantSnapshot(
     string? Barcode,
     decimal Price,
     decimal? CompareAtPrice,
+    string? ImageUrl,
     bool AvailableForSale);
 
 public sealed record ShopifyCollectionSnapshot(string Id, string Title, string Handle);
