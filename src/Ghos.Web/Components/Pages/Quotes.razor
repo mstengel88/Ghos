@@ -1,0 +1,156 @@
+@page "/quotes"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Operations)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+
+<PageTitle>Quotes | GHOS</PageTitle>
+
+<div class="quotes-heading">
+    <div>
+        <span class="panel-label">SALES WORKSPACE</span>
+        <h2>Quotes</h2>
+        <p>Create, review, and track Green Hills customer and contractor quotes.</p>
+    </div>
+    <div>
+        <a class="secondary-action" href="/project-tools">Material calculator</a>
+        <a class="primary-action" href="/quotes/new">+ New quote</a>
+    </div>
+</div>
+
+@if (Loading)
+{
+    <section class="panel quotes-empty">Loading quotes…</section>
+}
+else
+{
+    <section class="quote-summary">
+        <article>
+            <span>Drafts</span>
+            <strong>@QuoteItems.Count(quote => quote.Status == QuoteStatus.Draft)</strong>
+        </article>
+        <article>
+            <span>Ready / sent</span>
+            <strong>@QuoteItems.Count(quote =>
+                quote.Status is QuoteStatus.ReadyForReview or QuoteStatus.Sent)</strong>
+        </article>
+        <article>
+            <span>Accepted</span>
+            <strong>@QuoteItems.Count(quote => quote.Status == QuoteStatus.Accepted)</strong>
+        </article>
+        <article>
+            <span>Quoted value</span>
+            <strong>@QuoteItems.Where(quote =>
+                    quote.Status is not QuoteStatus.Declined and not QuoteStatus.Expired)
+                .Sum(quote => quote.Total).ToString("C0")</strong>
+        </article>
+    </section>
+
+    <section class="panel quote-list">
+        <div class="quote-toolbar">
+            <label>
+                <span>Search quotes</span>
+                <input @bind="SearchText"
+                       @bind:event="oninput"
+                       placeholder="Quote, customer, company…" />
+            </label>
+            <label>
+                <span>Status</span>
+                <select @bind="StatusFilter">
+                    <option value="">All statuses</option>
+                    @foreach (var status in Enum.GetValues<QuoteStatus>())
+                    {
+                        <option value="@status">@GetStatusLabel(status)</option>
+                    }
+                </select>
+            </label>
+        </div>
+
+        @if (VisibleQuotes.Count == 0)
+        {
+            <div class="quotes-empty">
+                <div class="empty-icon">＄</div>
+                <h3>No quotes found</h3>
+                <p>Start with the material calculator or create a blank quote.</p>
+                <a class="primary-action" href="/quotes/new">Create a quote</a>
+            </div>
+        }
+        else
+        {
+            <div class="quote-table">
+                <div class="quote-row table-head">
+                    <span>Quote</span>
+                    <span>Customer</span>
+                    <span>Updated</span>
+                    <span>Lines</span>
+                    <span>Total</span>
+                    <span>Status</span>
+                </div>
+                @foreach (var quote in VisibleQuotes)
+                {
+                    <a class="quote-row" href="/quotes/@quote.Id">
+                        <span>
+                            <strong>@quote.QuoteNumber</strong>
+                            <small>@(quote.IsContractor ? "Contractor" : "Customer")</small>
+                        </span>
+                        <span>
+                            <strong>@(string.IsNullOrWhiteSpace(quote.CustomerName)
+                                ? "Unnamed draft"
+                                : quote.CustomerName)</strong>
+                            <small>@quote.CompanyName</small>
+                        </span>
+                        <span>
+                            <strong>@quote.UpdatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")</strong>
+                            <small>@quote.UpdatedAtUtc.ToLocalTime().ToString("h:mm tt")</small>
+                        </span>
+                        <span>@quote.Lines.Count</span>
+                        <span><strong>@quote.Total.ToString("C2")</strong></span>
+                        <span class="status-pill @GetStatusClass(quote.Status)">
+                            @GetStatusLabel(quote.Status)
+                        </span>
+                    </a>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private List<CustomerQuote> QuoteItems { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private string SearchText { get; set; } = string.Empty;
+    private string StatusFilter { get; set; } = string.Empty;
+
+    private List<CustomerQuote> VisibleQuotes =>
+        QuoteItems.Where(quote =>
+                (string.IsNullOrWhiteSpace(StatusFilter) ||
+                 quote.Status.ToString() == StatusFilter) &&
+                (string.IsNullOrWhiteSpace(SearchText) ||
+                 quote.QuoteNumber.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                 quote.CustomerName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                 (quote.CompanyName?.Contains(
+                     SearchText,
+                     StringComparison.OrdinalIgnoreCase) ?? false)))
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        QuoteItems = await dbContext.CustomerQuotes
+            .AsNoTracking()
+            .Include(quote => quote.Lines)
+            .OrderByDescending(quote => quote.UpdatedAtUtc)
+            .ToListAsync();
+        Loading = false;
+    }
+
+    private static string GetStatusLabel(QuoteStatus status) =>
+        status switch
+        {
+            QuoteStatus.ReadyForReview => "Ready for review",
+            _ => status.ToString()
+        };
+
+    private static string GetStatusClass(QuoteStatus status) =>
+        $"quote-{status.ToString().ToLowerInvariant()}";
+}

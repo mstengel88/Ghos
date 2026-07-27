@@ -102,4 +102,6 @@ public sealed class Product
     public ICollection<AssetProductLink> AssetLinks { get; set; } = [];
 
     public ICollection<ProductShopifyCollection> ShopifyCollectionLinks { get; set; } = [];
+
+    public ProductMaterialProfile? MaterialProfile { get; set; }
 }

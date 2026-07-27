@@ -1,0 +1,533 @@
+@page "/quotes/new"
+@page "/quotes/{QuoteId:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Operations)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsNew ? "New quote" : Model.QuoteNumber) | GHOS</PageTitle>
+
+<div class="quote-heading">
+    <div>
+        <a href="/quotes">← Quote history</a>
+        <span class="panel-label">QUOTE WORKSPACE</span>
+        <h2>@(IsNew ? "Create a quote" : Model.QuoteNumber)</h2>
+        <p>Build a customer-ready estimate from verified Shopify products while retaining the exact price used at the time of quoting.</p>
+    </div>
+    @if (!IsNew)
+    {
+        <span class="quote-number">@Model.Status</span>
+    }
+</div>
+
+@if (Loading)
+{
+    <section class="panel loading-panel">Preparing quote workspace…</section>
+}
+else if (NotFound)
+{
+    <section class="panel loading-panel">
+        <h3>Quote not found</h3>
+        <a href="/quotes">Return to quote history</a>
+    </section>
+}
+else
+{
+    <EditForm Model="Model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="validation-summary" />
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="auth-alert" role="alert">@ErrorMessage</div>
+        }
+
+        <div class="quote-layout">
+            <div class="quote-sections">
+                <section class="panel form-section">
+                    <div class="section-heading">
+                        <span>01</span>
+                        <div>
+                            <h3>Customer</h3>
+                            <p>Who the quote is for and where the material is going.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <label>
+                            <span>Customer name</span>
+                            <InputText @bind-Value="Model.CustomerName" />
+                        </label>
+                        <label>
+                            <span>Company</span>
+                            <InputText @bind-Value="Model.CompanyName" />
+                        </label>
+                        <label>
+                            <span>Email</span>
+                            <InputText @bind-Value="Model.Email" type="email" />
+                        </label>
+                        <label>
+                            <span>Phone</span>
+                            <InputText @bind-Value="Model.Phone" type="tel" />
+                        </label>
+                        <label class="wide">
+                            <span>Project / delivery address</span>
+                            <InputText @bind-Value="Model.AddressLine1" />
+                        </label>
+                        <label>
+                            <span>City</span>
+                            <InputText @bind-Value="Model.City" />
+                        </label>
+                        <label>
+                            <span>State</span>
+                            <InputText @bind-Value="Model.State" />
+                        </label>
+                        <label>
+                            <span>ZIP code</span>
+                            <InputText @bind-Value="Model.PostalCode" />
+                        </label>
+                        <label class="check-field">
+                            <InputCheckbox @bind-Value="Model.IsContractor" />
+                            <span>Contractor quote</span>
+                        </label>
+                        <label class="check-field">
+                            <InputCheckbox @bind-Value="Model.IsTaxExempt" />
+                            <span>Tax exempt</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="panel form-section">
+                    <div class="section-heading">
+                        <span>02</span>
+                        <div>
+                            <h3>Products & materials</h3>
+                            <p>Add a synced Shopify product, then adjust the quantity or quoted price when needed.</p>
+                        </div>
+                    </div>
+
+                    <div class="add-line">
+                        <select @bind="SelectedOptionKey">
+                            <option value="">Choose a product or variant…</option>
+                            @foreach (var option in ProductOptions)
+                            {
+                                <option value="@option.Key">
+                                    @option.Label · @option.Price.ToString("C2")
+                                </option>
+                            }
+                        </select>
+                        <button type="button"
+                                disabled="@string.IsNullOrWhiteSpace(SelectedOptionKey)"
+                                @onclick="AddSelectedLine">
+                            + Add line
+                        </button>
+                    </div>
+
+                    @if (Model.Lines.Count == 0)
+                    {
+                        <div class="line-empty">
+                            <strong>No products added</strong>
+                            <span>Use the product selector or begin from a material calculation.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="quote-lines">
+                            <div class="line-row line-head">
+                                <span>Description</span>
+                                <span>Qty.</span>
+                                <span>Unit</span>
+                                <span>Price</span>
+                                <span>Total</span>
+                                <span></span>
+                            </div>
+                            @foreach (var line in Model.Lines)
+                            {
+                                <div class="line-row">
+                                    <label>
+                                        <InputText @bind-Value="line.Description" />
+                                        <small>@line.Sku</small>
+                                    </label>
+                                    <InputNumber @bind-Value="line.Quantity" />
+                                    <InputText @bind-Value="line.UnitLabel" />
+                                    <InputNumber @bind-Value="line.UnitPrice" />
+                                    <strong>@GetLineTotal(line).ToString("C2")</strong>
+                                    <button type="button"
+                                            class="remove-line"
+                                            title="Remove line"
+                                            @onclick="() => RemoveLine(line)">
+                                        ×
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </section>
+
+                <section class="panel form-section">
+                    <div class="section-heading">
+                        <span>03</span>
+                        <div>
+                            <h3>Quote notes</h3>
+                            <p>Separate customer-facing terms from internal Green Hills notes.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <label>
+                            <span>Customer notes / terms</span>
+                            <InputTextArea @bind-Value="Model.CustomerNotes" rows="5" />
+                        </label>
+                        <label>
+                            <span>Internal notes</span>
+                            <InputTextArea @bind-Value="Model.InternalNotes" rows="5" />
+                        </label>
+                    </div>
+                </section>
+            </div>
+
+            <aside class="panel totals-panel">
+                <span class="panel-label">QUOTE TOTAL</span>
+                <label>
+                    <span>Status</span>
+                    <InputSelect @bind-Value="Model.Status">
+                        @foreach (var status in Enum.GetValues<QuoteStatus>())
+                        {
+                            <option value="@status">@status</option>
+                        }
+                    </InputSelect>
+                </label>
+                <label>
+                    <span>Delivery / shipping</span>
+                    <InputNumber @bind-Value="Model.DeliveryAmount" />
+                </label>
+                <label>
+                    <span>Tax rate (%)</span>
+                    <InputNumber @bind-Value="Model.TaxRatePercent"
+                                 disabled="@Model.IsTaxExempt" />
+                </label>
+
+                <dl>
+                    <div>
+                        <dt>Products</dt>
+                        <dd>@Subtotal.ToString("C2")</dd>
+                    </div>
+                    <div>
+                        <dt>Delivery</dt>
+                        <dd>@Model.DeliveryAmount.ToString("C2")</dd>
+                    </div>
+                    <div>
+                        <dt>Tax</dt>
+                        <dd>@TaxAmount.ToString("C2")</dd>
+                    </div>
+                    <div class="grand-total">
+                        <dt>Total</dt>
+                        <dd>@Total.ToString("C2")</dd>
+                    </div>
+                </dl>
+
+                <button type="submit" disabled="@Saving">
+                    @(Saving ? "Saving…" : IsNew ? "Save quote" : "Save changes")
+                </button>
+                <small>Saving stores a price snapshot; future Shopify price changes will not alter this quote.</small>
+            </aside>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public Guid? QuoteId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "productId")]
+    public Guid? InitialProductId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "quantity")]
+    public decimal? InitialQuantity { get; set; }
+
+    private bool IsNew => QuoteId is null;
+    private bool Loading { get; set; } = true;
+    private bool NotFound { get; set; }
+    private bool Saving { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string SelectedOptionKey { get; set; } = string.Empty;
+    private QuoteEditModel Model { get; set; } = new();
+    private List<ProductOption> ProductOptions { get; set; } = [];
+
+    private decimal Subtotal => Model.Lines.Sum(GetLineTotal);
+    private decimal TaxAmount => Model.IsTaxExempt
+        ? 0m
+        : Math.Round(Subtotal * Math.Max(0m, Model.TaxRatePercent) / 100m, 2);
+    private decimal Total =>
+        Math.Round(Subtotal + Math.Max(0m, Model.DeliveryAmount) + TaxAmount, 2);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        var products = await dbContext.Products
+            .AsNoTracking()
+            .Include(product => product.Variants)
+            .Include(product => product.MaterialProfile)
+            .Where(product => product.Status == ProductStatus.Active)
+            .OrderBy(product => product.Name)
+            .ToListAsync();
+
+        ProductOptions = products
+            .SelectMany(product =>
+                product.Variants.Count == 0
+                    ? [new ProductOption(
+                        product.Id.ToString(),
+                        product.Id,
+                        null,
+                        product.Name,
+                        product.Name,
+                        product.ProductCode,
+                        0m,
+                        GetDefaultUnit(product))]
+                    : product.Variants
+                        .OrderBy(variant => variant.SortOrder)
+                        .Select(variant => new ProductOption(
+                            variant.Id.ToString(),
+                            product.Id,
+                            variant.Id,
+                            variant.Title.Equals(
+                                "Default Title",
+                                StringComparison.OrdinalIgnoreCase)
+                                ? product.Name
+                                : $"{product.Name} — {variant.Title}",
+                            product.Name,
+                            variant.Sku ?? product.ProductCode,
+                            variant.Price,
+                            GetDefaultUnit(product))))
+            .ToList();
+
+        if (QuoteId is not null)
+        {
+            var quote = await dbContext.CustomerQuotes
+                .AsNoTracking()
+                .Include(item => item.Lines.OrderBy(line => line.SortOrder))
+                .SingleOrDefaultAsync(item => item.Id == QuoteId);
+
+            if (quote is null)
+            {
+                NotFound = true;
+                Loading = false;
+                return;
+            }
+
+            Model = QuoteEditModel.FromEntity(quote);
+        }
+        else if (InitialProductId is not null)
+        {
+            var option = ProductOptions.FirstOrDefault(item =>
+                item.ProductId == InitialProductId);
+            if (option is not null)
+            {
+                AddLine(option, InitialQuantity.GetValueOrDefault(1m));
+            }
+        }
+
+        Loading = false;
+    }
+
+    private void AddSelectedLine()
+    {
+        var option = ProductOptions.FirstOrDefault(item =>
+            item.Key == SelectedOptionKey);
+        if (option is null)
+        {
+            return;
+        }
+
+        AddLine(option, 1m);
+        SelectedOptionKey = string.Empty;
+    }
+
+    private void AddLine(ProductOption option, decimal quantity)
+    {
+        Model.Lines.Add(new QuoteLineEditModel
+        {
+            ProductId = option.ProductId,
+            ProductVariantId = option.ProductVariantId,
+            Description = option.Description,
+            Sku = option.Sku,
+            UnitLabel = option.UnitLabel,
+            Quantity = Math.Max(quantity, 0m),
+            UnitPrice = option.Price
+        });
+    }
+
+    private void RemoveLine(QuoteLineEditModel line) => Model.Lines.Remove(line);
+
+    private async Task SaveAsync()
+    {
+        Saving = true;
+        ErrorMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                System.Security.Claims.ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            CustomerQuote quote;
+
+            if (QuoteId is null)
+            {
+                quote = new CustomerQuote
+                {
+                    QuoteNumber =
+                        $"GH-{DateTime.Now:yyyy}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}",
+                    CreatedAtUtc = DateTime.UtcNow,
+                    CreatedByUserId = userId
+                };
+                dbContext.CustomerQuotes.Add(quote);
+            }
+            else
+            {
+                quote = await dbContext.CustomerQuotes
+                    .Include(item => item.Lines)
+                    .SingleAsync(item => item.Id == QuoteId);
+                dbContext.CustomerQuoteLines.RemoveRange(quote.Lines);
+            }
+
+            quote.Status = Model.Status;
+            quote.CustomerName = Model.CustomerName.Trim();
+            quote.CompanyName = Clean(Model.CompanyName);
+            quote.Email = Clean(Model.Email);
+            quote.Phone = Clean(Model.Phone);
+            quote.AddressLine1 = Clean(Model.AddressLine1);
+            quote.City = Clean(Model.City);
+            quote.State = Clean(Model.State);
+            quote.PostalCode = Clean(Model.PostalCode);
+            quote.IsContractor = Model.IsContractor;
+            quote.IsTaxExempt = Model.IsTaxExempt;
+            quote.Subtotal = Subtotal;
+            quote.DeliveryAmount = Math.Max(0m, Model.DeliveryAmount);
+            quote.TaxRate = Model.IsTaxExempt
+                ? 0m
+                : Math.Max(0m, Model.TaxRatePercent) / 100m;
+            quote.TaxAmount = TaxAmount;
+            quote.Total = Total;
+            quote.CustomerNotes = Clean(Model.CustomerNotes);
+            quote.InternalNotes = Clean(Model.InternalNotes);
+            quote.UpdatedAtUtc = DateTime.UtcNow;
+            quote.UpdatedByUserId = userId;
+            quote.Lines = Model.Lines.Select((line, index) =>
+                new CustomerQuoteLine
+                {
+                    ProductId = line.ProductId,
+                    ProductVariantId = line.ProductVariantId,
+                    Description = line.Description.Trim(),
+                    Sku = Clean(line.Sku),
+                    UnitLabel = line.UnitLabel.Trim(),
+                    Quantity = Math.Max(0m, line.Quantity),
+                    UnitPrice = Math.Max(0m, line.UnitPrice),
+                    LineTotal = GetLineTotal(line),
+                    SortOrder = index
+                }).ToList();
+
+            await dbContext.SaveChangesAsync();
+            Navigation.NavigateTo($"/quotes/{quote.Id}", forceLoad: true);
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = $"The quote could not be saved. {exception.Message}";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private static decimal GetLineTotal(QuoteLineEditModel line) =>
+        Math.Round(
+            Math.Max(0m, line.Quantity) * Math.Max(0m, line.UnitPrice),
+            2);
+
+    private string GetDefaultUnit(Product product) =>
+        product.MaterialProfile?.SoldBy switch
+        {
+            MaterialSoldBy.CubicYard => "yard",
+            MaterialSoldBy.Ton => "ton",
+            _ => "unit"
+        };
+
+    private static string? Clean(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private sealed record ProductOption(
+        string Key,
+        Guid ProductId,
+        Guid? ProductVariantId,
+        string Label,
+        string Description,
+        string? Sku,
+        decimal Price,
+        string UnitLabel);
+
+    private sealed class QuoteEditModel
+    {
+        public string QuoteNumber { get; set; } = string.Empty;
+        public QuoteStatus Status { get; set; } = QuoteStatus.Draft;
+        public string CustomerName { get; set; } = string.Empty;
+        public string? CompanyName { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? AddressLine1 { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; } = "WI";
+        public string? PostalCode { get; set; }
+        public bool IsContractor { get; set; }
+        public bool IsTaxExempt { get; set; }
+        public decimal DeliveryAmount { get; set; }
+        public decimal TaxRatePercent { get; set; } = 5.5m;
+        public string? CustomerNotes { get; set; }
+        public string? InternalNotes { get; set; }
+        public List<QuoteLineEditModel> Lines { get; set; } = [];
+
+        public static QuoteEditModel FromEntity(CustomerQuote quote) =>
+            new()
+            {
+                QuoteNumber = quote.QuoteNumber,
+                Status = quote.Status,
+                CustomerName = quote.CustomerName,
+                CompanyName = quote.CompanyName,
+                Email = quote.Email,
+                Phone = quote.Phone,
+                AddressLine1 = quote.AddressLine1,
+                City = quote.City,
+                State = quote.State,
+                PostalCode = quote.PostalCode,
+                IsContractor = quote.IsContractor,
+                IsTaxExempt = quote.IsTaxExempt,
+                DeliveryAmount = quote.DeliveryAmount,
+                TaxRatePercent = quote.TaxRate * 100m,
+                CustomerNotes = quote.CustomerNotes,
+                InternalNotes = quote.InternalNotes,
+                Lines = quote.Lines.Select(line => new QuoteLineEditModel
+                {
+                    ProductId = line.ProductId,
+                    ProductVariantId = line.ProductVariantId,
+                    Description = line.Description,
+                    Sku = line.Sku,
+                    UnitLabel = line.UnitLabel,
+                    Quantity = line.Quantity,
+                    UnitPrice = line.UnitPrice
+                }).ToList()
+            };
+    }
+
+    private sealed class QuoteLineEditModel
+    {
+        public Guid? ProductId { get; set; }
+        public Guid? ProductVariantId { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string? Sku { get; set; }
+        public string UnitLabel { get; set; } = "unit";
+        public decimal Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+    }
+}

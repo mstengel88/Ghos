@@ -1,4 +1,5 @@
 using Ghos.Web.Auth;
+using Ghos.Web.ProjectTools;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -61,6 +62,7 @@ public static class DatabaseInitializer
         }
 
         await SeedTomorrowMaterialMondayAsync(dbContext);
+        await SeedMaterialProfilesAsync(dbContext);
     }
 
     private static ProductCategory CreateCategory(string name, string slug, int sortOrder) =>
@@ -70,6 +72,36 @@ public static class DatabaseInitializer
             Slug = slug,
             SortOrder = sortOrder
         };
+
+    private static async Task SeedMaterialProfilesAsync(
+        ApplicationDbContext dbContext)
+    {
+        var products = await dbContext.Products
+            .Where(product =>
+                product.ShopifyHandle != null &&
+                product.MaterialProfile == null)
+            .ToListAsync();
+
+        foreach (var product in products)
+        {
+            if (!GreenHillsMaterialProfiles.ByShopifyHandle.TryGetValue(
+                    product.ShopifyHandle!,
+                    out var profile))
+            {
+                continue;
+            }
+
+            dbContext.ProductMaterialProfiles.Add(new ProductMaterialProfile
+            {
+                ProductId = product.Id,
+                SoldBy = profile.SoldBy,
+                TonsPerCubicYard = profile.TonsPerYard,
+                OrderIncrement = 1m
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
 
     private static async Task SeedTomorrowMaterialMondayAsync(
         ApplicationDbContext dbContext)

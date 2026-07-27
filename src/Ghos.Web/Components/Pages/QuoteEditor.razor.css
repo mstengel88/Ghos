@@ -1,0 +1,314 @@
+.quote-heading {
+    margin-bottom: 22px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.quote-heading a {
+    margin-bottom: 15px;
+    color: var(--ghos-accent-text);
+    display: block;
+    font-size: .7rem;
+    font-weight: 850;
+    text-decoration: none;
+}
+
+.quote-heading h2 {
+    margin: 7px 0 6px;
+    font-size: clamp(1.8rem, 3vw, 2.45rem);
+    letter-spacing: -.035em;
+}
+
+.quote-heading p {
+    max-width: 760px;
+    margin: 0;
+    color: var(--ghos-text-muted);
+    line-height: 1.55;
+}
+
+.quote-number {
+    padding: 8px 11px;
+    border-radius: 7px;
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
+    font-size: .7rem;
+    font-weight: 850;
+}
+
+.quote-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 310px;
+    gap: 18px;
+}
+
+.quote-sections {
+    display: grid;
+    gap: 17px;
+}
+
+.form-section {
+    padding: 23px;
+}
+
+.section-heading {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 12px;
+}
+
+.section-heading > span {
+    width: 31px;
+    height: 31px;
+    border-radius: 50%;
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    font-size: .67rem;
+    font-weight: 900;
+}
+
+.section-heading h3 {
+    margin: 2px 0 4px;
+    font-size: .95rem;
+}
+
+.section-heading p {
+    margin: 0;
+    color: var(--ghos-text-muted);
+    font-size: .7rem;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+}
+
+.form-grid label,
+.totals-panel label {
+    display: grid;
+    gap: 6px;
+}
+
+.form-grid label.wide {
+    grid-column: 1 / -1;
+}
+
+.form-grid label > span,
+.totals-panel label > span {
+    color: var(--ghos-text-secondary);
+    font-size: .68rem;
+    font-weight: 800;
+}
+
+.form-grid ::deep input,
+.form-grid ::deep textarea,
+.form-grid ::deep select,
+.totals-panel ::deep input,
+.totals-panel ::deep select,
+.add-line select,
+.line-row ::deep input {
+    width: 100%;
+    min-height: 41px;
+    padding: 9px 10px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 7px;
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text);
+    font: inherit;
+}
+
+.form-grid ::deep textarea {
+    resize: vertical;
+}
+
+.form-grid label.check-field {
+    padding: 11px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 8px;
+    background: var(--ghos-surface-muted);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.check-field ::deep input {
+    width: auto;
+    min-height: auto;
+    accent-color: var(--ghos-accent);
+}
+
+.add-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px;
+}
+
+.add-line button,
+.totals-panel > button {
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 7px;
+    background: var(--ghos-accent);
+    color: #142116;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.add-line button:disabled {
+    cursor: not-allowed;
+    opacity: .45;
+}
+
+.quote-lines {
+    margin-top: 14px;
+}
+
+.line-row {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--ghos-border);
+    display: grid;
+    grid-template-columns: minmax(200px, 1.7fr) .55fr .6fr .75fr .7fr 32px;
+    align-items: center;
+    gap: 9px;
+    font-size: .68rem;
+}
+
+.line-row label small {
+    margin-top: 3px;
+    color: var(--ghos-text-muted);
+    display: block;
+    font-size: .55rem;
+}
+
+.line-head {
+    color: var(--ghos-text-muted);
+    font-size: .57rem;
+    font-weight: 850;
+}
+
+.remove-line {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ghos-text-muted);
+    cursor: pointer;
+}
+
+.line-empty {
+    min-height: 130px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    text-align: center;
+}
+
+.line-empty strong,
+.line-empty span {
+    display: block;
+}
+
+.line-empty span {
+    margin-top: 5px;
+    color: var(--ghos-text-muted);
+    font-size: .67rem;
+}
+
+.totals-panel {
+    padding: 20px;
+    align-self: start;
+    position: sticky;
+    top: 110px;
+}
+
+.totals-panel label {
+    margin-top: 14px;
+}
+
+.totals-panel dl {
+    margin: 22px 0;
+    display: grid;
+    gap: 11px;
+}
+
+.totals-panel dl > div {
+    display: flex;
+    justify-content: space-between;
+}
+
+.totals-panel dt {
+    color: var(--ghos-text-muted);
+    font-size: .68rem;
+}
+
+.totals-panel dd {
+    margin: 0;
+    font-size: .72rem;
+    font-weight: 850;
+}
+
+.totals-panel .grand-total {
+    padding-top: 13px;
+    border-top: 1px solid var(--ghos-border-strong);
+}
+
+.totals-panel .grand-total dt,
+.totals-panel .grand-total dd {
+    color: var(--ghos-text);
+    font-size: .9rem;
+}
+
+.totals-panel > button {
+    width: 100%;
+    min-height: 44px;
+}
+
+.totals-panel > small {
+    margin-top: 10px;
+    color: var(--ghos-text-muted);
+    display: block;
+    font-size: .58rem;
+    line-height: 1.45;
+}
+
+.loading-panel {
+    min-height: 260px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+}
+
+@media (max-width: 1050px) {
+    .quote-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .totals-panel {
+        position: static;
+    }
+}
+
+@media (max-width: 780px) {
+    .form-grid,
+    .add-line {
+        grid-template-columns: 1fr;
+    }
+
+    .form-grid label.wide {
+        grid-column: auto;
+    }
+
+    .line-head {
+        display: none;
+    }
+
+    .line-row {
+        grid-template-columns: 1fr 1fr;
+    }
+}

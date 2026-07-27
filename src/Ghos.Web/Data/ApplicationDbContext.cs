@@ -44,6 +44,13 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<DumpSiteConnectionSettings> DumpSiteConnectionSettings =>
         Set<DumpSiteConnectionSettings>();
 
+    public DbSet<ProductMaterialProfile> ProductMaterialProfiles =>
+        Set<ProductMaterialProfile>();
+
+    public DbSet<CustomerQuote> CustomerQuotes => Set<CustomerQuote>();
+
+    public DbSet<CustomerQuoteLine> CustomerQuoteLines => Set<CustomerQuoteLine>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -255,6 +262,58 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<DumpSiteConnectionSettings>(settings =>
         {
             settings.ToTable("DumpSiteConnectionSettings");
+        });
+
+        builder.Entity<ProductMaterialProfile>(profile =>
+        {
+            profile.HasIndex(item => item.ProductId).IsUnique();
+            profile.Property(item => item.SoldBy)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+            profile.Property(item => item.TonsPerCubicYard).HasPrecision(10, 4);
+            profile.Property(item => item.OrderIncrement).HasPrecision(10, 2);
+
+            profile.HasOne(item => item.Product)
+                .WithOne(product => product.MaterialProfile)
+                .HasForeignKey<ProductMaterialProfile>(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<CustomerQuote>(quote =>
+        {
+            quote.HasIndex(item => item.QuoteNumber).IsUnique();
+            quote.HasIndex(item => new { item.Status, item.UpdatedAtUtc });
+            quote.Property(item => item.Status)
+                .HasConversion<string>()
+                .HasMaxLength(32);
+            quote.Property(item => item.Subtotal).HasPrecision(18, 2);
+            quote.Property(item => item.DeliveryAmount).HasPrecision(18, 2);
+            quote.Property(item => item.TaxRate).HasPrecision(8, 6);
+            quote.Property(item => item.TaxAmount).HasPrecision(18, 2);
+            quote.Property(item => item.Total).HasPrecision(18, 2);
+        });
+
+        builder.Entity<CustomerQuoteLine>(line =>
+        {
+            line.HasIndex(item => new { item.CustomerQuoteId, item.SortOrder });
+            line.Property(item => item.Quantity).HasPrecision(18, 3);
+            line.Property(item => item.UnitPrice).HasPrecision(18, 2);
+            line.Property(item => item.LineTotal).HasPrecision(18, 2);
+
+            line.HasOne(item => item.CustomerQuote)
+                .WithMany(quote => quote.Lines)
+                .HasForeignKey(item => item.CustomerQuoteId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            line.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            line.HasOne(item => item.ProductVariant)
+                .WithMany()
+                .HasForeignKey(item => item.ProductVariantId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
