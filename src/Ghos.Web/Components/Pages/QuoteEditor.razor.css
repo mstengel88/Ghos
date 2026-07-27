@@ -1,31 +1,34 @@
 .quote-heading {
-    margin-bottom: 22px;
+    max-width: 1500px;
+    margin: 0 auto 24px;
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 20px;
 }
 
 .quote-heading a {
-    margin-bottom: 15px;
+    margin-bottom: 18px;
     color: var(--ghos-accent-text);
     display: block;
-    font-size: .7rem;
+    font-size: .72rem;
     font-weight: 850;
     text-decoration: none;
 }
 
 .quote-heading h2 {
-    margin: 7px 0 6px;
-    font-size: clamp(1.8rem, 3vw, 2.45rem);
-    letter-spacing: -.035em;
+    margin: 8px 0 7px;
+    font-size: clamp(2rem, 3.5vw, 3rem);
+    letter-spacing: -.045em;
+    line-height: 1.02;
 }
 
 .quote-heading p {
-    max-width: 760px;
+    max-width: 820px;
     margin: 0;
     color: var(--ghos-text-muted);
-    line-height: 1.55;
+    font-size: .88rem;
+    line-height: 1.6;
 }
 
 .quote-number {
@@ -55,25 +58,29 @@
 }
 
 .audience-picker {
-    margin-bottom: 18px;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 8px;
+    border-bottom: 1px solid var(--ghos-border);
+    background: var(--ghos-surface-muted);
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
 .audience-picker button {
-    padding: 15px;
+    min-width: 150px;
+    padding: 11px 17px;
     border: 1px solid var(--ghos-border);
-    border-radius: 11px;
+    border-radius: 999px;
     background: var(--ghos-surface);
     color: var(--ghos-text);
     text-align: left;
     cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
 
 .audience-picker button.active {
     border-color: var(--ghos-accent);
-    background: var(--ghos-accent-soft);
+    background: linear-gradient(135deg, var(--ghos-accent-soft), var(--ghos-surface));
     box-shadow: inset 0 0 0 1px var(--ghos-accent);
 }
 
@@ -87,24 +94,39 @@
 }
 
 .audience-picker span {
-    margin-top: 4px;
+    margin-top: 3px;
     color: var(--ghos-text-muted);
-    font-size: .64rem;
+    font-size: .59rem;
 }
 
 .quote-layout {
+    max-width: 1500px;
+    margin: 0 auto;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 310px;
-    gap: 18px;
+    grid-template-columns: minmax(0, 1.45fr) minmax(330px, .65fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.quote-form-panel {
+    overflow: hidden;
+    border: 1px solid var(--ghos-border);
+    border-radius: 16px;
+    background: var(--ghos-surface);
+    box-shadow: 0 12px 34px rgba(20, 33, 22, .055);
 }
 
 .quote-sections {
-    display: grid;
-    gap: 17px;
+    display: block;
 }
 
 .form-section {
-    padding: 23px;
+    padding: 25px;
+    border-bottom: 1px solid var(--ghos-border);
+}
+
+.form-section:last-child {
+    border-bottom: 0;
 }
 
 .section-heading {
@@ -114,10 +136,10 @@
 }
 
 .section-heading > span {
-    width: 31px;
-    height: 31px;
-    border-radius: 50%;
-    background: var(--ghos-accent-soft);
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--ghos-accent);
     color: var(--ghos-accent-text);
     display: grid;
     place-items: center;
@@ -127,8 +149,8 @@
 }
 
 .section-heading h3 {
-    margin: 2px 0 4px;
-    font-size: .95rem;
+    margin: 1px 0 4px;
+    font-size: 1.02rem;
 }
 
 .section-heading p {
@@ -251,6 +273,10 @@
 }
 
 .product-search {
+    padding: 14px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 12px;
+    background: var(--ghos-surface-muted);
     display: grid;
     grid-template-columns: minmax(220px, .8fr) minmax(260px, 1fr) auto;
     gap: 9px;
@@ -318,27 +344,34 @@
 }
 
 .quote-lines {
-    margin-top: 14px;
+    margin-top: 16px;
     display: grid;
-    gap: 10px;
+    gap: 12px;
 }
 
 .quote-line {
-    padding: 12px;
+    overflow: hidden;
+    padding: 14px;
     border: 1px solid var(--ghos-border);
-    border-radius: 11px;
+    border-radius: 14px;
     background: var(--ghos-surface-muted);
     display: grid;
-    grid-template-columns: 56px minmax(180px, 1.5fr) .45fr .45fr .55fr .55fr 32px;
+    grid-template-columns: 62px minmax(220px, 1.6fr) 92px 105px 115px 100px 34px;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.quote-line:focus-within {
+    border-color: var(--ghos-accent);
+    box-shadow: 0 0 0 2px var(--ghos-accent-soft);
 }
 
 .quote-line > img,
 .line-image-placeholder {
-    width: 56px;
-    height: 56px;
-    border-radius: 8px;
+    width: 62px;
+    height: 62px;
+    border-radius: 11px;
 }
 
 .quote-line > img {
@@ -370,11 +403,11 @@
 }
 
 .line-main > span {
-    margin-top: 4px;
+    margin-top: 6px;
     color: var(--ghos-text-muted);
     display: block;
     overflow: hidden;
-    font-size: .57rem;
+    font-size: .62rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -385,14 +418,14 @@
 }
 
 .quote-line > label > span {
-    color: var(--ghos-text-muted);
-    font-size: .56rem;
+    color: var(--ghos-text-secondary);
+    font-size: .62rem;
     font-weight: 800;
 }
 
 .line-total {
     text-align: right;
-    font-size: .72rem;
+    font-size: .82rem;
 }
 
 .line-actions {
@@ -404,11 +437,12 @@
 .line-actions button,
 .line-actions a,
 .calculator-topline button {
-    padding: 0;
-    border: 0;
-    background: transparent;
+    padding: 5px 8px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 999px;
+    background: var(--ghos-surface);
     color: var(--ghos-accent-text);
-    font-size: .57rem;
+    font-size: .59rem;
     font-weight: 850;
     text-decoration: none;
     cursor: pointer;
@@ -416,7 +450,8 @@
 
 .line-calculator {
     grid-column: 1 / -1;
-    padding: 14px;
+    margin: 2px -14px -14px;
+    padding: 16px;
     border-top: 1px solid var(--ghos-border);
     background: var(--ghos-surface);
 }
@@ -565,10 +600,10 @@
 
 .delivery-actions {
     margin-bottom: 17px;
-    padding: 14px;
-    border: 1px solid var(--ghos-border);
-    border-radius: 10px;
-    background: var(--ghos-surface-muted);
+    padding: 16px;
+    border: 1px solid var(--ghos-accent);
+    border-radius: 12px;
+    background: var(--ghos-accent-soft);
     display: flex;
     align-items: center;
     gap: 14px;
@@ -593,16 +628,25 @@
 }
 
 .totals-panel {
-    padding: 20px;
+    overflow: hidden;
+    padding: 22px;
     align-self: start;
     position: sticky;
     top: 110px;
+    border-radius: 16px;
+    box-shadow: 0 12px 34px rgba(20, 33, 22, .07);
+}
+
+.totals-panel h3 {
+    margin: 7px 0 18px;
+    font-size: 1.2rem;
 }
 
 .price-source {
-    margin-top: 14px;
-    padding: 10px;
-    border-radius: 8px;
+    margin-top: 16px;
+    padding: 12px;
+    border: 1px solid var(--ghos-accent);
+    border-radius: 10px;
     background: var(--ghos-accent-soft);
     display: flex;
     justify-content: space-between;
@@ -623,7 +667,7 @@
 }
 
 .totals-panel dl {
-    margin: 22px 0;
+    margin: 24px 0;
     display: grid;
     gap: 11px;
 }
@@ -645,14 +689,15 @@
 }
 
 .totals-panel .grand-total {
-    padding-top: 13px;
-    border-top: 1px solid var(--ghos-border-strong);
+    margin-top: 4px;
+    padding: 16px 12px 0;
+    border-top: 2px solid var(--ghos-border-strong);
 }
 
 .totals-panel .grand-total dt,
 .totals-panel .grand-total dd {
     color: var(--ghos-text);
-    font-size: .9rem;
+    font-size: 1.05rem;
 }
 
 .totals-panel > button {

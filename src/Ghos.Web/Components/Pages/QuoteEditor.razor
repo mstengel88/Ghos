@@ -15,9 +15,9 @@
 <div class="quote-heading">
     <div>
         <a href="/quotes">← Quote history</a>
-        <span class="panel-label">DISPATCH V2 QUOTE WORKSPACE</span>
-        <h2>@(IsNew ? "Create a full quote" : Model.QuoteNumber)</h2>
-        <p>Customer, contractor, and custom pricing with the same material calculator and delivery math used by Dispatch v2.</p>
+        <span class="panel-label">QUOTE TOOL</span>
+        <h2>@(IsNew ? "Build a delivery quote" : $"Edit {Model.QuoteNumber}")</h2>
+        <p>Integrated V2 quoting using synced Shopify products, shared project calculators, and Dispatch route timing.</p>
     </div>
     <div class="heading-actions">
         @if (!string.IsNullOrWhiteSpace(DispatchSyncMessage))
@@ -58,21 +58,24 @@ else
             <div class="quote-success" role="status">@SuccessMessage</div>
         }
 
-        <div class="audience-picker">
-            @foreach (var audience in Enum.GetValues<QuoteAudience>())
-            {
-                <button type="button"
-                        class="@(Model.Audience == audience ? "active" : null)"
-                        @onclick="() => ChangeAudience(audience)">
-                    <strong>@GetAudienceTitle(audience)</strong>
-                    <span>@GetAudienceDescription(audience)</span>
-                </button>
-            }
-        </div>
-
         <div class="quote-layout">
-            <div class="quote-sections">
-                <section class="panel form-section">
+            <div class="quote-form-panel">
+                <div class="audience-picker" role="tablist" aria-label="Pricing type">
+                    @foreach (var audience in Enum.GetValues<QuoteAudience>())
+                    {
+                        <button type="button"
+                                role="tab"
+                                aria-selected="@(Model.Audience == audience)"
+                                class="@(Model.Audience == audience ? "active" : null)"
+                                @onclick="() => ChangeAudience(audience)">
+                            <strong>@GetAudienceTitle(audience)</strong>
+                            <span>@GetAudienceDescription(audience)</span>
+                        </button>
+                    }
+                </div>
+
+                <div class="quote-sections">
+                <section class="form-section">
                     <div class="section-heading">
                         <span>01</span>
                         <div>
@@ -194,7 +197,7 @@ else
                     }
                 </section>
 
-                <section class="panel form-section">
+                <section class="form-section">
                     <div class="section-heading">
                         <span>02</span>
                         <div>
@@ -388,7 +391,7 @@ else
                     }
                 </section>
 
-                <section class="panel form-section">
+                <section class="form-section">
                     <div class="section-heading">
                         <span>03</span>
                         <div>
@@ -446,7 +449,7 @@ else
                     </div>
                 </section>
 
-                <section class="panel form-section">
+                <section class="form-section">
                     <div class="section-heading">
                         <span>04</span>
                         <div>
@@ -465,10 +468,12 @@ else
                         </label>
                     </div>
                 </section>
+                </div>
             </div>
 
             <aside class="panel totals-panel">
                 <span class="panel-label">FULL QUOTE RESULT</span>
+                <h3>Quote summary</h3>
                 <label>
                     <span>Status</span>
                     <InputSelect @bind-Value="Model.Status">
