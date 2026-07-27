@@ -28,6 +28,32 @@
     text-decoration: none;
 }
 
+.tool-tabs {
+    margin-bottom: 18px;
+    padding: 5px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 12px;
+    background: var(--ghos-surface);
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.tool-tabs button {
+    min-height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ghos-text-muted);
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.tool-tabs button.active {
+    background: var(--ghos-accent);
+    color: #142116;
+}
+
 .calculator-shell {
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(340px, .65fr);
@@ -114,6 +140,10 @@
 
 .conversion-controls {
     margin: 22px 0 16px;
+}
+
+.conversion-controls.single-control {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .field {
@@ -213,6 +243,69 @@
 .selected-order strong {
     color: var(--ghos-accent-text);
     font-size: 1.5rem;
+}
+
+.project-results {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.project-results > div {
+    padding: 15px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 10px;
+    background: var(--ghos-surface-muted);
+}
+
+.project-results span,
+.project-results strong {
+    display: block;
+}
+
+.project-results span,
+.project-callout span {
+    color: var(--ghos-text-muted);
+    font-size: .64rem;
+    font-weight: 850;
+    letter-spacing: .06em;
+}
+
+.project-results strong {
+    margin-top: 5px;
+    font-size: .95rem;
+}
+
+.project-callout,
+.calculator-warning {
+    margin-top: 14px;
+    padding: 16px;
+    border-radius: 10px;
+}
+
+.project-callout {
+    border: 1px solid var(--ghos-accent);
+    background: var(--ghos-accent-soft);
+}
+
+.project-callout strong {
+    margin-top: 5px;
+    display: block;
+}
+
+.project-callout p {
+    margin: 5px 0 0;
+    color: var(--ghos-text-muted);
+    font-size: .74rem;
+}
+
+.calculator-warning {
+    border: 1px solid #d5a329;
+    background: rgba(213, 163, 41, .12);
+    color: var(--ghos-text);
+    font-size: .76rem;
+    line-height: 1.45;
 }
 
 .conversion-groups {
@@ -361,7 +454,12 @@
 
     .dimension-grid,
     .conversion-controls,
-    .volume-results {
+    .volume-results,
+    .project-results {
+        grid-template-columns: 1fr;
+    }
+
+    .tool-tabs {
         grid-template-columns: 1fr;
     }
 

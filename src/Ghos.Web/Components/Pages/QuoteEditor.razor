@@ -7,6 +7,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject QuoteDeliveryService DeliveryService
 @inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
+@inject ShopifySyncService ShopifySyncService
 @inject NavigationManager Navigation
 
 <PageTitle>@(IsNew ? "New quote" : Model.QuoteNumber) | GHOS</PageTitle>
@@ -252,7 +253,7 @@ else
                                         <div class="line-actions">
                                             <button type="button"
                                                     @onclick="() => ToggleCalculator(line)">
-                                                Material calculator
+                                                @GetCalculatorLabel(line)
                                             </button>
                                             @if (!string.IsNullOrWhiteSpace(line.ProductHandle))
                                             {
@@ -284,23 +285,38 @@ else
                                     @if (ActiveCalculatorLineKey == line.Key)
                                     {
                                         var material = FindLineMaterial(line);
-                                        var calculation = CalculateLine(line, material);
+                                        var projectConfiguration =
+                                            FindLineProjectConfiguration(line);
                                         <div class="line-calculator">
                                             <div class="calculator-topline">
-                                                <strong>Material calculator</strong>
+                                                <strong>@(projectConfiguration?.Kind switch
+                                                    {
+                                                        ProjectCalculatorKind.Paver => "Paver calculator",
+                                                        ProjectCalculatorKind.Wall => "Wall calculator",
+                                                        _ => "Material calculator"
+                                                    })</strong>
                                                 <button type="button"
                                                         @onclick="() => ActiveCalculatorLineKey = null">Close</button>
                                             </div>
                                             <div class="shape-mini">
-                                                <button type="button"
-                                                        class="@(line.CalculatorShape == ProjectShape.Rectangle ? "active" : null)"
-                                                        @onclick="() => line.CalculatorShape = ProjectShape.Rectangle">Rectangle</button>
-                                                <button type="button"
-                                                        class="@(line.CalculatorShape == ProjectShape.Circle ? "active" : null)"
-                                                        @onclick="() => line.CalculatorShape = ProjectShape.Circle">Circle</button>
+                                                @if (projectConfiguration?.Kind != ProjectCalculatorKind.Wall)
+                                                {
+                                                    <button type="button"
+                                                            class="@(line.CalculatorShape == ProjectShape.Rectangle ? "active" : null)"
+                                                            @onclick="() => line.CalculatorShape = ProjectShape.Rectangle">Rectangle</button>
+                                                    <button type="button"
+                                                            class="@(line.CalculatorShape == ProjectShape.Circle ? "active" : null)"
+                                                            @onclick="() => line.CalculatorShape = ProjectShape.Circle">Circle</button>
+                                                }
                                             </div>
                                             <div class="calculator-fields">
-                                                @if (line.CalculatorShape == ProjectShape.Rectangle)
+                                                @if (projectConfiguration?.Kind == ProjectCalculatorKind.Wall)
+                                                {
+                                                    <label><span>Wall length ft.</span><InputNumber @bind-Value="line.LengthFeet" /></label>
+                                                    <label><span>Average height ft.</span><InputNumber @bind-Value="line.WallHeightFeet" /></label>
+                                                    <label><span>Openings sq. ft.</span><InputNumber @bind-Value="line.OpeningsSqFt" /></label>
+                                                }
+                                                else if (line.CalculatorShape == ProjectShape.Rectangle)
                                                 {
                                                     <label><span>Length ft.</span><InputNumber @bind-Value="line.LengthFeet" /></label>
                                                     <label><span>Width ft.</span><InputNumber @bind-Value="line.WidthFeet" /></label>
@@ -309,7 +325,11 @@ else
                                                 {
                                                     <label><span>Diameter ft.</span><InputNumber @bind-Value="line.DiameterFeet" /></label>
                                                 }
-                                                <label><span>Depth in.</span><InputNumber @bind-Value="line.DepthInches" /></label>
+                                                @if (projectConfiguration is null)
+                                                {
+                                                    <label><span>Depth in.</span><InputNumber @bind-Value="line.DepthInches" /></label>
+                                                    <label><span>Known yd³</span><InputNumber @bind-Value="line.ManualCubicYards" /></label>
+                                                }
                                                 <label>
                                                     <span>Extra</span>
                                                     <select @bind="line.ExtraPercent">
@@ -319,17 +339,47 @@ else
                                                         }
                                                     </select>
                                                 </label>
-                                                <label><span>Known yd³</span><InputNumber @bind-Value="line.ManualCubicYards" /></label>
                                             </div>
-                                            <div class="calculator-result">
-                                                <span>@calculation.RecommendedCubicYards.ToString("0.00") yd³</span>
-                                                <strong>@calculation.OrderQuantity.ToString("0") @calculation.UnitLabel</strong>
-                                                <button type="button"
-                                                        disabled="@(calculation.OrderQuantity <= 0)"
-                                                        @onclick="() => ApplyCalculation(line, calculation)">
-                                                    Use this quantity
-                                                </button>
-                                            </div>
+                                            @if (projectConfiguration is null)
+                                            {
+                                                var calculation =
+                                                    CalculateLine(line, material);
+                                                <div class="calculator-result">
+                                                    <span>@calculation.RecommendedCubicYards.ToString("0.00") yd³</span>
+                                                    <strong>@calculation.OrderQuantity.ToString("0") @calculation.UnitLabel</strong>
+                                                    <button type="button"
+                                                            disabled="@(calculation.OrderQuantity <= 0)"
+                                                            @onclick="() => ApplyCalculation(line, calculation)">
+                                                        Use this quantity
+                                                    </button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                var calculation =
+                                                    CalculateProjectLine(
+                                                        line,
+                                                        projectConfiguration);
+                                                <div class="calculator-result">
+                                                    <span>@calculation.RequiredAreaSqFt.ToString("0.00") sq. ft.</span>
+                                                    <strong>@calculation.OrderQuantity.ToString("0") @calculation.OrderUnitLabel</strong>
+                                                    @if (projectConfiguration.IsStandardDiscover &&
+                                                         calculation.RecommendedTotalLayers > 0)
+                                                    {
+                                                        <small>@calculation.RecommendedPurchase · @calculation.RecommendedTotalLayers total layers</small>
+                                                    }
+                                                    @if (projectConfiguration.Kind == ProjectCalculatorKind.Wall &&
+                                                         calculation.EstimatedFullBlocks > 0)
+                                                    {
+                                                        <small>@calculation.EstimatedFullBlocks full blocks · @calculation.EstimatedCourses courses; corners and caps separate</small>
+                                                    }
+                                                    <button type="button"
+                                                            disabled="@(calculation.OrderQuantity <= 0)"
+                                                            @onclick="() => ApplyProjectCalculation(line, calculation)">
+                                                        Use this quantity
+                                                    </button>
+                                                </div>
+                                            }
                                         </div>
                                     }
                                 </article>
@@ -541,6 +591,18 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        var initialAuthenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        try
+        {
+            await ShopifySyncService.SynchronizeIfStaleAsync(
+                initialAuthenticationState.User);
+        }
+        catch
+        {
+            // Existing quotes remain usable when Shopify is temporarily unavailable.
+        }
+
         try
         {
             var syncResult =
@@ -596,7 +658,8 @@ else
                         0m,
                         null,
                         null,
-                        GetDefaultUnit(product))]
+                        GetDefaultUnit(product),
+                        PaverWallCalculator.Resolve(product))]
                     : product.Variants
                         .OrderBy(variant => variant.SortOrder)
                         .Select(variant => new ProductOption(
@@ -617,7 +680,8 @@ else
                             variant.Price,
                             variant.ContractorTier1Price,
                             variant.ContractorTier2Price,
-                            variant.UnitLabel ?? GetDefaultUnit(product))))
+                            variant.UnitLabel ?? GetDefaultUnit(product),
+                            PaverWallCalculator.Resolve(product, variant))))
             .ToList();
 
         if (QuoteId is not null)
@@ -762,6 +826,7 @@ else
             ProductHandle = option.ProductHandle,
             ImageUrl = option.ImageUrl,
             UnitLabel = option.UnitLabel,
+            ProjectConfiguration = option.ProjectConfiguration,
             PricingLabel = QuotePricing.GetPricingLabel(
                 Model.Audience,
                 Model.ContractorTier),
@@ -776,12 +841,30 @@ else
         ActiveCalculatorLineKey =
             ActiveCalculatorLineKey == line.Key ? null : line.Key;
 
+    private string GetCalculatorLabel(QuoteLineEditModel line) =>
+        FindLineProjectConfiguration(line)?.Kind switch
+        {
+            ProjectCalculatorKind.Paver => "Paver calculator",
+            ProjectCalculatorKind.Wall => "Wall calculator",
+            _ => "Material calculator"
+        };
+
     private static MaterialConversion? FindLineMaterial(
         QuoteLineEditModel line) =>
         MaterialCalculator.Find(
             line.ProductName,
             line.ProductHandle,
             line.Description);
+
+    private ProjectProductConfiguration? FindLineProjectConfiguration(
+        QuoteLineEditModel line) =>
+        line.ProjectConfiguration ??
+        ProductOptions.FirstOrDefault(option =>
+            (line.ProductVariantId is not null &&
+             option.ProductVariantId == line.ProductVariantId) ||
+            (line.ProductVariantId is null &&
+             option.ProductId == line.ProductId))
+            ?.ProjectConfiguration;
 
     private static MaterialCalculation CalculateLine(
         QuoteLineEditModel line,
@@ -799,6 +882,24 @@ else
     private static void ApplyCalculation(
         QuoteLineEditModel line,
         MaterialCalculation calculation) =>
+        line.Quantity = calculation.OrderQuantity;
+
+    private static PaverWallCalculation CalculateProjectLine(
+        QuoteLineEditModel line,
+        ProjectProductConfiguration configuration) =>
+        PaverWallCalculator.Calculate(
+            configuration,
+            line.CalculatorShape,
+            line.LengthFeet,
+            line.WidthFeet,
+            line.DiameterFeet,
+            line.WallHeightFeet,
+            line.OpeningsSqFt,
+            line.ExtraPercent);
+
+    private static void ApplyProjectCalculation(
+        QuoteLineEditModel line,
+        PaverWallCalculation calculation) =>
         line.Quantity = calculation.OrderQuantity;
 
     private async Task CalculateDeliveryAsync()
@@ -1070,7 +1171,8 @@ else
         decimal RetailPrice,
         decimal? ContractorTier1Price,
         decimal? ContractorTier2Price,
-        string UnitLabel)
+        string UnitLabel,
+        ProjectProductConfiguration? ProjectConfiguration)
     {
         public string Description => Label;
     }
@@ -1213,5 +1315,8 @@ else
         public decimal DepthInches { get; set; } = 3m;
         public decimal ManualCubicYards { get; set; }
         public int ExtraPercent { get; set; } = 10;
+        public decimal WallHeightFeet { get; set; }
+        public decimal OpeningsSqFt { get; set; }
+        public ProjectProductConfiguration? ProjectConfiguration { get; set; }
     }
 }

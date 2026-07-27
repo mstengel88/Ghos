@@ -30,6 +30,15 @@ public sealed class ShopifyAdminClient(
                 legacyUnitLabel: metafield(namespace: "$app", key: "price_unit_label") {
                   value
                 }
+                projectCalculatorType: metafield(namespace: "custom", key: "project_calculator_type") { value }
+                coveragePerOrderUnitSqFt: metafield(namespace: "custom", key: "coverage_per_order_unit_sq_ft") { value }
+                calculatorOrderUnitLabel: metafield(namespace: "custom", key: "calculator_order_unit_label") { value }
+                piecesPerOrderUnit: metafield(namespace: "custom", key: "pieces_per_order_unit") { value }
+                calculatorUnitLengthInches: metafield(namespace: "custom", key: "unit_length_inches") { value }
+                calculatorUnitHeightInches: metafield(namespace: "custom", key: "unit_height_inches") { value }
+                layersPerPallet: metafield(namespace: "custom", key: "layers_per_pallet") { value }
+                squareFeetPerLayer: metafield(namespace: "custom", key: "square_feet_per_layer") { value }
+                palletWeightLbs: metafield(namespace: "custom", key: "pallet_weight_lbs") { value }
                 tags
                 createdAt
                 updatedAt
@@ -65,6 +74,14 @@ public sealed class ShopifyAdminClient(
                     image {
                       url
                     }
+                    coveragePerOrderUnitSqFt: metafield(namespace: "custom", key: "coverage_per_order_unit_sq_ft") { value }
+                    calculatorOrderUnitLabel: metafield(namespace: "custom", key: "calculator_order_unit_label") { value }
+                    piecesPerOrderUnit: metafield(namespace: "custom", key: "pieces_per_order_unit") { value }
+                    calculatorUnitLengthInches: metafield(namespace: "custom", key: "unit_length_inches") { value }
+                    calculatorUnitHeightInches: metafield(namespace: "custom", key: "unit_height_inches") { value }
+                    layersPerPallet: metafield(namespace: "custom", key: "layers_per_pallet") { value }
+                    squareFeetPerLayer: metafield(namespace: "custom", key: "square_feet_per_layer") { value }
+                    palletWeightLbs: metafield(namespace: "custom", key: "pallet_weight_lbs") { value }
                   }
                 }
               }
@@ -174,7 +191,15 @@ public sealed class ShopifyAdminClient(
                 ParseMoney(variant.Price),
                 ParseNullableMoney(variant.CompareAtPrice),
                 variant.Image?.Url,
-                variant.AvailableForSale))
+                variant.AvailableForSale,
+                ParseNullableDecimal(variant.CoveragePerOrderUnitSqFt?.Value),
+                NullIfWhiteSpace(variant.CalculatorOrderUnitLabel?.Value),
+                ParseNullableInt(variant.PiecesPerOrderUnit?.Value),
+                ParseNullableDecimal(variant.CalculatorUnitLengthInches?.Value),
+                ParseNullableDecimal(variant.CalculatorUnitHeightInches?.Value),
+                ParseNullableInt(variant.LayersPerPallet?.Value),
+                ParseNullableDecimal(variant.SquareFeetPerLayer?.Value),
+                ParseNullableInt(variant.PalletWeightLbs?.Value)))
             .ToList();
 
         var collections = node.Collections.Nodes
@@ -202,6 +227,16 @@ public sealed class ShopifyAdminClient(
             node.CreatedAt,
             node.UpdatedAt,
             node.PublishedAt,
+            new ShopifyProjectCalculatorSnapshot(
+                NullIfWhiteSpace(node.ProjectCalculatorType?.Value),
+                ParseNullableDecimal(node.CoveragePerOrderUnitSqFt?.Value),
+                NullIfWhiteSpace(node.CalculatorOrderUnitLabel?.Value),
+                ParseNullableInt(node.PiecesPerOrderUnit?.Value),
+                ParseNullableDecimal(node.CalculatorUnitLengthInches?.Value),
+                ParseNullableDecimal(node.CalculatorUnitHeightInches?.Value),
+                ParseNullableInt(node.LayersPerPallet?.Value),
+                ParseNullableDecimal(node.SquareFeetPerLayer?.Value),
+                ParseNullableInt(node.PalletWeightLbs?.Value)),
             collections,
             variants);
     }
@@ -215,6 +250,24 @@ public sealed class ShopifyAdminClient(
         string.IsNullOrWhiteSpace(value)
             ? null
             : ParseMoney(value);
+
+    private static decimal? ParseNullableDecimal(string? value) =>
+        decimal.TryParse(
+            value,
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out var parsed)
+                ? parsed
+                : null;
+
+    private static int? ParseNullableInt(string? value) =>
+        int.TryParse(
+            value,
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var parsed)
+                ? parsed
+                : null;
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -276,6 +329,24 @@ public sealed class ShopifyAdminClient(
         public MetafieldData? UnitLabel { get; init; }
 
         public MetafieldData? LegacyUnitLabel { get; init; }
+
+        public MetafieldData? ProjectCalculatorType { get; init; }
+
+        public MetafieldData? CoveragePerOrderUnitSqFt { get; init; }
+
+        public MetafieldData? CalculatorOrderUnitLabel { get; init; }
+
+        public MetafieldData? PiecesPerOrderUnit { get; init; }
+
+        public MetafieldData? CalculatorUnitLengthInches { get; init; }
+
+        public MetafieldData? CalculatorUnitHeightInches { get; init; }
+
+        public MetafieldData? LayersPerPallet { get; init; }
+
+        public MetafieldData? SquareFeetPerLayer { get; init; }
+
+        public MetafieldData? PalletWeightLbs { get; init; }
 
         public List<string> Tags { get; init; } = [];
 
@@ -352,6 +423,22 @@ public sealed class ShopifyAdminClient(
         public string? CompareAtPrice { get; init; }
 
         public ImageData? Image { get; init; }
+
+        public MetafieldData? CoveragePerOrderUnitSqFt { get; init; }
+
+        public MetafieldData? CalculatorOrderUnitLabel { get; init; }
+
+        public MetafieldData? PiecesPerOrderUnit { get; init; }
+
+        public MetafieldData? CalculatorUnitLengthInches { get; init; }
+
+        public MetafieldData? CalculatorUnitHeightInches { get; init; }
+
+        public MetafieldData? LayersPerPallet { get; init; }
+
+        public MetafieldData? SquareFeetPerLayer { get; init; }
+
+        public MetafieldData? PalletWeightLbs { get; init; }
 
         public bool AvailableForSale { get; init; }
     }

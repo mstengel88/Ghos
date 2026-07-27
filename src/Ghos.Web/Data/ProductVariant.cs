@@ -39,6 +39,23 @@ public sealed class ProductVariant
     [MaxLength(160)]
     public string? PickupVendor { get; set; }
 
+    public decimal? CoveragePerOrderUnitSqFt { get; set; }
+
+    [MaxLength(40)]
+    public string? CalculatorOrderUnitLabel { get; set; }
+
+    public int? PiecesPerOrderUnit { get; set; }
+
+    public decimal? CalculatorUnitLengthInches { get; set; }
+
+    public decimal? CalculatorUnitHeightInches { get; set; }
+
+    public int? LayersPerPallet { get; set; }
+
+    public decimal? SquareFeetPerLayer { get; set; }
+
+    public int? PalletWeightLbs { get; set; }
+
     public bool AvailableForSale { get; set; }
 
     public int SortOrder { get; set; }

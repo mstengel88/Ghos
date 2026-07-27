@@ -86,6 +86,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .IsUnique()
                 .HasFilter("\"ProductCode\" IS NOT NULL");
             product.Property(item => item.Status).HasConversion<string>().HasMaxLength(24);
+            product.Property(item => item.CoveragePerOrderUnitSqFt).HasPrecision(18, 4);
+            product.Property(item => item.CalculatorUnitLengthInches).HasPrecision(18, 4);
+            product.Property(item => item.CalculatorUnitHeightInches).HasPrecision(18, 4);
+            product.Property(item => item.SquareFeetPerLayer).HasPrecision(18, 4);
 
             product.HasOne(item => item.ProductCategory)
                 .WithMany(category => category.Products)
@@ -110,6 +114,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             variant.Property(item => item.CompareAtPrice).HasPrecision(18, 2);
             variant.Property(item => item.ContractorTier1Price).HasPrecision(18, 2);
             variant.Property(item => item.ContractorTier2Price).HasPrecision(18, 2);
+            variant.Property(item => item.CoveragePerOrderUnitSqFt).HasPrecision(18, 4);
+            variant.Property(item => item.CalculatorUnitLengthInches).HasPrecision(18, 4);
+            variant.Property(item => item.CalculatorUnitHeightInches).HasPrecision(18, 4);
+            variant.Property(item => item.SquareFeetPerLayer).HasPrecision(18, 4);
 
             variant.HasOne(item => item.Product)
                 .WithMany(product => product.Variants)

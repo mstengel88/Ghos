@@ -4,23 +4,43 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject NavigationManager Navigation
+@inject ShopifySyncService ShopifySyncService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
-<PageTitle>Material Calculator | GHOS</PageTitle>
+<PageTitle>Project Calculators | GHOS</PageTitle>
 
 <div class="tools-heading">
     <div>
         <span class="panel-label">GREEN HILLS PROJECT TOOLS</span>
-        <h2>Material Calculator</h2>
-        <p>The GHOS version of the calculator customers use on Green Hills product pages.</p>
+        <h2>Project Calculators</h2>
+        <p>Shopify product data powers these calculators and the quote workspace from one shared source.</p>
     </div>
     <a class="secondary-action" href="/quotes">Quote history →</a>
 </div>
 
+<div class="tool-tabs" role="tablist" aria-label="Project calculator">
+    <button type="button"
+            class="@(Mode == CalculatorMode.Bulk ? "active" : null)"
+            @onclick="() => ChangeMode(CalculatorMode.Bulk)">
+        Bulk materials
+    </button>
+    <button type="button"
+            class="@(Mode == CalculatorMode.Pavers ? "active" : null)"
+            @onclick="() => ChangeMode(CalculatorMode.Pavers)">
+        Pavers
+    </button>
+    <button type="button"
+            class="@(Mode == CalculatorMode.Walls ? "active" : null)"
+            @onclick="() => ChangeMode(CalculatorMode.Walls)">
+        Walls
+    </button>
+</div>
+
 @if (Loading)
 {
-    <section class="panel loading-copy">Loading Shopify products and material conversions…</section>
+    <section class="panel loading-copy">Loading Shopify products and calculator settings…</section>
 }
-else
+else if (Mode == CalculatorMode.Bulk)
 {
     <div class="calculator-shell">
         <section class="panel calculator-panel">
@@ -35,59 +55,29 @@ else
             <div class="shape-tabs">
                 <button type="button"
                         class="@(Shape == ProjectShape.Rectangle ? "active" : null)"
-                        @onclick="() => Shape = ProjectShape.Rectangle">
-                    Rectangle
-                </button>
+                        @onclick="() => Shape = ProjectShape.Rectangle">Rectangle</button>
                 <button type="button"
                         class="@(Shape == ProjectShape.Circle ? "active" : null)"
-                        @onclick="() => Shape = ProjectShape.Circle">
-                    Circle
-                </button>
+                        @onclick="() => Shape = ProjectShape.Circle">Circle</button>
             </div>
 
             <div class="dimension-grid">
                 @if (Shape == ProjectShape.Rectangle)
                 {
-                    <label class="field">
-                        <span>Length (feet)</span>
-                        <InputNumber @bind-Value="LengthFeet" />
-                    </label>
-                    <label class="field">
-                        <span>Width (feet)</span>
-                        <InputNumber @bind-Value="WidthFeet" />
-                    </label>
+                    <label class="field"><span>Length (feet)</span><InputNumber @bind-Value="LengthFeet" /></label>
+                    <label class="field"><span>Width (feet)</span><InputNumber @bind-Value="WidthFeet" /></label>
                 }
                 else
                 {
-                    <label class="field">
-                        <span>Diameter (feet)</span>
-                        <InputNumber @bind-Value="DiameterFeet" />
-                    </label>
+                    <label class="field"><span>Diameter (feet)</span><InputNumber @bind-Value="DiameterFeet" /></label>
                 }
-                <label class="field">
-                    <span>Depth (inches)</span>
-                    <InputNumber @bind-Value="DepthInches" />
-                </label>
-                <label class="field">
-                    <span>Extra material</span>
-                    <select @bind="ExtraPercent">
-                        @foreach (var value in ExtraOptions)
-                        {
-                            <option value="@value">@value%</option>
-                        }
-                    </select>
-                </label>
+                <label class="field"><span>Depth (inches)</span><InputNumber @bind-Value="DepthInches" /></label>
+                @ExtraSelector
             </div>
 
             <div class="volume-results">
-                <div>
-                    <span>Calculated volume</span>
-                    <strong>@GeometryCalculation.BaseCubicYards.ToString("0.00") yd³</strong>
-                </div>
-                <div>
-                    <span>With @ExtraPercent% extra</span>
-                    <strong>@GeometryCalculation.RecommendedCubicYards.ToString("0.00") yd³</strong>
-                </div>
+                <div><span>Calculated volume</span><strong>@GeometryCalculation.BaseCubicYards.ToString("0.00") yd³</strong></div>
+                <div><span>With @ExtraPercent% extra</span><strong>@GeometryCalculation.RecommendedCubicYards.ToString("0.00") yd³</strong></div>
             </div>
         </section>
 
@@ -96,47 +86,27 @@ else
                 <span>02</span>
                 <div>
                     <h3>Estimated order quantity</h3>
-                    <p>Compare the same project across every bulk material, exactly as on the product-page calculator.</p>
+                    <p>Compare the same project across every bulk material.</p>
                 </div>
             </div>
 
             <div class="conversion-controls">
                 <label class="field">
                     <span>Shopify product / variant</span>
-                    <select value="@SelectedOptionKey" @onchange="ProductChanged">
+                    <select value="@SelectedBulkOptionKey" @onchange="BulkProductChanged">
                         <option value="">Choose a product…</option>
-                        @foreach (var option in ProductOptions)
+                        @foreach (var option in BulkProductOptions)
                         {
                             <option value="@option.Key">@option.Label</option>
                         }
                     </select>
                 </label>
-                <label class="field">
-                    <span>Or enter known cubic yards</span>
-                    <InputNumber @bind-Value="ManualCubicYards" />
-                </label>
+                <label class="field"><span>Or enter known cubic yards</span><InputNumber @bind-Value="ManualCubicYards" /></label>
             </div>
 
-            @if (SelectedOption is not null)
+            @if (SelectedBulkOption is not null)
             {
-                <div class="selected-material">
-                    @if (!string.IsNullOrWhiteSpace(SelectedOption.ImageUrl))
-                    {
-                        <img src="@SelectedOption.ImageUrl" alt="" />
-                    }
-                    <div>
-                        <span>SELECTED MATERIAL</span>
-                        <strong>@SelectedOption.Label</strong>
-                        <small>@(SelectedMaterial?.SoldBy == MaterialSoldBy.Ton
-                            ? $"{SelectedMaterial.TonsPerCubicYard:0.##} tons per cubic yard"
-                            : "Sold by cubic yard")</small>
-                    </div>
-                    <div class="selected-order">
-                        <span>Order</span>
-                        <strong>@SelectedCalculation.OrderQuantity.ToString("0")</strong>
-                        <small>@SelectedCalculation.UnitLabel</small>
-                    </div>
-                </div>
+                @SelectedProductCard(SelectedBulkOption, SelectedBulkCalculation.OrderQuantity, SelectedBulkCalculation.UnitLabel)
             }
 
             <div class="conversion-groups">
@@ -148,8 +118,7 @@ else
                             @foreach (var material in group.Materials)
                             {
                                 var quantity = CalculateFor(material).OrderQuantity;
-                                var selected = ReferenceEquals(material, SelectedMaterial);
-                                <div class="conversion-row @(selected ? "selected" : null)">
+                                <div class="conversion-row @(ReferenceEquals(material, SelectedMaterial) ? "selected" : null)">
                                     <div>
                                         <strong>@material.Name</strong>
                                         <small>@(material.SoldBy == MaterialSoldBy.Ton
@@ -165,65 +134,178 @@ else
             </div>
         </section>
 
-        <aside class="panel quote-panel">
-            <span class="panel-label">NEXT STEP</span>
-            <h3>@(SelectedOption?.Label ?? "Choose a product")</h3>
-            @if (SelectedOption is null)
-            {
-                <p>Select the Shopify product or variant you want to add to a quote.</p>
-            }
-            else
-            {
-                <div class="recommendation">
-                    <span>Recommended order</span>
-                    <strong>@SelectedCalculation.OrderQuantity.ToString("0")</strong>
-                    <small>@SelectedCalculation.UnitLabel</small>
+        @QuotePanel(
+            SelectedBulkOption,
+            SelectedBulkCalculation.OrderQuantity,
+            SelectedBulkCalculation.UnitLabel)
+    </div>
+}
+else
+{
+    var projectKind = Mode == CalculatorMode.Pavers
+        ? ProjectCalculatorKind.Paver
+        : ProjectCalculatorKind.Wall;
+    var options = ProjectProductOptions
+        .Where(option => option.ProjectConfiguration?.Kind == projectKind)
+        .ToList();
+    var result = ProjectCalculation;
+
+    <div class="calculator-shell project-calculator-shell">
+        <section class="panel calculator-panel">
+            <div class="calculator-intro">
+                <span>01</span>
+                <div>
+                    <h3>@(projectKind == ProjectCalculatorKind.Paver ? "Paver project measurements" : "Wall measurements")</h3>
+                    <p>@(projectKind == ProjectCalculatorKind.Paver
+                        ? "Calculate a rectangle or circle and include material for cuts and waste."
+                        : "Calculate wall face area, subtract openings, and include material for cuts and waste.")</p>
                 </div>
-                <button type="button"
-                        class="primary-action"
-                        disabled="@(SelectedCalculation.OrderQuantity <= 0)"
-                        @onclick="CreateQuote">
-                    Add @SelectedCalculation.OrderQuantity.ToString("0") to a quote
-                </button>
-                @if (!string.IsNullOrWhiteSpace(SelectedOption.ShopifyHandle))
+            </div>
+
+            @if (projectKind == ProjectCalculatorKind.Paver)
+            {
+                <div class="shape-tabs">
+                    <button type="button"
+                            class="@(Shape == ProjectShape.Rectangle ? "active" : null)"
+                            @onclick="() => Shape = ProjectShape.Rectangle">Rectangle</button>
+                    <button type="button"
+                            class="@(Shape == ProjectShape.Circle ? "active" : null)"
+                            @onclick="() => Shape = ProjectShape.Circle">Circle</button>
+                </div>
+            }
+
+            <div class="dimension-grid project-dimensions">
+                @if (projectKind == ProjectCalculatorKind.Paver && Shape == ProjectShape.Circle)
                 {
-                    <a class="product-return"
-                       href="https://www.greenhillssupply.com/products/@SelectedOption.ShopifyHandle"
-                       target="_blank"
-                       rel="noopener">
-                        View Shopify product →
-                    </a>
+                    <label class="field"><span>Diameter (feet)</span><InputNumber @bind-Value="DiameterFeet" /></label>
+                }
+                else
+                {
+                    <label class="field"><span>Total length (feet)</span><InputNumber @bind-Value="LengthFeet" /></label>
+                    @if (projectKind == ProjectCalculatorKind.Paver)
+                    {
+                        <label class="field"><span>Width (feet)</span><InputNumber @bind-Value="WidthFeet" /></label>
+                    }
+                    else
+                    {
+                        <label class="field"><span>Average height (feet)</span><InputNumber @bind-Value="WallHeightFeet" /></label>
+                    }
+                }
+                @if (projectKind == ProjectCalculatorKind.Wall)
+                {
+                    <label class="field"><span>Openings to subtract (sq. ft.)</span><InputNumber @bind-Value="OpeningsSqFt" /></label>
+                }
+                @ExtraSelector
+            </div>
+        </section>
+
+        <section class="panel conversion-panel">
+            <div class="calculator-intro">
+                <span>02</span>
+                <div>
+                    <h3>Select the Shopify product</h3>
+                    <p>Coverage and packaging refresh from the same metafields used by the product-page calculator.</p>
+                </div>
+            </div>
+
+            <div class="conversion-controls single-control">
+                <label class="field">
+                    <span>@(projectKind == ProjectCalculatorKind.Paver ? "Paver / purchase unit" : "Wall block / purchase unit")</span>
+                    <select value="@SelectedProjectOptionKey" @onchange="ProjectProductChanged">
+                        <option value="">Choose a product…</option>
+                        @foreach (var option in options)
+                        {
+                            <option value="@option.Key">@option.Label</option>
+                        }
+                    </select>
+                </label>
+            </div>
+
+            @if (SelectedProjectOption is not null &&
+                 SelectedProjectConfiguration is not null &&
+                 result is not null)
+            {
+                @SelectedProductCard(
+                    SelectedProjectOption,
+                    result.OrderQuantity,
+                    result.OrderUnitLabel)
+
+                <div class="project-results">
+                    <div><span>Base area</span><strong>@result.BaseAreaSqFt.ToString("0.00") sq. ft.</strong></div>
+                    <div><span>With @ExtraPercent% extra</span><strong>@result.RequiredAreaSqFt.ToString("0.00") sq. ft.</strong></div>
+                    <div><span>Recommended order</span><strong>@result.OrderQuantity.ToString("0") @result.OrderUnitLabel</strong></div>
+                    <div><span>Estimated coverage</span><strong>@result.ProvidedCoverageSqFt.ToString("0.00") sq. ft.</strong></div>
+                </div>
+
+                @if (SelectedProjectConfiguration.IsStandardDiscover && result.RecommendedTotalLayers > 0)
+                {
+                    <div class="project-callout">
+                        <span>RECOMMENDED DISCOVER PURCHASE</span>
+                        <strong>@result.RecommendedPurchase</strong>
+                        <p>@result.RecommendedTotalLayers total layers provide @result.ProvidedCoverageSqFt.ToString("0.00") sq. ft.</p>
+                    </div>
+                }
+
+                @if (projectKind == ProjectCalculatorKind.Wall && result.EstimatedFullBlocks > 0)
+                {
+                    <div class="project-callout">
+                        <span>WALL PLANNING DETAILS</span>
+                        <strong>@result.EstimatedFullBlocks estimated full blocks · @result.EstimatedCourses courses</strong>
+                        <p>Corners, caps, columns, curves, reinforcement, and site conditions are calculated separately.</p>
+                    </div>
+                }
+
+                @if (SelectedProjectConfiguration.CoveragePerOrderUnitSqFt <= 0)
+                {
+                    <div class="calculator-warning">
+                        Add the product’s coverage-per-order-unit metafield in Shopify, then refresh products in GHOS.
+                    </div>
                 }
             }
-            <p class="disclaimer">Planning estimate only. Site conditions, compaction, and installation methods can change the quantity required. Call (262) 345-4001 if you want help confirming an order.</p>
-        </aside>
+        </section>
+
+        @QuotePanel(
+            SelectedProjectOption,
+            result?.OrderQuantity ?? 0m,
+            result?.OrderUnitLabel ?? "order units")
     </div>
 }
 
 @code {
     private static readonly int[] ExtraOptions = [0, 5, 10, 15, 20];
-    private List<CalculatorProductOption> ProductOptions { get; set; } = [];
-    private string SelectedOptionKey { get; set; } = string.Empty;
-    private CalculatorProductOption? SelectedOption =>
-        ProductOptions.FirstOrDefault(option => option.Key == SelectedOptionKey);
-    private MaterialConversion? SelectedMaterial =>
-        SelectedOption is null
-            ? null
-            : MaterialCalculator.Find(
-                SelectedOption.ProductName,
-                SelectedOption.ShopifyHandle,
-                SelectedOption.VariantTitle);
-    private IReadOnlyList<MaterialConversionGroup> OrderedGroups =>
-        MaterialCalculator.OrderedGroups(SelectedMaterial);
+    private List<CalculatorProductOption> BulkProductOptions { get; set; } = [];
+    private List<CalculatorProductOption> ProjectProductOptions { get; set; } = [];
+    private string SelectedBulkOptionKey { get; set; } = string.Empty;
+    private string SelectedProjectOptionKey { get; set; } = string.Empty;
+    private CalculatorMode Mode { get; set; }
     private bool Loading { get; set; } = true;
     private ProjectShape Shape { get; set; } = ProjectShape.Rectangle;
     private decimal LengthFeet { get; set; }
     private decimal WidthFeet { get; set; }
     private decimal DiameterFeet { get; set; }
     private decimal DepthInches { get; set; } = 3m;
+    private decimal WallHeightFeet { get; set; }
+    private decimal OpeningsSqFt { get; set; }
     private decimal ManualCubicYards { get; set; }
     private int ExtraPercent { get; set; } = 10;
 
+    private CalculatorProductOption? SelectedBulkOption =>
+        BulkProductOptions.FirstOrDefault(option =>
+            option.Key == SelectedBulkOptionKey);
+    private CalculatorProductOption? SelectedProjectOption =>
+        ProjectProductOptions.FirstOrDefault(option =>
+            option.Key == SelectedProjectOptionKey);
+    private ProjectProductConfiguration? SelectedProjectConfiguration =>
+        SelectedProjectOption?.ProjectConfiguration;
+    private MaterialConversion? SelectedMaterial =>
+        SelectedBulkOption is null
+            ? null
+            : MaterialCalculator.Find(
+                SelectedBulkOption.ProductName,
+                SelectedBulkOption.ShopifyHandle,
+                SelectedBulkOption.VariantTitle);
+    private IReadOnlyList<MaterialConversionGroup> OrderedGroups =>
+        MaterialCalculator.OrderedGroups(SelectedMaterial);
     private MaterialCalculation GeometryCalculation =>
         MaterialCalculator.Calculate(
             Shape,
@@ -234,12 +316,45 @@ else
             0m,
             ExtraPercent,
             SelectedMaterial);
-
-    private MaterialCalculation SelectedCalculation =>
+    private MaterialCalculation SelectedBulkCalculation =>
         CalculateFor(SelectedMaterial);
+    private PaverWallCalculation? ProjectCalculation =>
+        SelectedProjectConfiguration is null
+            ? null
+            : PaverWallCalculator.Calculate(
+                SelectedProjectConfiguration,
+                Shape,
+                LengthFeet,
+                WidthFeet,
+                DiameterFeet,
+                WallHeightFeet,
+                OpeningsSqFt,
+                ExtraPercent);
+
+    private RenderFragment ExtraSelector => @<label class="field">
+        <span>Extra for cuts / waste</span>
+        <select @bind="ExtraPercent">
+            @foreach (var value in ExtraOptions)
+            {
+                <option value="@value">@value%</option>
+            }
+        </select>
+    </label>;
 
     protected override async Task OnInitializedAsync()
     {
+        var authenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        try
+        {
+            await ShopifySyncService.SynchronizeIfStaleAsync(
+                authenticationState.User);
+        }
+        catch
+        {
+            // Use the last successful product snapshot when Shopify is unavailable.
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
         var products = await dbContext.Products
             .AsNoTracking()
@@ -248,43 +363,70 @@ else
             .OrderBy(product => product.ProductCategory.SortOrder)
             .ThenBy(product => product.Name)
             .ToListAsync();
-        ProductOptions = products
-            .SelectMany(product => product.Variants.Count == 0
-                ? [new CalculatorProductOption(
-                    product.Id.ToString(),
-                    product.Id,
-                    null,
-                    product.Name,
-                    product.Name,
-                    null,
-                    product.ShopifyHandle,
-                    product.ShopifyFeaturedImageUrl)]
-                : product.Variants
-                    .OrderBy(variant => variant.SortOrder)
-                    .Select(variant => new CalculatorProductOption(
-                        variant.Id.ToString(),
-                        product.Id,
-                        variant.Id,
-                        variant.Title.Equals(
-                            "Default Title",
-                            StringComparison.OrdinalIgnoreCase)
-                                ? product.Name
-                                : $"{product.Name} — {variant.Title}",
-                        product.Name,
-                        variant.Title,
-                        product.ShopifyHandle,
-                        variant.ImageUrl ?? product.ShopifyFeaturedImageUrl)))
+
+        var options = products.SelectMany(CreateOptions).ToList();
+        BulkProductOptions = options
             .Where(option =>
                 MaterialCalculator.Find(
                     option.ProductName,
                     option.ShopifyHandle,
                     option.VariantTitle) is not null)
             .ToList();
+        ProjectProductOptions = options
+            .Where(option => option.ProjectConfiguration is not null)
+            .ToList();
         Loading = false;
     }
 
-    private void ProductChanged(ChangeEventArgs args) =>
-        SelectedOptionKey = args.Value?.ToString() ?? string.Empty;
+    private static IEnumerable<CalculatorProductOption> CreateOptions(
+        Product product)
+    {
+        if (product.Variants.Count == 0)
+        {
+            yield return new(
+                product.Id.ToString(),
+                product.Id,
+                null,
+                product.Name,
+                product.Name,
+                null,
+                product.ShopifyHandle,
+                product.ShopifyFeaturedImageUrl,
+                PaverWallCalculator.Resolve(product));
+            yield break;
+        }
+
+        foreach (var variant in product.Variants.OrderBy(item => item.SortOrder))
+        {
+            yield return new(
+                variant.Id.ToString(),
+                product.Id,
+                variant.Id,
+                variant.Title.Equals(
+                    "Default Title",
+                    StringComparison.OrdinalIgnoreCase)
+                        ? product.Name
+                        : $"{product.Name} — {variant.Title}",
+                product.Name,
+                variant.Title,
+                product.ShopifyHandle,
+                variant.ImageUrl ?? product.ShopifyFeaturedImageUrl,
+                PaverWallCalculator.Resolve(product, variant));
+        }
+    }
+
+    private void ChangeMode(CalculatorMode mode)
+    {
+        Mode = mode;
+        Shape = ProjectShape.Rectangle;
+        SelectedProjectOptionKey = string.Empty;
+    }
+
+    private void BulkProductChanged(ChangeEventArgs args) =>
+        SelectedBulkOptionKey = args.Value?.ToString() ?? string.Empty;
+
+    private void ProjectProductChanged(ChangeEventArgs args) =>
+        SelectedProjectOptionKey = args.Value?.ToString() ?? string.Empty;
 
     private MaterialCalculation CalculateFor(MaterialConversion? material) =>
         MaterialCalculator.Calculate(
@@ -297,18 +439,81 @@ else
             ExtraPercent,
             material);
 
-    private void CreateQuote()
+    private RenderFragment SelectedProductCard(
+        CalculatorProductOption option,
+        decimal quantity,
+        string unitLabel) => @<div class="selected-material">
+        @if (!string.IsNullOrWhiteSpace(option.ImageUrl))
+        {
+            <img src="@option.ImageUrl" alt="" />
+        }
+        <div>
+            <span>SELECTED PRODUCT</span>
+            <strong>@option.Label</strong>
+            <small>Calculator configuration refreshed from Shopify</small>
+        </div>
+        <div class="selected-order">
+            <span>Order</span>
+            <strong>@quantity.ToString("0")</strong>
+            <small>@unitLabel</small>
+        </div>
+    </div>;
+
+    private RenderFragment QuotePanel(
+        CalculatorProductOption? option,
+        decimal quantity,
+        string unitLabel) => @<aside class="panel quote-panel">
+        <span class="panel-label">NEXT STEP</span>
+        <h3>@(option?.Label ?? "Choose a product")</h3>
+        @if (option is null)
+        {
+            <p>Select the Shopify product or variant you want to add to a quote.</p>
+        }
+        else
+        {
+            <div class="recommendation">
+                <span>Recommended order</span>
+                <strong>@quantity.ToString("0")</strong>
+                <small>@unitLabel</small>
+            </div>
+            <button type="button"
+                    class="primary-action"
+                    disabled="@(quantity <= 0)"
+                    @onclick="() => CreateQuote(option, quantity)">
+                Add @quantity.ToString("0") to a quote
+            </button>
+            @if (!string.IsNullOrWhiteSpace(option.ShopifyHandle))
+            {
+                <a class="product-return"
+                   href="https://www.greenhillssupply.com/products/@option.ShopifyHandle"
+                   target="_blank"
+                   rel="noopener">View Shopify product →</a>
+            }
+        }
+        <p class="disclaimer">Planning estimate only. Product coverage, patterns, cuts, corners, caps, base preparation, compaction, and site conditions can change actual quantities.</p>
+    </aside>;
+
+    private void CreateQuote(
+        CalculatorProductOption option,
+        decimal quantity)
     {
-        if (SelectedOption is null || SelectedCalculation.OrderQuantity <= 0)
+        if (quantity <= 0)
         {
             return;
         }
 
-        var variantQuery = SelectedOption.ProductVariantId is null
+        var variantQuery = option.ProductVariantId is null
             ? string.Empty
-            : $"&variantId={SelectedOption.ProductVariantId}";
+            : $"&variantId={option.ProductVariantId}";
         Navigation.NavigateTo(
-            $"/quotes/new?productId={SelectedOption.ProductId}{variantQuery}&quantity={SelectedCalculation.OrderQuantity}");
+            $"/quotes/new?productId={option.ProductId}{variantQuery}&quantity={quantity}");
+    }
+
+    private enum CalculatorMode
+    {
+        Bulk,
+        Pavers,
+        Walls
     }
 
     private sealed record CalculatorProductOption(
@@ -319,5 +524,6 @@ else
         string ProductName,
         string? VariantTitle,
         string? ShopifyHandle,
-        string? ImageUrl);
+        string? ImageUrl,
+        ProjectProductConfiguration? ProjectConfiguration);
 }
