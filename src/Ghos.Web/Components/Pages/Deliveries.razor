@@ -173,7 +173,8 @@ else
                                                 <div class="calendar-order-timing">
                                                     <span>
                                                         Window:
-                                                        @GetDeliveryWindow(delivery)
+                                                        @GetDispatchWindowTime(
+                                                            delivery)
                                                     </span>
                                                     <span>
                                                         @GetRoundTripTime(
@@ -318,8 +319,13 @@ else
                             SelectedDelivery.ScheduledForUtc)</dd>
                     </div>
                     <div>
-                        <dt>Delivery window</dt>
-                        <dd>@GetDeliveryWindow(SelectedDelivery)</dd>
+                        <dt>Dispatch window time</dt>
+                        <dd>@GetDispatchWindowTime(
+                            SelectedDelivery)</dd>
+                    </div>
+                    <div>
+                        <dt>Customer time preference</dt>
+                        <dd>@GetTimePreference(SelectedDelivery)</dd>
                     </div>
                     <div>
                         <dt>Route / stop</dt>
@@ -598,7 +604,12 @@ else
             : $"{order.DeliveryAddress}, {locality}";
     }
 
-    private static string GetDeliveryWindow(Delivery delivery) =>
+    private static string GetDispatchWindowTime(Delivery delivery) =>
+        string.IsNullOrWhiteSpace(delivery.Eta)
+            ? "Not scheduled"
+            : delivery.Eta.Trim();
+
+    private static string GetTimePreference(Delivery delivery) =>
         string.IsNullOrWhiteSpace(
             delivery.SalesOrder.TimePreference)
             ? "Not specified"
