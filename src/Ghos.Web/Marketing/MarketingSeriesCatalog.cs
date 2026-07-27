@@ -13,6 +13,22 @@ public sealed record MarketingSeriesDefinition(
 
 public static class MarketingSeriesCatalog
 {
+    private const int SlugMaxLength = 180;
+    private const int TitleMaxLength = 160;
+    private const int SeriesMaxLength = 80;
+    private const int TemplateKeyMaxLength = 80;
+    private const int HeadlineMaxLength = 120;
+    private const int SubheadlineMaxLength = 220;
+    private const int AlternateNameMaxLength = 160;
+    private const int FactItemsMaxLength = 1200;
+    private const int FacebookCaptionMaxLength = 4000;
+    private const int InstagramCaptionMaxLength = 2200;
+    private const int StoryPromptMaxLength = 600;
+    private const int ReelScriptMaxLength = 4000;
+    private const int HashtagsMaxLength = 1000;
+    private const int CallToActionMaxLength = 220;
+    private const int DestinationUrlMaxLength = 2048;
+
     public static readonly IReadOnlyList<MarketingSeriesDefinition> All =
     [
         new(
@@ -89,34 +105,61 @@ public static class MarketingSeriesCatalog
 
         return new MarketingContentPackage
         {
-            Slug = $"{series.Key}-{product.Slug}-{localDate:yyyy-MM-dd}",
-            Title = $"{series.Name} — {product.Name}",
-            Series = series.Name,
-            TemplateKey = series.Key,
+            Slug = BuildSlug(series, product, localDate),
+            Title = Fit(
+                $"{series.Name} — {product.Name}",
+                TitleMaxLength),
+            Series = Fit(series.Name, SeriesMaxLength),
+            TemplateKey = Fit(series.Key, TemplateKeyMaxLength),
             Status = MarketingContentStatus.Draft,
             ScheduledForUtc = scheduledForUtc,
             ProductId = product.Id,
             DigitalAssetId = primaryAsset?.Id,
-            Headline = BuildHeadline(series.Key, product),
-            AlternateName = alternateName,
-            Subheadline = BuildSubheadline(series.Key, product, description),
-            FactItems = string.Join(Environment.NewLine, facts),
-            FacebookCaption = BuildFacebookDraft(
-                series.Key,
-                product,
-                description,
-                facts,
-                destinationUrl),
-            InstagramCaption = BuildInstagramDraft(
-                series.Key,
-                product,
-                description,
-                facts),
-            StoryPrompt = BuildStoryPrompt(series.Key, product),
-            ReelScript = BuildReelDraft(series.Key, product),
-            Hashtags = BuildHashtags(series, product),
-            CallToAction = BuildCallToAction(series.Key),
-            DestinationUrl = destinationUrl,
+            Headline = Fit(
+                BuildHeadline(series.Key, product),
+                HeadlineMaxLength),
+            AlternateName = FitOrNull(
+                alternateName,
+                AlternateNameMaxLength),
+            Subheadline = Fit(
+                BuildSubheadline(
+                    series.Key,
+                    product,
+                    description),
+                SubheadlineMaxLength),
+            FactItems = Fit(
+                string.Join(Environment.NewLine, facts),
+                FactItemsMaxLength),
+            FacebookCaption = Fit(
+                BuildFacebookDraft(
+                    series.Key,
+                    product,
+                    description,
+                    facts,
+                    destinationUrl),
+                FacebookCaptionMaxLength),
+            InstagramCaption = Fit(
+                BuildInstagramDraft(
+                    series.Key,
+                    product,
+                    description,
+                    facts),
+                InstagramCaptionMaxLength),
+            StoryPrompt = Fit(
+                BuildStoryPrompt(series.Key, product),
+                StoryPromptMaxLength),
+            ReelScript = Fit(
+                BuildReelDraft(series.Key, product),
+                ReelScriptMaxLength),
+            Hashtags = Fit(
+                BuildHashtags(series, product),
+                HashtagsMaxLength),
+            CallToAction = Fit(
+                BuildCallToAction(series.Key),
+                CallToActionMaxLength),
+            DestinationUrl = Fit(
+                destinationUrl,
+                DestinationUrlMaxLength),
             LayoutSettingsJson = "{}",
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
@@ -324,4 +367,54 @@ public static class MarketingSeriesCatalog
         var handle = product.ShopifyHandle ?? product.Slug;
         return $"https://greenhillssupply.com/products/{handle}";
     }
+
+    private static string BuildSlug(
+        MarketingSeriesDefinition series,
+        Product product,
+        DateTime localDate)
+    {
+        var value =
+            $"{series.Key}-{product.Slug}-{localDate:yyyy-MM-dd}";
+        if (value.Length <= SlugMaxLength)
+        {
+            return value;
+        }
+
+        var suffix =
+            $"-{product.Id:N}-{localDate:yyyy-MM-dd}";
+        var productLength = Math.Max(
+            1,
+            SlugMaxLength -
+            series.Key.Length -
+            suffix.Length -
+            1);
+        var productSlug = product.Slug.Length <= productLength
+            ? product.Slug
+            : product.Slug[..productLength].TrimEnd('-');
+        return $"{series.Key}-{productSlug}{suffix}";
+    }
+
+    private static string Fit(string value, int maxLength)
+    {
+        if (value.Length <= maxLength)
+        {
+            return value;
+        }
+
+        var contentLength = maxLength - 1;
+        if (contentLength > 0 &&
+            char.IsHighSurrogate(value[contentLength - 1]))
+        {
+            contentLength--;
+        }
+
+        return $"{value[..contentLength].TrimEnd()}…";
+    }
+
+    private static string? FitOrNull(
+        string? value,
+        int maxLength) =>
+        value is null
+            ? null
+            : Fit(value, maxLength);
 }

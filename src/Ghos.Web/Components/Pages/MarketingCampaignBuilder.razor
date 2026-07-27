@@ -6,6 +6,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
+@inject ILogger<MarketingCampaignBuilder> Logger
 
 <PageTitle>Campaign Builder | GHOS</PageTitle>
 
@@ -267,8 +268,13 @@ else
             NavigationManager.NavigateTo(
                 $"/marketing?contentId={draft.Id}");
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception)
         {
+            Logger.LogError(
+                exception,
+                "GHOS could not create {SeriesKey} draft for product {ProductId}.",
+                series.Key,
+                product.Id);
             ErrorMessage =
                 "The draft could not be created. Existing campaigns were not changed.";
         }
