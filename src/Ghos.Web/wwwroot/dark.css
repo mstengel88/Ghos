@@ -157,6 +157,186 @@
     color: #d4e8a1;
 }
 
+/*
+ * Operational workspaces contain nested surfaces inside the shared .panel
+ * shell. Keep those surfaces dark as well so pages do not become a mixture of
+ * dark cards and white work areas.
+ */
+:root[data-theme="dark"] .board-toolbar,
+:root[data-theme="dark"] .list-toolbar,
+:root[data-theme="dark"] .month-toolbar,
+:root[data-theme="dark"] .order-table-header,
+:root[data-theme="dark"] .delivery-lane,
+:root[data-theme="dark"] .calendar-navigation,
+:root[data-theme="dark"] .confirmation-panel,
+:root[data-theme="dark"] .setup-panel code,
+:root[data-theme="dark"] .setup-meta span,
+:root[data-theme="dark"] .last-run-counts span,
+:root[data-theme="dark"] .completion-section,
+:root[data-theme="dark"] .asset-preview,
+:root[data-theme="dark"] .catalog-table th,
+:root[data-theme="dark"] .completeness > div {
+    background: var(--ghos-surface-muted) !important;
+    border-color: var(--ghos-border) !important;
+    color: var(--ghos-text-secondary) !important;
+}
+
+:root[data-theme="dark"] .calendar-navigation button,
+:root[data-theme="dark"] .month-toolbar button,
+:root[data-theme="dark"] .editor-heading button,
+:root[data-theme="dark"] .selection-tools button,
+:root[data-theme="dark"] .format-tabs button,
+:root[data-theme="dark"] .layout-element-tabs button,
+:root[data-theme="dark"] .reset-image-button,
+:root[data-theme="dark"] .reset-layout-button,
+:root[data-theme="dark"] .save-button,
+:root[data-theme="dark"] .cancel-delete-button,
+:root[data-theme="dark"] .calendar-no-date button,
+:root[data-theme="dark"] .secondary-link,
+:root[data-theme="dark"] .secondary-action {
+    background: var(--ghos-surface-raised) !important;
+    border-color: var(--ghos-border-strong) !important;
+    color: var(--ghos-text-secondary) !important;
+}
+
+:root[data-theme="dark"] .delivery-view-switch button.active,
+:root[data-theme="dark"] .format-tabs button.active,
+:root[data-theme="dark"] .layout-element-tabs button.active {
+    background: var(--ghos-accent) !important;
+    color: #142116 !important;
+}
+
+:root[data-theme="dark"] .catalog-table td,
+:root[data-theme="dark"] .bulk-table td,
+:root[data-theme="dark"] .variant-table td,
+:root[data-theme="dark"] .preview-table td {
+    background: var(--ghos-surface) !important;
+    border-color: var(--ghos-border) !important;
+    color: var(--ghos-text-secondary) !important;
+}
+
+:root[data-theme="dark"] .bulk-table tr.selected td,
+:root[data-theme="dark"] .catalog-table tbody tr:hover td {
+    background: #213019 !important;
+}
+
+:root[data-theme="dark"] .proof-panel,
+:root[data-theme="dark"] .open-dispatch-order,
+:root[data-theme="dark"] .published-links a,
+:root[data-theme="dark"] .refresh-product-button,
+:root[data-theme="dark"] .download-creative,
+:root[data-theme="dark"] .readiness-heading > strong,
+:root[data-theme="dark"] .readiness-checks .ready,
+:root[data-theme="dark"] .module-notice,
+:root[data-theme="dark"] .sync-success,
+:root[data-theme="dark"] .queue-alert.success {
+    background: var(--ghos-accent-soft) !important;
+    border-color: #4d6327 !important;
+    color: var(--ghos-accent-text) !important;
+}
+
+:root[data-theme="dark"] .closed-day-review,
+:root[data-theme="dark"] .readiness-checks .missing,
+:root[data-theme="dark"] .queue-status.readyforreview {
+    background: #332b19 !important;
+    border-color: #705c2a !important;
+    color: #e8ca75 !important;
+}
+
+:root[data-theme="dark"] .delete-confirmation,
+:root[data-theme="dark"] .dispatch-alert.error,
+:root[data-theme="dark"] .queue-alert.error,
+:root[data-theme="dark"] .queue-card.mapping-error {
+    background: #38201f !important;
+    border-color: #70413d !important;
+    color: #f1b8b2 !important;
+}
+
+:root[data-theme="dark"] .status-draft,
+:root[data-theme="dark"] .order-new,
+:root[data-theme="dark"] .delivery-unscheduled,
+:root[data-theme="dark"] .status-pill.archived,
+:root[data-theme="dark"] .availability span,
+:root[data-theme="dark"] .asset-kind,
+:root[data-theme="dark"] .queue-status {
+    background: #263129 !important;
+    color: #c3cec5 !important;
+}
+
+:root[data-theme="dark"] .status-review,
+:root[data-theme="dark"] .order-hold,
+:root[data-theme="dark"] .delivery-issue,
+:root[data-theme="dark"] .status-pill.pendingreview {
+    background: #3b301a !important;
+    color: #e6c86c !important;
+}
+
+:root[data-theme="dark"] .status-scheduled,
+:root[data-theme="dark"] .order-scheduled,
+:root[data-theme="dark"] .delivery-scheduled,
+:root[data-theme="dark"] .status-pill.approved,
+:root[data-theme="dark"] .queue-status.scheduled {
+    background: #293b1b !important;
+    color: #c2e66b !important;
+}
+
+:root[data-theme="dark"] .delivery-enroute,
+:root[data-theme="dark"] .delivery-arrived {
+    background: #1d3541 !important;
+    color: #9bd2ee !important;
+}
+
+:root[data-theme="dark"] .status-published,
+:root[data-theme="dark"] .order-delivered,
+:root[data-theme="dark"] .delivery-delivered,
+:root[data-theme="dark"] .queue-status.published {
+    background: #1d392d !important;
+    color: #9ed9bd !important;
+}
+
+:root[data-theme="dark"] .order-cancelled,
+:root[data-theme="dark"] .delivery-cancelled,
+:root[data-theme="dark"] .status-archived {
+    background: #312a2e !important;
+    color: #c9b8c0 !important;
+}
+
+:root[data-theme="dark"] .delivery-card-date,
+:root[data-theme="dark"] .empty-icon,
+:root[data-theme="dark"] .sidebar-heading > span,
+:root[data-theme="dark"] .ticket-heading > span,
+:root[data-theme="dark"] .queue-count,
+:root[data-theme="dark"] .card-meta span,
+:root[data-theme="dark"] .ticket-placeholder > span {
+    background: var(--ghos-accent-soft) !important;
+    color: var(--ghos-accent-text) !important;
+}
+
+:root[data-theme="dark"] .detail-links,
+:root[data-theme="dark"] .ticket-list a,
+:root[data-theme="dark"] .unscheduled-list button,
+:root[data-theme="dark"] .asset-card-footer,
+:root[data-theme="dark"] .studio-link {
+    border-color: var(--ghos-border) !important;
+}
+
+:root[data-theme="dark"] .heading-actions a,
+:root[data-theme="dark"] .delivery-detail a,
+:root[data-theme="dark"] .row-action,
+:root[data-theme="dark"] .studio-link,
+:root[data-theme="dark"] .asset-card-footer a {
+    color: var(--ghos-accent-text) !important;
+}
+
+:root[data-theme="dark"] .delivery-lane > p,
+:root[data-theme="dark"] .calendar-day > div > p,
+:root[data-theme="dark"] .orders-empty,
+:root[data-theme="dark"] .delivery-empty,
+:root[data-theme="dark"] .catalog-empty,
+:root[data-theme="dark"] .asset-empty {
+    color: var(--ghos-text-muted) !important;
+}
+
 :root[data-theme="dark"] ::selection {
     background: #739b18;
     color: #ffffff;
