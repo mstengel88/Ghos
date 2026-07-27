@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#142116" />
+    <title>GHOS is offline</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+            display: grid;
+            place-items: center;
+            background: #f3f5f2;
+            color: #172019;
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        }
+        main {
+            width: min(100%, 480px);
+            padding: 36px;
+            border: 1px solid #dfe6dc;
+            border-radius: 18px;
+            background: white;
+            box-shadow: 0 18px 50px rgba(20, 33, 22, .08);
+            text-align: center;
+        }
+        .mark {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 22px;
+            border-radius: 16px;
+            display: grid;
+            place-items: center;
+            background: #9BC623;
+            color: #142116;
+            font-weight: 950;
+            letter-spacing: -.04em;
+        }
+        h1 { margin: 0 0 10px; font-size: 1.7rem; }
+        p { margin: 0; color: #647066; line-height: 1.55; }
+        button {
+            margin-top: 24px;
+            padding: 11px 18px;
+            border: 0;
+            border-radius: 9px;
+            background: #9BC623;
+            color: #142116;
+            font: inherit;
+            font-weight: 850;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="mark">GH</div>
+        <h1>GHOS needs a connection</h1>
+        <p>Operational data is intentionally kept live and secure. Reconnect to the Green Hills network or Tailscale, then try again.</p>
+        <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+</body>
+</html>

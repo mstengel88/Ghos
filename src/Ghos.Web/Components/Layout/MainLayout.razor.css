@@ -50,6 +50,22 @@
     gap: 12px;
 }
 
+.pwa-action {
+    padding: 8px 12px;
+    border: 1px solid #9BC623;
+    border-radius: 8px;
+    background: #f6faeb;
+    color: #3f5708;
+    font-size: .76rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.pwa-action:hover {
+    background: #9BC623;
+    color: #142116;
+}
+
 .ghos-user-text {
     display: flex;
     flex-direction: column;
@@ -121,5 +137,9 @@
 
     .ghos-user-text {
         display: none;
+    }
+
+    .pwa-action {
+        padding-inline: 10px;
     }
 }

@@ -15,6 +15,12 @@
             <AuthorizeView>
                 <Authorized Context="auth">
                     <div class="ghos-user">
+                        <button id="ghos-pwa-action"
+                                class="pwa-action"
+                                type="button"
+                                hidden>
+                            Install GHOS
+                        </button>
                         <div class="ghos-user-text">
                             <strong>@GetDisplayName(auth.User)</strong>
                             <span>@GetPrimaryRole(auth.User)</span>
