@@ -130,7 +130,8 @@ public sealed class DumpSiteOperatorService(
                     $"No Counterpoint customer number is mapped for {entry.CompanyName}.");
             }
 
-            if (!entry.ConfirmationId.StartsWith(
+            if (entry.ConfirmationId.Length <= 5 ||
+                !entry.ConfirmationId.StartsWith(
                     "201-D",
                     StringComparison.Ordinal) ||
                 !entry.ConfirmationId[5..].All(char.IsDigit))
@@ -141,6 +142,15 @@ public sealed class DumpSiteOperatorService(
 
             var unitPrice = GetDecimal(item, "price");
             var tax = GetDecimal(item, "tax");
+            var barcode = GetString(item, "sku");
+            if (string.IsNullOrWhiteSpace(barcode))
+            {
+                throw new DumpSiteConnectionException(
+                    $"The item mapping for {itemKey} does not have a barcode.");
+            }
+            var itemDescription = FirstValue(
+                GetString(item, "name"),
+                $"{entry.MaterialType} - {entry.VehicleType}");
             var submittedByName = GetCustomerField(
                 entry.ShopifyCustomer,
                 "name");
@@ -164,8 +174,8 @@ public sealed class DumpSiteOperatorService(
                 entry.DriverName,
                 entry.MaterialType,
                 entry.VehicleType,
-                GetString(item, "sku"),
-                GetString(item, "name"),
+                barcode,
+                itemDescription,
                 1,
                 unitPrice,
                 tax,
