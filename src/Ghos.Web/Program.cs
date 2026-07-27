@@ -93,6 +93,11 @@ builder.Services
 builder.Services.AddScoped<
     IUserClaimsPrincipalFactory<ApplicationUser>,
     ApplicationUserClaimsPrincipalFactory>();
+builder.Services.AddScoped<UserAdministrationService>();
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+{
+    options.ValidationInterval = TimeSpan.FromMinutes(2);
+});
 
 builder.Services.ConfigureApplicationCookie(options =>
 {

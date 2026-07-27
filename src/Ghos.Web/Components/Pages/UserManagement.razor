@@ -1,0 +1,585 @@
+@page "/settings/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.AdministratorOnly)]
+@inject UserAdministrationService UserAdministration
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<UserManagement> Logger
+
+<PageTitle>User Management | GHOS</PageTitle>
+
+<div class="users-heading">
+    <div>
+        <a href="/settings">← Settings</a>
+        <span class="panel-label">ACCESS CONTROL</span>
+        <h2>User management</h2>
+        <p>Create staff accounts, assign only the access each person needs, deactivate departures, and issue secure password resets.</p>
+    </div>
+    <button class="primary-action"
+            type="button"
+            @onclick="BeginCreate">
+        + Add user
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="users-alert error" role="alert">@ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="users-alert success" role="status">@SuccessMessage</div>
+}
+
+<div class="user-metrics">
+    <article class="panel">
+        <span>Total users</span>
+        <strong>@Users.Count</strong>
+    </article>
+    <article class="panel">
+        <span>Active</span>
+        <strong>@Users.Count(user => user.IsActive)</strong>
+    </article>
+    <article class="panel">
+        <span>Administrators</span>
+        <strong>@Users.Count(user => user.IsActive && user.Roles.Contains(GhosRoles.Administrator))</strong>
+    </article>
+    <article class="panel">
+        <span>Inactive</span>
+        <strong>@Users.Count(user => !user.IsActive)</strong>
+    </article>
+</div>
+
+@if (ShowCreate)
+{
+    <section class="panel create-panel">
+        <div class="form-heading">
+            <div>
+                <span class="panel-label">NEW STAFF ACCOUNT</span>
+                <h3>Add a GHOS user</h3>
+                <p>Give the temporary password to the staff member securely. Never send it in the same message as the GHOS address.</p>
+            </div>
+            <button class="close-button"
+                    type="button"
+                    @onclick="CancelCreate"
+                    aria-label="Close">
+                ×
+            </button>
+        </div>
+
+        <EditForm Model="@CreateModel"
+                  OnValidSubmit="@CreateUserAsync"
+                  FormName="create-ghos-user">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="validation-summary" />
+
+            <div class="create-fields">
+                <label>
+                    <span>Staff member name</span>
+                    <input @bind="CreateModel.DisplayName"
+                           @bind:event="oninput"
+                           autocomplete="name" />
+                    <ValidationMessage For="@(() => CreateModel.DisplayName)" />
+                </label>
+                <label>
+                    <span>Email / login</span>
+                    <input @bind="CreateModel.Email"
+                           @bind:event="oninput"
+                           type="email"
+                           autocomplete="email" />
+                    <ValidationMessage For="@(() => CreateModel.Email)" />
+                </label>
+                <label>
+                    <span>Temporary password</span>
+                    <input @bind="CreateModel.Password"
+                           @bind:event="oninput"
+                           type="password"
+                           autocomplete="new-password" />
+                    <ValidationMessage For="@(() => CreateModel.Password)" />
+                </label>
+                <label>
+                    <span>Confirm password</span>
+                    <input @bind="CreateModel.ConfirmPassword"
+                           @bind:event="oninput"
+                           type="password"
+                           autocomplete="new-password" />
+                    <ValidationMessage For="@(() => CreateModel.ConfirmPassword)" />
+                </label>
+            </div>
+
+            <div class="role-picker">
+                <span class="field-label">Access roles</span>
+                <div class="role-grid">
+                    @foreach (var role in GhosRoles.All)
+                    {
+                        <label class="role-option">
+                            <input type="checkbox"
+                                   checked="@CreateModel.SelectedRoles.Contains(role)"
+                                   @onchange="eventArgs => SetCreateRole(role, eventArgs)" />
+                            <span>
+                                <strong>@role</strong>
+                                <small>@RoleDescription(role)</small>
+                            </span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="primary-action"
+                        type="submit"
+                        disabled="@Busy">
+                    @(Busy ? "Creating…" : "Create user")
+                </button>
+                <button class="secondary-action"
+                        type="button"
+                        disabled="@Busy"
+                        @onclick="CancelCreate">
+                    Cancel
+                </button>
+            </div>
+        </EditForm>
+    </section>
+}
+
+<div class="users-layout">
+    <section class="panel users-list-panel">
+        <div class="list-heading">
+            <div>
+                <span class="panel-label">TEAM ACCESS</span>
+                <h3>GHOS accounts</h3>
+            </div>
+            <input @bind="Search"
+                   @bind:event="oninput"
+                   type="search"
+                   placeholder="Search users" />
+        </div>
+
+        @if (Loading)
+        {
+            <div class="empty-users">Loading users…</div>
+        }
+        else if (FilteredUsers.Count == 0)
+        {
+            <div class="empty-users">No users match this search.</div>
+        }
+        else
+        {
+            <div class="user-list">
+                @foreach (var user in FilteredUsers)
+                {
+                    <button class="user-row @(Selected?.Id == user.Id ? "selected" : "")"
+                            type="button"
+                            @onclick="() => SelectUser(user)">
+                        <span class="user-avatar">@Initials(user.DisplayName)</span>
+                        <span class="user-summary">
+                            <strong>
+                                @user.DisplayName
+                                @if (user.Id == CurrentUserId)
+                                {
+                                    <em>You</em>
+                                }
+                            </strong>
+                            <small>@user.Email</small>
+                            <span class="role-chips">
+                                @foreach (var role in user.Roles)
+                                {
+                                    <i>@role</i>
+                                }
+                            </span>
+                        </span>
+                        <span class="account-state @(user.IsActive ? "active" : "inactive")">
+                            @(user.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </button>
+                }
+            </div>
+        }
+    </section>
+
+    <aside class="panel user-editor">
+        @if (Selected is null)
+        {
+            <div class="editor-placeholder">
+                <span>●</span>
+                <h3>Select a user</h3>
+                <p>Choose an account to edit access or reset its password.</p>
+            </div>
+        }
+        else
+        {
+            <div class="editor-heading">
+                <div>
+                    <span class="panel-label">ACCOUNT DETAILS</span>
+                    <h3>@Selected.DisplayName</h3>
+                    <p>@Selected.Email</p>
+                </div>
+                <span class="account-state @(Selected.IsActive ? "active" : "inactive")">
+                    @(Selected.IsActive ? "Active" : "Inactive")
+                </span>
+            </div>
+
+            <EditForm Model="@EditModel"
+                      OnValidSubmit="@UpdateUserAsync"
+                      FormName="edit-ghos-user">
+                <DataAnnotationsValidator />
+
+                <label class="editor-field">
+                    <span>Display name</span>
+                    <input @bind="EditModel.DisplayName"
+                           @bind:event="oninput" />
+                    <ValidationMessage For="@(() => EditModel.DisplayName)" />
+                </label>
+
+                <div class="role-picker editor-roles">
+                    <span class="field-label">Roles</span>
+                    @foreach (var role in GhosRoles.All)
+                    {
+                        <label class="role-option compact">
+                            <input type="checkbox"
+                                   checked="@EditModel.SelectedRoles.Contains(role)"
+                                   disabled="@(Selected.Id == CurrentUserId && role == GhosRoles.Administrator)"
+                                   @onchange="eventArgs => SetEditRole(role, eventArgs)" />
+                            <span>
+                                <strong>@role</strong>
+                                <small>@RoleDescription(role)</small>
+                            </span>
+                        </label>
+                    }
+                </div>
+
+                <label class="active-toggle">
+                    <input @bind="EditModel.IsActive"
+                           type="checkbox"
+                           disabled="@(Selected.Id == CurrentUserId)" />
+                    <span>
+                        <strong>Account is active</strong>
+                        <small>Inactive users cannot sign in. Existing sessions are invalidated.</small>
+                    </span>
+                </label>
+
+                <button class="primary-action save-user-button"
+                        type="submit"
+                        disabled="@Busy">
+                    @(Busy ? "Saving…" : "Save account")
+                </button>
+            </EditForm>
+
+            <section class="password-reset">
+                <div>
+                    <span class="panel-label">PASSWORD RESET</span>
+                    <h4>Set a new temporary password</h4>
+                    <p>This immediately replaces the current password and invalidates the user’s other sessions.</p>
+                </div>
+                <EditForm Model="@PasswordModel"
+                          OnValidSubmit="@ResetPasswordAsync"
+                          FormName="reset-ghos-password">
+                    <DataAnnotationsValidator />
+                    <label>
+                        <span>New password</span>
+                        <input @bind="PasswordModel.Password"
+                               @bind:event="oninput"
+                               type="password"
+                               autocomplete="new-password" />
+                        <ValidationMessage For="@(() => PasswordModel.Password)" />
+                    </label>
+                    <label>
+                        <span>Confirm password</span>
+                        <input @bind="PasswordModel.ConfirmPassword"
+                               @bind:event="oninput"
+                               type="password"
+                               autocomplete="new-password" />
+                    </label>
+                    <button class="secondary-action reset-button"
+                            type="submit"
+                            disabled="@Busy">
+                        Reset password
+                    </button>
+                </EditForm>
+            </section>
+
+            <div class="account-meta">
+                Created @Selected.CreatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")
+            </div>
+        }
+    </aside>
+</div>
+
+@code {
+    private List<ManagedUser> Users { get; set; } = [];
+    private ManagedUser? Selected { get; set; }
+    private CreateManagedUserInput CreateModel { get; set; } =
+        new();
+    private EditManagedUserInput EditModel { get; set; } =
+        new();
+    private ResetManagedUserPasswordInput PasswordModel { get; set; } =
+        new();
+    private string CurrentUserId { get; set; } = string.Empty;
+    private string Search { get; set; } = string.Empty;
+    private bool Loading { get; set; } = true;
+    private bool Busy { get; set; }
+    private bool ShowCreate { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    private List<ManagedUser> FilteredUsers =>
+        string.IsNullOrWhiteSpace(Search)
+            ? Users
+            : Users.Where(user =>
+                    user.DisplayName.Contains(
+                        Search,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    user.Email.Contains(
+                        Search,
+                        StringComparison.OrdinalIgnoreCase) ||
+                    user.Roles.Any(role =>
+                        role.Contains(
+                            Search,
+                            StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        CurrentUserId =
+            authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier) ?? string.Empty;
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        Loading = true;
+        try
+        {
+            var selectedId = Selected?.Id;
+            Users = (await UserAdministration.ListAsync())
+                .ToList();
+            Selected = selectedId is null
+                ? null
+                : Users.FirstOrDefault(user =>
+                    user.Id == selectedId);
+            if (Selected is not null)
+            {
+                EditModel = ToEditModel(Selected);
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not load user management.");
+            ErrorMessage = "GHOS could not load user accounts.";
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private void BeginCreate()
+    {
+        CreateModel = new CreateManagedUserInput();
+        ShowCreate = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+    }
+
+    private void CancelCreate()
+    {
+        ShowCreate = false;
+        CreateModel = new CreateManagedUserInput();
+    }
+
+    private async Task CreateUserAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            var created = await UserAdministration.CreateAsync(
+                CreateModel,
+                CurrentUserId);
+            ShowCreate = false;
+            CreateModel = new CreateManagedUserInput();
+            await LoadUsersAsync();
+            SelectUser(Users.Single(user => user.Id == created.Id));
+            SuccessMessage =
+                $"{created.DisplayName}'s GHOS account was created.";
+        }
+        catch (UserAdministrationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not create a user account.");
+            ErrorMessage =
+                "GHOS could not create the account. Nothing was changed.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private void SelectUser(ManagedUser user)
+    {
+        Selected = user;
+        EditModel = ToEditModel(user);
+        PasswordModel = new ResetManagedUserPasswordInput();
+        ErrorMessage = null;
+        SuccessMessage = null;
+    }
+
+    private async Task UpdateUserAsync()
+    {
+        if (Selected is null)
+        {
+            return;
+        }
+
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            var updated = await UserAdministration.UpdateAsync(
+                Selected.Id,
+                EditModel,
+                CurrentUserId);
+            await LoadUsersAsync();
+            Selected = Users.Single(user => user.Id == updated.Id);
+            EditModel = ToEditModel(Selected);
+            SuccessMessage =
+                $"{updated.DisplayName}'s account was updated.";
+        }
+        catch (UserAdministrationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not update a user account.");
+            ErrorMessage =
+                "GHOS could not update the account.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task ResetPasswordAsync()
+    {
+        if (Selected is null)
+        {
+            return;
+        }
+
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            await UserAdministration.ResetPasswordAsync(
+                Selected.Id,
+                PasswordModel,
+                CurrentUserId);
+            PasswordModel =
+                new ResetManagedUserPasswordInput();
+            SuccessMessage =
+                $"{Selected.DisplayName}'s password was reset.";
+        }
+        catch (UserAdministrationException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not reset a user password.");
+            ErrorMessage =
+                "GHOS could not reset the password.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private void SetCreateRole(
+        string role,
+        ChangeEventArgs eventArgs) =>
+        SetRole(
+            CreateModel.SelectedRoles,
+            role,
+            eventArgs);
+
+    private void SetEditRole(
+        string role,
+        ChangeEventArgs eventArgs) =>
+        SetRole(
+            EditModel.SelectedRoles,
+            role,
+            eventArgs);
+
+    private static void SetRole(
+        List<string> roles,
+        string role,
+        ChangeEventArgs eventArgs)
+    {
+        var selected = eventArgs.Value is bool value && value;
+        if (selected && !roles.Contains(role))
+        {
+            roles.Add(role);
+        }
+        else if (!selected)
+        {
+            roles.Remove(role);
+        }
+    }
+
+    private static EditManagedUserInput ToEditModel(
+        ManagedUser user) =>
+        new()
+        {
+            DisplayName = user.DisplayName,
+            IsActive = user.IsActive,
+            SelectedRoles = [.. user.Roles]
+        };
+
+    private static string RoleDescription(string role) =>
+        role switch
+        {
+            GhosRoles.Administrator =>
+                "All modules, settings, connections, and users.",
+            GhosRoles.Manager =>
+                "Operations, reporting, marketing, and assets.",
+            GhosRoles.Operations =>
+                "Customers, orders, deliveries, and Dumpsite queue.",
+            GhosRoles.Marketing =>
+                "Marketing Studio, calendar, analytics, and assets.",
+            _ => string.Empty
+        };
+
+    private static string Initials(string displayName)
+    {
+        var parts = displayName
+            .Split(
+                ' ',
+                StringSplitOptions.RemoveEmptyEntries);
+        return string.Concat(
+                parts.Take(2)
+                    .Select(part =>
+                        char.ToUpperInvariant(part[0])))
+            .PadRight(2, 'G');
+    }
+}

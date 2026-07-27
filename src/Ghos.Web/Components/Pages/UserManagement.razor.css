@@ -1,0 +1,513 @@
+.users-heading {
+    margin-bottom: 22px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.users-heading a {
+    margin-bottom: 16px;
+    color: #617a20;
+    display: inline-block;
+    font-size: .78rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.users-heading h2 {
+    margin: 7px 0;
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
+    letter-spacing: -.035em;
+}
+
+.users-heading p,
+.form-heading p,
+.password-reset p,
+.editor-placeholder p {
+    max-width: 780px;
+    margin: 0;
+    color: #6d786e;
+    line-height: 1.55;
+}
+
+.users-alert {
+    margin-bottom: 16px;
+    padding: 13px 15px;
+    border-radius: 10px;
+    font-size: .78rem;
+}
+
+.users-alert.error {
+    border: 1px solid #ebc9c5;
+    background: #fff5f3;
+    color: #963f35;
+}
+
+.users-alert.success {
+    border: 1px solid #dbe7bd;
+    background: #f8fced;
+    color: #4b6310;
+}
+
+.user-metrics {
+    margin-bottom: 18px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.user-metrics article {
+    padding: 17px;
+}
+
+.user-metrics span,
+.user-metrics strong {
+    display: block;
+}
+
+.user-metrics span {
+    color: #778279;
+    font-size: .7rem;
+    font-weight: 750;
+}
+
+.user-metrics strong {
+    margin-top: 8px;
+    font-size: 1.5rem;
+}
+
+.create-panel {
+    margin-bottom: 18px;
+    padding: 24px;
+}
+
+.form-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.form-heading h3 {
+    margin: 6px 0 7px;
+}
+
+.close-button {
+    width: 34px;
+    height: 34px;
+    border: 1px solid #dbe2d8;
+    border-radius: 8px;
+    background: white;
+    color: #687469;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.create-fields {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 13px;
+}
+
+.create-fields label > span,
+.editor-field > span,
+.password-reset label > span {
+    margin-bottom: 7px;
+    color: #3e4a40;
+    display: block;
+    font-size: .72rem;
+    font-weight: 800;
+}
+
+.create-fields input,
+.editor-field input,
+.password-reset input,
+.list-heading input {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 11px;
+    border: 1px solid #cfd7cc;
+    border-radius: 8px;
+    background: white;
+    color: #202a22;
+    outline: none;
+}
+
+.create-fields input:focus,
+.editor-field input:focus,
+.password-reset input:focus,
+.list-heading input:focus {
+    border-color: #9BC623;
+    box-shadow: 0 0 0 3px rgba(155, 198, 35, .13);
+}
+
+.validation-summary,
+::deep .validation-message {
+    color: #a53b32;
+    font-size: .69rem;
+}
+
+.role-picker {
+    margin-top: 20px;
+}
+
+.field-label {
+    margin-bottom: 8px;
+    color: #3e4a40;
+    display: block;
+    font-size: .72rem;
+    font-weight: 800;
+}
+
+.role-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.role-option {
+    padding: 12px;
+    border: 1px solid #dfe5dd;
+    border-radius: 9px;
+    background: #fafbf9;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    cursor: pointer;
+}
+
+.role-option input {
+    margin-top: 3px;
+}
+
+.role-option strong,
+.role-option small {
+    display: block;
+}
+
+.role-option strong {
+    font-size: .76rem;
+}
+
+.role-option small {
+    margin-top: 3px;
+    color: #7c877d;
+    font-size: .65rem;
+    line-height: 1.4;
+}
+
+.form-actions {
+    margin-top: 18px;
+    display: flex;
+    gap: 9px;
+}
+
+.users-layout {
+    display: grid;
+    grid-template-columns: minmax(440px, .9fr) minmax(480px, 1.1fr);
+    align-items: start;
+    gap: 18px;
+}
+
+.users-list-panel,
+.user-editor {
+    padding: 22px;
+}
+
+.user-editor {
+    position: sticky;
+    top: 122px;
+}
+
+.list-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.list-heading h3 {
+    margin: 5px 0 0;
+}
+
+.list-heading input {
+    width: 190px;
+    min-height: 38px;
+}
+
+.user-list {
+    margin-top: 17px;
+    display: grid;
+    gap: 7px;
+}
+
+.user-row {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #e0e5de;
+    border-radius: 10px;
+    background: #fbfcfa;
+    color: inherit;
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.user-row.selected {
+    border-color: #9BC623;
+    background: #fbfdf5;
+    box-shadow: 0 0 0 3px rgba(155, 198, 35, .09);
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #edf5db;
+    color: #567015;
+    display: grid;
+    place-items: center;
+    font-size: .72rem;
+    font-weight: 900;
+}
+
+.user-summary > strong,
+.user-summary > small {
+    display: block;
+}
+
+.user-summary > strong {
+    font-size: .78rem;
+}
+
+.user-summary > strong em {
+    margin-left: 5px;
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #e9eee7;
+    color: #6c786d;
+    font-size: .55rem;
+    font-style: normal;
+}
+
+.user-summary > small {
+    margin-top: 2px;
+    color: #818c82;
+    font-size: .66rem;
+}
+
+.role-chips {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.role-chips i {
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: #eff2ed;
+    color: #687469;
+    font-size: .55rem;
+    font-style: normal;
+    font-weight: 750;
+}
+
+.account-state {
+    padding: 5px 7px;
+    border-radius: 999px;
+    font-size: .58rem;
+    font-weight: 850;
+}
+
+.account-state.active {
+    background: #eaf4dd;
+    color: #557319;
+}
+
+.account-state.inactive {
+    background: #f0eceb;
+    color: #8a615b;
+}
+
+.empty-users,
+.editor-placeholder {
+    min-height: 280px;
+    padding: 30px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    color: #7b867c;
+    text-align: center;
+}
+
+.editor-placeholder > span {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #edf5db;
+    color: #618016;
+    display: grid;
+    place-items: center;
+}
+
+.editor-placeholder h3 {
+    margin: 13px 0 5px;
+}
+
+.editor-heading {
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e7ebe5;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.editor-heading h3 {
+    margin: 7px 0 3px;
+}
+
+.editor-heading p {
+    margin: 0;
+    color: #7c877d;
+    font-size: .7rem;
+}
+
+.editor-field {
+    margin-top: 17px;
+    display: block;
+}
+
+.editor-roles {
+    margin-top: 16px;
+}
+
+.role-option.compact {
+    margin-top: 7px;
+    padding: 10px;
+}
+
+.active-toggle {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 9px;
+    background: #f4f6f2;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+}
+
+.active-toggle input {
+    margin-top: 3px;
+}
+
+.active-toggle strong,
+.active-toggle small {
+    display: block;
+}
+
+.active-toggle strong {
+    font-size: .74rem;
+}
+
+.active-toggle small {
+    margin-top: 3px;
+    color: #7c877d;
+    font-size: .64rem;
+}
+
+.save-user-button {
+    width: 100%;
+    margin-top: 13px;
+}
+
+.password-reset {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid #e7ebe5;
+}
+
+.password-reset h4 {
+    margin: 6px 0 5px;
+}
+
+.password-reset p {
+    font-size: .7rem;
+}
+
+.password-reset form {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+}
+
+.reset-button {
+    grid-column: 1 / -1;
+}
+
+.account-meta {
+    margin-top: 17px;
+    color: #8a948b;
+    font-size: .63rem;
+    text-align: center;
+}
+
+@media (max-width: 1120px) {
+    .users-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .user-editor {
+        position: static;
+    }
+}
+
+@media (max-width: 760px) {
+    .users-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .user-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .create-fields,
+    .role-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 560px) {
+    .list-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .list-heading input {
+        width: 100%;
+    }
+
+    .user-row {
+        grid-template-columns: 40px minmax(0, 1fr);
+    }
+
+    .user-row > .account-state {
+        grid-column: 2;
+        justify-self: start;
+    }
+
+    .password-reset form {
+        grid-template-columns: 1fr;
+    }
+
+    .reset-button {
+        grid-column: auto;
+    }
+}
