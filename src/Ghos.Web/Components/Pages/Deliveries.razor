@@ -34,6 +34,12 @@ else
     var noDateItems = visibleDeliveries
         .Where(item => item.ScheduledForUtc is null)
         .ToList();
+    var closedDayItems = visibleDeliveries
+        .Where(item =>
+            item.ScheduledForUtc is not null &&
+            item.ScheduledForUtc.Value.DayOfWeek ==
+                DayOfWeek.Sunday)
+        .ToList();
     <section class="delivery-summary">
         <article>
             <span>Unscheduled</span>
@@ -185,6 +191,30 @@ else
                                             @onclick="() => SelectDelivery(delivery.Id)">
                                         <strong>#@delivery.SalesOrder.OrderNumber</strong>
                                         <span>@delivery.SalesOrder.CustomerName</span>
+                                    </button>
+                                }
+                            </div>
+                        </section>
+                    }
+                    @if (closedDayItems.Count > 0)
+                    {
+                        <section class="calendar-no-date closed-day-review">
+                            <div>
+                                <span>CLOSED DAY</span>
+                                <strong>Sunday date review</strong>
+                                <small>@closedDayItems.Count order(s)</small>
+                            </div>
+                            <div>
+                                @foreach (var delivery in closedDayItems)
+                                {
+                                    <button type="button"
+                                            @onclick="() => SelectDelivery(delivery.Id)">
+                                        <strong>#@delivery.SalesOrder.OrderNumber</strong>
+                                        <span>
+                                            @delivery.SalesOrder.CustomerName ·
+                                            @FormatDeliveryDate(
+                                                delivery.ScheduledForUtc)
+                                        </span>
                                     </button>
                                 }
                             </div>
@@ -407,7 +437,7 @@ else
     private void ShowCalendar() => DisplayMode = "Calendar";
 
     private IEnumerable<DateOnly> GetCalendarDays() =>
-        Enumerable.Range(0, 7)
+        Enumerable.Range(0, 6)
             .Select(offset => CalendarStart.AddDays(offset));
 
     private static List<Delivery> GetDeliveriesForDay(
@@ -434,7 +464,7 @@ else
 
     private string FormatCalendarRange()
     {
-        var end = CalendarStart.AddDays(6);
+        var end = CalendarStart.AddDays(5);
         return CalendarStart.Year == end.Year
             ? $"{CalendarStart:MMM d} – {end:MMM d, yyyy}"
             : $"{CalendarStart:MMM d, yyyy} – {end:MMM d, yyyy}";
@@ -442,7 +472,13 @@ else
 
     private static DateOnly GetWeekStart(DateOnly date)
     {
-        var offset = (int)date.DayOfWeek;
+        if (date.DayOfWeek == DayOfWeek.Sunday)
+        {
+            return date.AddDays(1);
+        }
+
+        var offset = (int)date.DayOfWeek -
+            (int)DayOfWeek.Monday;
         return date.AddDays(-offset);
     }
 

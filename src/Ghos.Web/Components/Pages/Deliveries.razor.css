@@ -310,10 +310,10 @@
 }
 
 .delivery-calendar {
-    min-width: 980px;
+    min-width: 840px;
     padding: 12px;
     display: grid;
-    grid-template-columns: repeat(7, minmax(130px, 1fr));
+    grid-template-columns: repeat(6, minmax(130px, 1fr));
     gap: 7px;
 }
 
@@ -481,6 +481,15 @@
 .calendar-no-date button span {
     margin-top: 2px;
     color: #7e8980;
+}
+
+.closed-day-review {
+    border-color: #e4c99d;
+    background: #fffaf1;
+}
+
+.closed-day-review > div:first-child span {
+    color: #9a681f;
 }
 
 .delivery-detail {
