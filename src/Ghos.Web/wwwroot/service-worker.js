@@ -1,11 +1,11 @@
-const CACHE_NAME = "ghos-static-v4";
+const CACHE_NAME = "ghos-static-v5";
 const STATIC_ASSETS = [
     "/offline.html",
     "/manifest.webmanifest",
     "/favicon.png",
     "/app.css",
-    "/dark.css?v=4",
-    "/theme.js?v=4",
+    "/dark.css?v=5",
+    "/theme.js?v=5",
     "/icons/icon-192.png",
     "/icons/icon-512.png",
     "/icons/icon-maskable-512.png",

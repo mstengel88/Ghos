@@ -1,18 +1,52 @@
 (() => {
     const storageKey = "ghos-color-theme";
+    const cookieName = "ghos-color-theme";
     const root = document.documentElement;
     const media = globalThis.matchMedia("(prefers-color-scheme: dark)");
 
-    const getStoredTheme = () => {
+    const normalizeTheme = (value) =>
+        value === "light" || value === "dark" ? value : null;
+
+    const getCookieTheme = () => {
         try {
-            const value = globalThis.localStorage.getItem(storageKey);
-            return value === "light" || value === "dark" ? value : null;
+            const prefix = `${cookieName}=`;
+            const item = document.cookie
+                .split(";")
+                .map((value) => value.trim())
+                .find((value) => value.startsWith(prefix));
+            return normalizeTheme(item
+                ? decodeURIComponent(item.slice(prefix.length))
+                : null);
         } catch {
             return null;
         }
     };
 
+    const getStoredTheme = () => {
+        try {
+            return normalizeTheme(globalThis.localStorage.getItem(storageKey))
+                ?? getCookieTheme();
+        } catch {
+            return getCookieTheme();
+        }
+    };
+
     const getTheme = () => getStoredTheme() ?? (media.matches ? "dark" : "light");
+
+    const saveTheme = (theme) => {
+        try {
+            globalThis.localStorage.setItem(storageKey, theme);
+        } catch {
+            // A durable cookie remains available when browser storage is blocked.
+        }
+
+        try {
+            document.cookie = `${cookieName}=${encodeURIComponent(theme)}; ` +
+                "Max-Age=31536000; Path=/; SameSite=Lax";
+        } catch {
+            // The selected theme still applies to the active page.
+        }
+    };
 
     const updateThemeColor = (theme) => {
         const meta = document.querySelector('meta[name="theme-color"]');
@@ -43,6 +77,7 @@
 
     const applyTheme = (theme) => {
         root.dataset.theme = theme;
+        root.style.colorScheme = theme;
         updateThemeColor(theme);
         updateButton(theme);
     };
@@ -65,16 +100,19 @@
 
         event.preventDefault();
         const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
-        try {
-            globalThis.localStorage.setItem(storageKey, nextTheme);
-        } catch {
-            // The theme still changes for this page when storage is unavailable.
-        }
+        saveTheme(nextTheme);
         applyTheme(nextTheme);
     });
 
+    const restoreTheme = () => applyTheme(getTheme());
     const refreshButton = () => updateButton(root.dataset.theme || getTheme());
     document.addEventListener("DOMContentLoaded", refreshButton);
+    globalThis.addEventListener("pageshow", restoreTheme);
+    globalThis.addEventListener("storage", (event) => {
+        if (event.key === storageKey) {
+            restoreTheme();
+        }
+    });
 
     /*
      * Refresh the label/icon when Blazor inserts a new header button. The
@@ -99,4 +137,20 @@
             applyTheme(getTheme());
         }
     });
+
+    /*
+     * Enhanced Blazor navigation does not reload the document. Reassert the
+     * persisted choice after navigation so every page and the app shell remain
+     * synchronized.
+     */
+    document.addEventListener("enhancedload", restoreTheme);
+    const connectBlazorThemeSync = () =>
+        globalThis.Blazor?.addEventListener?.("enhancedload", restoreTheme);
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", connectBlazorThemeSync, {
+            once: true
+        });
+    } else {
+        connectBlazorThemeSync();
+    }
 })();

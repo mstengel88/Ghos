@@ -4,7 +4,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    border-bottom: 1px solid rgba(255,255,255,.08);
+    border-bottom: 1px solid var(--ghos-sidebar-border);
 }
 
 .brand-mark {
@@ -19,6 +19,7 @@
 }
 
 .brand-name {
+    color: var(--ghos-sidebar-text);
     font-size: .9rem;
     font-weight: 850;
     letter-spacing: .08em;
@@ -26,7 +27,7 @@
 
 .brand-subtitle {
     margin-top: 3px;
-    color: #91a092;
+    color: var(--ghos-sidebar-muted);
     font-size: .61rem;
     font-weight: 700;
     letter-spacing: .13em;
@@ -38,7 +39,7 @@
 
 .nav-section {
     padding: 18px 12px 7px;
-    color: #718072;
+    color: var(--ghos-sidebar-muted);
     font-size: .63rem;
     font-weight: 850;
     letter-spacing: .14em;
@@ -49,7 +50,7 @@
     margin: 3px 0;
     padding: 0 12px;
     border-radius: 9px;
-    color: #cbd4cc;
+    color: var(--ghos-sidebar-text);
     text-decoration: none;
     display: flex;
     align-items: center;
@@ -59,8 +60,8 @@
 }
 
 .nav-shell ::deep a:hover {
-    color: white;
-    background: rgba(255,255,255,.06);
+    color: var(--ghos-text);
+    background: var(--ghos-sidebar-hover);
 }
 
 .nav-shell ::deep a.active {
@@ -81,9 +82,9 @@
     right: 16px;
     bottom: 20px;
     padding: 14px;
-    border: 1px solid rgba(255,255,255,.08);
+    border: 1px solid var(--ghos-sidebar-border);
     border-radius: 12px;
-    background: rgba(255,255,255,.035);
+    background: var(--ghos-sidebar-footer);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -95,13 +96,13 @@
 }
 
 .sidebar-footer strong {
-    color: #dfe7df;
+    color: var(--ghos-sidebar-text);
     font-size: .75rem;
 }
 
 .sidebar-footer small {
     margin-top: 2px;
-    color: #768477;
+    color: var(--ghos-sidebar-muted);
     font-size: .68rem;
 }
 

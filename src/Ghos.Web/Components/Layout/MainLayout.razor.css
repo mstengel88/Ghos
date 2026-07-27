@@ -7,10 +7,15 @@
 
 .ghos-sidebar {
     min-height: 100vh;
-    background: #142116;
-    color: white;
+    background: var(--ghos-sidebar-bg);
+    border-right: 1px solid var(--ghos-sidebar-border);
+    color: var(--ghos-sidebar-text);
     position: sticky;
     top: 0;
+    transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        color 160ms ease;
 }
 
 .ghos-main {
@@ -83,10 +88,10 @@
 
 .pwa-action {
     padding: 8px 12px;
-    border: 1px solid #9BC623;
+    border: 1px solid var(--ghos-border-strong);
     border-radius: 8px;
-    background: #f6faeb;
-    color: #3f5708;
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
     font-size: .76rem;
     font-weight: 800;
     cursor: pointer;
