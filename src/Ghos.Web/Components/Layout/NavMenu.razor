@@ -80,6 +80,11 @@
     <div class="nav-section">MANAGEMENT</div>
 
     <AuthorizeView Policy="@GhosPolicies.Management">
+        <NavLink href="/orders/reconciliation">
+            <span class="nav-icon">✓</span>
+            <span>Order Reconciliation</span>
+        </NavLink>
+
         <NavLink href="/reports">
             <span class="nav-icon">▥</span>
             <span>Reports</span>

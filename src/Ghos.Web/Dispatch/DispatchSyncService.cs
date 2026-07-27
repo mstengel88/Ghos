@@ -18,6 +18,9 @@ public sealed class DispatchSyncService(
     DispatchIntegrationClient integrationClient,
     ILogger<DispatchSyncService> logger)
 {
+    private static readonly SemaphoreSlim SynchronizationLock =
+        new(1, 1);
+
     public async Task<bool> IsConfiguredAsync(
         CancellationToken cancellationToken = default) =>
         await credentialStore.HasCredentialsAsync(cancellationToken);
@@ -43,9 +46,28 @@ public sealed class DispatchSyncService(
             cancellationToken: cancellationToken);
 
     public async Task<DispatchSyncResult> SynchronizeAsync(
-        ClaimsPrincipal user,
+        ClaimsPrincipal? user,
         bool fullRefresh = false,
         CancellationToken cancellationToken = default)
+    {
+        await SynchronizationLock.WaitAsync(cancellationToken);
+        try
+        {
+            return await SynchronizeCoreAsync(
+                user,
+                fullRefresh,
+                cancellationToken);
+        }
+        finally
+        {
+            SynchronizationLock.Release();
+        }
+    }
+
+    private async Task<DispatchSyncResult> SynchronizeCoreAsync(
+        ClaimsPrincipal? user,
+        bool fullRefresh,
+        CancellationToken cancellationToken)
     {
         var credentials = await credentialStore.GetAsync(cancellationToken)
             ?? throw new DispatchConnectionException(
@@ -94,7 +116,8 @@ public sealed class DispatchSyncService(
                     delivery => delivery.ExternalDispatchId,
                     cancellationToken);
 
-            var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = user?.FindFirstValue(
+                ClaimTypes.NameIdentifier);
             var synchronizedAt = DateTime.UtcNow;
             var created = 0;
             var updated = 0;
@@ -146,6 +169,14 @@ public sealed class DispatchSyncService(
                     source,
                     route,
                     synchronizedAt);
+                if (delivery.ReconciledStatusOverride ==
+                        DeliveryStatus.Delivered &&
+                    order!.Status is not
+                        SalesOrderStatus.Delivered and not
+                        SalesOrderStatus.Cancelled)
+                {
+                    order.Status = SalesOrderStatus.Delivered;
+                }
             }
 
             settings.LastCursor = payload.Cursor;
@@ -238,7 +269,13 @@ public sealed class DispatchSyncService(
             "Material not provided");
         target.Quantity = NullIfEmpty(source.Quantity);
         target.Unit = NullIfEmpty(source.Unit);
-        target.Status = MapDeliveryStatus(source);
+        var sourceStatus = MapDeliveryStatus(source);
+        target.Status =
+            sourceStatus is DeliveryStatus.Delivered or
+                DeliveryStatus.Cancelled
+                ? sourceStatus
+                : target.ReconciledStatusOverride ??
+                    sourceStatus;
         target.ScheduledForUtc =
             ParseTimestamp(source.RequestedWindow);
         target.Eta = NullIfEmpty(source.Eta);

@@ -29,11 +29,18 @@
 }
 
 .heading-actions a,
-.delivery-detail > a {
+.delivery-detail a {
     color: #617b1c;
     font-size: .7rem;
     font-weight: 850;
     text-decoration: none;
+}
+
+.detail-links {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
 }
 
 .delivery-summary {

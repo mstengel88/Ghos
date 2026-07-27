@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject DispatchSyncService DispatchSyncService
 
 <PageTitle>Deliveries | GHOS</PageTitle>
 
@@ -332,7 +333,18 @@ else
                     }
                 </div>
 
-                <a href="/orders">View linked order →</a>
+                <div class="detail-links">
+                    <a href="/orders">View linked order →</a>
+                    @if (GetDispatchUrl(SelectedDelivery) is
+                        { } dispatchUrl)
+                    {
+                        <a href="@dispatchUrl"
+                           target="_blank"
+                           rel="noopener noreferrer">
+                            Open in Dispatch ↗
+                        </a>
+                    }
+                </div>
             }
         </aside>
     </div>
@@ -372,6 +384,7 @@ else
         DeliveryItems.FirstOrDefault(item => item.Id == SelectedDeliveryId);
     private string SearchText { get; set; } = string.Empty;
     private string StatusFilter { get; set; } = "Current";
+    private string? DispatchBaseUrl { get; set; }
     private string DisplayMode { get; set; } = "Board";
     private DateOnly CalendarStart { get; set; } =
         GetWeekStart(DispatchOperationalTime.Today);
@@ -392,6 +405,9 @@ else
             .OrderBy(item => item.StopSequence)
             .ThenBy(item => item.ScheduledForUtc)
             .ToListAsync();
+        var settings =
+            await DispatchSyncService.GetSettingsAsync();
+        DispatchBaseUrl = settings?.BaseUrl;
         SelectedDeliveryId = DeliveryItems.Any(item =>
                 item.Id == RequestedDeliveryId)
             ? RequestedDeliveryId
@@ -598,6 +614,11 @@ else
             ? "Delivered; proof not recorded"
             : string.Join(" · ", parts);
     }
+
+    private string? GetDispatchUrl(Delivery delivery) =>
+        DispatchOrderLinks.Build(
+            DispatchBaseUrl,
+            delivery.ExternalDispatchId);
 
     private sealed record DeliveryLane(
         string Label,

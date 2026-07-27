@@ -1,4 +1,6 @@
 @page "/"
+@rendermode InteractiveServer
+@attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 
@@ -6,49 +8,52 @@
 
 <div class="welcome">
     <div>
-        <span class="eyebrow">@DateTimeOffset.Now.ToString("dddd, MMMM d").ToUpperInvariant()</span>
+        <span class="eyebrow">@BusinessNow.ToString("dddd, MMMM d").ToUpperInvariant()</span>
         <h2>@Greeting, @DisplayName.</h2>
-        <p>Your secure Green Hills workspace now includes the first operational product catalog.</p>
+        <p>Here is the current operational picture across Green Hills Supply.</p>
     </div>
 
-    <a class="primary-action" href="/products">Open product catalog</a>
+    <div class="dashboard-actions">
+        <DispatchRefreshControl OnSynchronized="LoadAsync" />
+        <a class="primary-action" href="/deliveries">Open deliveries</a>
+    </div>
 </div>
 
 <div class="metric-grid">
     <article class="metric-card">
         <div class="metric-heading">
-            <span>Product records</span>
-            <span class="metric-icon">◆</span>
+            <span>Deliveries today</span>
+            <span class="metric-icon">▰</span>
         </div>
-        <strong>@ProductCount</strong>
-        <small>@CategoryCount approved categories</small>
+        <strong>@TodayDeliveryCount</strong>
+        <small>Scheduled for @BusinessNow.ToString("dddd")</small>
     </article>
 
     <article class="metric-card">
         <div class="metric-heading">
-            <span>Access control</span>
+            <span>Needs a route</span>
+            <span class="metric-icon">↗</span>
+        </div>
+        <strong>@NeedsRouteCount</strong>
+        <small>Current and upcoming orders</small>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-heading">
+            <span>Sunday conflicts</span>
+            <span class="metric-icon">!</span>
+        </div>
+        <strong>@SundayConflictCount</strong>
+        <small>Closed-day dates requiring review</small>
+    </article>
+
+    <article class="metric-card">
+        <div class="metric-heading">
+            <span>Historical review</span>
             <span class="metric-icon">✓</span>
         </div>
-        <strong>Active</strong>
-        <small>Authenticated routes and role policies</small>
-    </article>
-
-    <article class="metric-card">
-        <div class="metric-heading">
-            <span>Database</span>
-            <span class="metric-icon">◆</span>
-        </div>
-        <strong>@DatabaseStatus</strong>
-        <small>Identity schema and migrations</small>
-    </article>
-
-    <article class="metric-card">
-        <div class="metric-heading">
-            <span>Team accounts</span>
-            <span class="metric-icon">●</span>
-        </div>
-        <strong>@UserCount</strong>
-        <small>Protected by PostgreSQL Identity</small>
+        <strong>@HistoricalReviewCount</strong>
+        <small>Past open records to reconcile</small>
     </article>
 </div>
 
@@ -56,86 +61,109 @@
     <section class="panel activity-panel">
         <div class="panel-header">
             <div>
-                <span class="panel-label">PRODUCT FOUNDATION</span>
-                <h3>The catalog source of truth is ready</h3>
+                <span class="panel-label">UPCOMING OPERATIONS</span>
+                <h3>Next deliveries</h3>
             </div>
+            <a class="text-button" href="/deliveries">View calendar →</a>
         </div>
 
-        <div class="empty-state">
-            <div class="empty-icon">✓</div>
-            <h4>Product information is connected</h4>
-            <p>GHOS can now store official product names, categories, alternate search terms, availability, descriptions, and completeness in PostgreSQL.</p>
-        </div>
+        @if (UpcomingDeliveries.Count == 0)
+        {
+            <div class="empty-state dashboard-empty">
+                <div class="empty-icon">✓</div>
+                <h4>No upcoming deliveries</h4>
+                <p>New Dispatch orders will appear here automatically.</p>
+            </div>
+        }
+        else
+        {
+            <div class="upcoming-list">
+                @foreach (var delivery in UpcomingDeliveries)
+                {
+                    <a href="/deliveries?deliveryId=@delivery.Id">
+                        <span class="upcoming-date">
+                            <strong>@GetDayNumber(delivery)</strong>
+                            <small>@GetMonth(delivery)</small>
+                        </span>
+                        <span>
+                            <strong>#@delivery.SalesOrder.OrderNumber · @delivery.SalesOrder.CustomerName</strong>
+                            <small>@delivery.Material · @delivery.Quantity @delivery.Unit</small>
+                        </span>
+                        <span>
+                            <strong>@GetDeliveryStatusLabel(delivery.Status)</strong>
+                            <small>@(delivery.RouteCode ?? "No route")</small>
+                        </span>
+                    </a>
+                }
+            </div>
+        }
     </section>
 
     <section class="panel">
         <div class="panel-header">
             <div>
-                <span class="panel-label">CATALOG STATUS</span>
-                <h3>Product system</h3>
+                <span class="panel-label">SYSTEM HEALTH</span>
+                <h3>Operations connections</h3>
             </div>
         </div>
 
         <div class="status-list">
             <div class="status-row">
-                <span><i></i> PostgreSQL catalog</span>
+                <span><i class="@GetSyncIndicatorClass()"></i> Dispatch synchronization</span>
+                <strong>@DispatchSyncStatus</strong>
+            </div>
+            <div class="status-row">
+                <span><i></i> Last successful update</span>
+                <strong>@FormatSyncTime(LastDispatchSyncUtc)</strong>
+            </div>
+            <div class="status-row">
+                <span><i></i> PostgreSQL</span>
                 <strong>@DatabaseStatus</strong>
             </div>
             <div class="status-row">
-                <span><i></i> Approved categories</span>
-                <strong>@CategoryCount</strong>
+                <span><i></i> Product records</span>
+                <strong>@ProductCount</strong>
             </div>
             <div class="status-row">
-                <span><i></i> Search synonyms</span>
-                <strong>Enabled</strong>
-            </div>
-            <div class="status-row">
-                <span><i></i> Role-protected editing</span>
-                <strong>Enabled</strong>
+                <span><i></i> Team accounts</span>
+                <strong>@UserCount</strong>
             </div>
         </div>
     </section>
 
-    <section class="panel large-panel">
+    <section class="panel large-panel attention-panel">
         <div class="panel-header">
             <div>
-                <span class="panel-label">PRIORITIES</span>
-                <h3>Foundation roadmap</h3>
+                <span class="panel-label">ACTION CENTER</span>
+                <h3>Items that may need attention</h3>
             </div>
         </div>
 
-        <div class="roadmap">
-            <div class="roadmap-item complete">
-                <span>1</span>
+        <div class="attention-grid">
+            <a href="/orders/reconciliation">
+                <span>✓</span>
                 <div>
-                    <strong>Infrastructure foundation</strong>
-                    <p>Hyper-V, Ubuntu, Docker and private network</p>
+                    <strong>Historical reconciliation</strong>
+                    <p>@HistoricalReviewCount past open record(s) awaiting verification.</p>
                 </div>
-            </div>
-
-            <div class="roadmap-item complete">
-                <span>2</span>
+                <i>→</i>
+            </a>
+            <a href="/deliveries">
+                <span>↗</span>
                 <div>
-                    <strong>Identity and access</strong>
-                    <p>Accounts, roles, authentication and protected modules</p>
+                    <strong>Orders needing routes</strong>
+                    <p>@NeedsRouteCount current order(s) are not assigned to a route.</p>
                 </div>
-            </div>
-
-            <div class="roadmap-item complete">
-                <span>3</span>
+                <i>→</i>
+            </a>
+            <a href="/deliveries">
+                <span>!</span>
                 <div>
-                    <strong>Product Information Management</strong>
-                    <p>Products, categories, synonyms and reusable customer information</p>
+                    <strong>Closed-day review</strong>
+                    <p>@SundayConflictCount Sunday-dated order(s) require correction.</p>
                 </div>
-            </div>
-
-            <div class="roadmap-item current">
-                <span>4</span>
-                <div>
-                    <strong>Digital Asset Manager</strong>
-                    <p>Photos, videos, documents, tags and product relationships</p>
-                </div>
-            </div>
+                <i>→</i>
+            </a>
         </div>
     </section>
 </div>
@@ -144,13 +172,25 @@
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
+    private List<Delivery> UpcomingDeliveries { get; set; } = [];
     private int UserCount { get; set; }
     private int ProductCount { get; set; }
-    private int CategoryCount { get; set; }
+    private int TodayDeliveryCount { get; set; }
+    private int NeedsRouteCount { get; set; }
+    private int SundayConflictCount { get; set; }
+    private int HistoricalReviewCount { get; set; }
     private string DatabaseStatus { get; set; } = "Checking";
+    private string DispatchSyncStatus { get; set; } = "Not configured";
+    private DateTime? LastDispatchSyncUtc { get; set; }
     private string DisplayName { get; set; } = "team member";
 
-    private string Greeting => DateTimeOffset.Now.Hour switch
+    private static DateTime BusinessNow =>
+        TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.UtcNow,
+            TimeZoneInfo.FindSystemTimeZoneById(
+                "America/Chicago"));
+
+    private string Greeting => BusinessNow.Hour switch
     {
         < 12 => "Good morning",
         < 17 => "Good afternoon",
@@ -161,18 +201,71 @@
     {
         if (AuthenticationStateTask is not null)
         {
-            var authenticationState = await AuthenticationStateTask;
-            DisplayName = authenticationState.User.FindFirst("display_name")?.Value
+            var authenticationState =
+                await AuthenticationStateTask;
+            DisplayName = authenticationState.User
+                .FindFirst("display_name")?.Value
                 ?? authenticationState.User.Identity?.Name
                 ?? "team member";
         }
 
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         try
         {
-            await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
             UserCount = await dbContext.Users.CountAsync();
-            ProductCount = await dbContext.Products.CountAsync();
-            CategoryCount = await dbContext.ProductCategories.CountAsync(category => category.IsActive);
+            ProductCount =
+                await dbContext.Products.CountAsync();
+
+            var deliveries = await dbContext.Deliveries
+                .AsNoTracking()
+                .Include(item => item.SalesOrder)
+                .ToListAsync();
+            var today = DispatchOperationalTime.Today;
+            var current = deliveries
+                .Where(DispatchOperationalTime.IsCurrentWork)
+                .ToList();
+
+            TodayDeliveryCount = current.Count(item =>
+                GetDeliveryDate(item) == today);
+            NeedsRouteCount = current.Count(item =>
+                item.Status == DeliveryStatus.Unscheduled);
+            SundayConflictCount = current.Count(item =>
+                GetDeliveryDate(item)?.DayOfWeek ==
+                    DayOfWeek.Sunday);
+            HistoricalReviewCount = deliveries.Count(item =>
+                GetDeliveryDate(item) is { } date &&
+                date < today &&
+                item.Status is not DeliveryStatus.Delivered and
+                    not DeliveryStatus.Cancelled &&
+                item.ReconciledStatusOverride is null);
+
+            UpcomingDeliveries = current
+                .Where(item =>
+                    GetDeliveryDate(item) is { } date &&
+                    date >= today)
+                .OrderBy(item => item.ScheduledForUtc)
+                .ThenBy(item =>
+                    item.StopSequence ?? int.MaxValue)
+                .Take(8)
+                .ToList();
+
+            var settings = await dbContext
+                .DispatchConnectionSettings
+                .AsNoTracking()
+                .SingleOrDefaultAsync();
+            DispatchSyncStatus =
+                settings?.LastSyncStatus ??
+                (settings is null
+                    ? "Not configured"
+                    : "Ready");
+            LastDispatchSyncUtc =
+                settings?.LastSuccessfulSyncAtUtc;
             DatabaseStatus = "Connected";
         }
         catch
@@ -180,4 +273,50 @@
             DatabaseStatus = "Unavailable";
         }
     }
+
+    private static DateOnly? GetDeliveryDate(
+        Delivery delivery) =>
+        delivery.ScheduledForUtc is null
+            ? null
+            : DateOnly.FromDateTime(
+                delivery.ScheduledForUtc.Value);
+
+    private static string GetDayNumber(Delivery delivery) =>
+        GetDeliveryDate(delivery)?.Day.ToString() ?? "—";
+
+    private static string GetMonth(Delivery delivery) =>
+        GetDeliveryDate(delivery)?.ToString("MMM") ??
+        "No date";
+
+    private static string GetDeliveryStatusLabel(
+        DeliveryStatus status) =>
+        status == DeliveryStatus.EnRoute
+            ? "En route"
+            : status.ToString();
+
+    private static string FormatSyncTime(DateTime? utc)
+    {
+        if (utc is null)
+        {
+            return "Never";
+        }
+
+        var local = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(
+                utc.Value,
+                DateTimeKind.Utc),
+            TimeZoneInfo.FindSystemTimeZoneById(
+                "America/Chicago"));
+        return DateOnly.FromDateTime(local) ==
+                DispatchOperationalTime.Today
+            ? local.ToString("h:mm tt")
+            : local.ToString("MMM d");
+    }
+
+    private string GetSyncIndicatorClass() =>
+        DispatchSyncStatus.Equals(
+            "Failed",
+            StringComparison.OrdinalIgnoreCase)
+            ? "warning"
+            : string.Empty;
 }

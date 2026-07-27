@@ -289,6 +289,20 @@ button.order-row.selected {
     margin-top: 8px;
 }
 
+.open-dispatch-order {
+    margin-top: 15px;
+    padding: 9px 11px;
+    border: 1px solid #dbe4d8;
+    border-radius: 7px;
+    background: #f8fbed;
+    color: #5d7817;
+    display: block;
+    font-size: .59rem;
+    font-weight: 850;
+    text-align: center;
+    text-decoration: none;
+}
+
 .ticket-list a {
     padding: 9px 2px;
     border-bottom: 1px solid #e9ede7;

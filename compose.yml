@@ -56,6 +56,9 @@ services:
       Shopify__ClientId: ${SHOPIFY_CLIENT_ID:-}
       Shopify__ClientSecret: ${SHOPIFY_CLIENT_SECRET:-}
       Shopify__StorefrontUrl: https://greenhillssupply.com
+      DispatchSync__Enabled: ${DISPATCH_SYNC_ENABLED:-true}
+      DispatchSync__IntervalMinutes: ${DISPATCH_SYNC_INTERVAL_MINUTES:-5}
+      DispatchSync__InitialDelaySeconds: ${DISPATCH_SYNC_INITIAL_DELAY_SECONDS:-30}
     volumes:
       - ghos-data-protection:/var/lib/ghos/data-protection
       - ./assets:/var/lib/ghos/assets

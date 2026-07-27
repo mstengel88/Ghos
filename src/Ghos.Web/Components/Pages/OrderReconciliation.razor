@@ -1,0 +1,390 @@
+@page "/orders/reconciliation"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Management)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject DispatchSyncService DispatchSyncService
+
+<PageTitle>Order reconciliation | GHOS</PageTitle>
+
+<div class="reconciliation-heading">
+    <div>
+        <a href="/orders">← Orders</a>
+        <span class="panel-label">HISTORICAL RECONCILIATION</span>
+        <h2>Review past open orders</h2>
+        <p>Resolve older Dispatch records that still look open in the source feed. Every confirmation is recorded in GHOS and remains effective after synchronization.</p>
+    </div>
+    <div>
+        <strong>@CandidateItems.Count</strong>
+        <span>records to review</span>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="reconciliation-alert success">@SuccessMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="reconciliation-alert error">@ErrorMessage</div>
+}
+
+@if (Loading)
+{
+    <section class="panel reconciliation-empty">Preparing historical orders…</section>
+}
+else
+{
+    <div class="reconciliation-layout">
+        <section class="panel reconciliation-list">
+            <div class="reconciliation-list-heading">
+                <div>
+                    <span class="panel-label">PAST OPEN RECORDS</span>
+                    <h3>Needs verification</h3>
+                </div>
+                <DispatchRefreshControl OnSynchronized="LoadAsync" />
+            </div>
+
+            @if (CandidateItems.Count == 0)
+            {
+                <div class="reconciliation-empty">
+                    <div class="empty-icon">✓</div>
+                    <h3>Historical queue is clear</h3>
+                    <p>No past-dated open deliveries require review.</p>
+                </div>
+            }
+            else
+            {
+                <div class="candidate-list">
+                    @foreach (var delivery in CandidateItems)
+                    {
+                        <button type="button"
+                                class="@(SelectedDeliveryId == delivery.Id ? "selected" : null)"
+                                @onclick="() => SelectDelivery(delivery.Id)">
+                            <span>
+                                <strong>#@delivery.SalesOrder.OrderNumber</strong>
+                                <i>@FormatDate(delivery.ScheduledForUtc)</i>
+                            </span>
+                            <strong>@delivery.SalesOrder.CustomerName</strong>
+                            <small>@delivery.Material · @delivery.Quantity @delivery.Unit</small>
+                            <small>@delivery.SalesOrder.DeliveryCity</small>
+                        </button>
+                    }
+                </div>
+            }
+        </section>
+
+        <aside class="panel reconciliation-detail">
+            @if (SelectedDelivery is null)
+            {
+                <div class="reconciliation-empty">
+                    <div class="empty-icon">▤</div>
+                    <h3>Select an order</h3>
+                    <p>Review the source details before confirming its historical status.</p>
+                </div>
+            }
+            else
+            {
+                <span class="status-pill delivery-unscheduled">
+                    @SelectedDelivery.Status
+                </span>
+                <h3>Order #@SelectedDelivery.SalesOrder.OrderNumber</h3>
+                <p>@SelectedDelivery.SalesOrder.CustomerName</p>
+
+                <dl>
+                    <div>
+                        <dt>Requested date</dt>
+                        <dd>@FormatDate(SelectedDelivery.ScheduledForUtc)</dd>
+                    </div>
+                    <div>
+                        <dt>Material</dt>
+                        <dd>@SelectedDelivery.Material · @SelectedDelivery.Quantity @SelectedDelivery.Unit</dd>
+                    </div>
+                    <div>
+                        <dt>Delivery address</dt>
+                        <dd>@GetAddress(SelectedDelivery.SalesOrder)</dd>
+                    </div>
+                    <div>
+                        <dt>Dispatch route</dt>
+                        <dd>@(SelectedDelivery.RouteCode ?? "No route assigned")</dd>
+                    </div>
+                    <div>
+                        <dt>Last source update</dt>
+                        <dd>@FormatTimestamp(SelectedDelivery.SourceUpdatedAtUtc)</dd>
+                    </div>
+                </dl>
+
+                @if (GetDispatchUrl(SelectedDelivery) is
+                    { } dispatchUrl)
+                {
+                    <a class="dispatch-order-link"
+                       href="@dispatchUrl"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        Open matching order in Dispatch ↗
+                    </a>
+                }
+
+                <div class="reconciliation-confirm">
+                    <label>
+                        <span>Reconciliation note</span>
+                        <textarea @bind="ReconciliationNote"
+                                  rows="3"
+                                  placeholder="How was delivery confirmed?"></textarea>
+                    </label>
+                    <label class="confirmation-check">
+                        <input type="checkbox"
+                               @bind="ReviewConfirmed" />
+                        <span>I verified this order was delivered and understand this creates a GHOS status override.</span>
+                    </label>
+                    <button type="button"
+                            disabled="@(Saving || !ReviewConfirmed || string.IsNullOrWhiteSpace(ReconciliationNote))"
+                            @onclick="ConfirmDeliveredAsync">
+                        @(Saving ? "Saving…" : "Confirm delivered")
+                    </button>
+                </div>
+            }
+        </aside>
+    </div>
+
+    @if (ReconciledItems.Count > 0)
+    {
+        <section class="panel reconciliation-history">
+            <div>
+                <span class="panel-label">RECENT GHOS OVERRIDES</span>
+                <h3>Reconciled records</h3>
+            </div>
+            <div>
+                @foreach (var delivery in ReconciledItems)
+                {
+                    <article>
+                        <div>
+                            <strong>#@delivery.SalesOrder.OrderNumber · @delivery.SalesOrder.CustomerName</strong>
+                            <span>@delivery.ReconciledStatusOverride · @FormatTimestamp(delivery.ReconciledAtUtc)</span>
+                            <small>@delivery.ReconciliationNote</small>
+                        </div>
+                        <button type="button"
+                                disabled="@Saving"
+                                @onclick="() => ClearOverrideAsync(delivery.Id)">
+                            Undo override
+                        </button>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+}
+
+@code {
+    private List<Delivery> CandidateItems { get; set; } = [];
+    private List<Delivery> ReconciledItems { get; set; } = [];
+    private Guid? SelectedDeliveryId { get; set; }
+    private Delivery? SelectedDelivery =>
+        CandidateItems.FirstOrDefault(item =>
+            item.Id == SelectedDeliveryId);
+    private string? DispatchBaseUrl { get; set; }
+    private string ReconciliationNote { get; set; } = string.Empty;
+    private bool ReviewConfirmed { get; set; }
+    private bool Loading { get; set; } = true;
+    private bool Saving { get; set; }
+    private string? SuccessMessage { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync() =>
+        await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var cutoff = DispatchOperationalTime.Today.ToDateTime(
+            TimeOnly.MinValue,
+            DateTimeKind.Utc);
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+
+        CandidateItems = await dbContext.Deliveries
+            .AsNoTracking()
+            .Include(item => item.SalesOrder)
+            .Where(item =>
+                item.ScheduledForUtc != null &&
+                item.ScheduledForUtc < cutoff &&
+                item.Status != DeliveryStatus.Delivered &&
+                item.Status != DeliveryStatus.Cancelled &&
+                item.ReconciledStatusOverride == null)
+            .OrderBy(item => item.ScheduledForUtc)
+            .ThenBy(item => item.SalesOrder.OrderNumber)
+            .ToListAsync();
+
+        ReconciledItems = await dbContext.Deliveries
+            .AsNoTracking()
+            .Include(item => item.SalesOrder)
+            .Where(item =>
+                item.ReconciledStatusOverride != null)
+            .OrderByDescending(item => item.ReconciledAtUtc)
+            .Take(20)
+            .ToListAsync();
+
+        var settings = await DispatchSyncService.GetSettingsAsync();
+        DispatchBaseUrl = settings?.BaseUrl;
+        SelectedDeliveryId =
+            CandidateItems.Any(item =>
+                item.Id == SelectedDeliveryId)
+                ? SelectedDeliveryId
+                : CandidateItems.FirstOrDefault()?.Id;
+        Loading = false;
+    }
+
+    private void SelectDelivery(Guid id)
+    {
+        SelectedDeliveryId = id;
+        ReconciliationNote = string.Empty;
+        ReviewConfirmed = false;
+        SuccessMessage = null;
+        ErrorMessage = null;
+    }
+
+    private async Task ConfirmDeliveredAsync()
+    {
+        if (SelectedDelivery is null ||
+            !ReviewConfirmed ||
+            string.IsNullOrWhiteSpace(ReconciliationNote))
+        {
+            return;
+        }
+
+        Saving = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+            var userId = authenticationState.User
+                .FindFirstValue(ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var delivery = await dbContext.Deliveries
+                .Include(item => item.SalesOrder)
+                .SingleAsync(item =>
+                    item.Id == SelectedDelivery.Id);
+            delivery.ReconciledStatusOverride =
+                DeliveryStatus.Delivered;
+            delivery.Status = DeliveryStatus.Delivered;
+            delivery.ReconciliationNote =
+                ReconciliationNote.Trim();
+            delivery.ReconciledAtUtc = DateTime.UtcNow;
+            delivery.ReconciledByUserId = userId;
+            delivery.UpdatedAtUtc = DateTime.UtcNow;
+            delivery.SalesOrder.Status =
+                SalesOrderStatus.Delivered;
+            delivery.SalesOrder.UpdatedAtUtc =
+                DateTime.UtcNow;
+            delivery.SalesOrder.UpdatedByUserId = userId;
+            await dbContext.SaveChangesAsync();
+
+            SuccessMessage =
+                $"Order #{SelectedDelivery.SalesOrder.OrderNumber} was reconciled as delivered.";
+            ReconciliationNote = string.Empty;
+            ReviewConfirmed = false;
+            await LoadAsync();
+        }
+        catch
+        {
+            ErrorMessage =
+                "GHOS could not reconcile this order. Nothing was changed.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private async Task ClearOverrideAsync(Guid deliveryId)
+    {
+        Saving = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+        try
+        {
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var delivery = await dbContext.Deliveries
+                .Include(item => item.SalesOrder)
+                .SingleAsync(item => item.Id == deliveryId);
+            delivery.ReconciledStatusOverride = null;
+            delivery.ReconciliationNote = null;
+            delivery.ReconciledAtUtc = null;
+            delivery.ReconciledByUserId = null;
+            delivery.Status =
+                string.IsNullOrWhiteSpace(
+                    delivery.ExternalRouteId)
+                    ? DeliveryStatus.Unscheduled
+                    : DeliveryStatus.Scheduled;
+            delivery.UpdatedAtUtc = DateTime.UtcNow;
+            delivery.SalesOrder.Status =
+                string.IsNullOrWhiteSpace(
+                    delivery.ExternalRouteId)
+                    ? SalesOrderStatus.New
+                    : SalesOrderStatus.Scheduled;
+            delivery.SalesOrder.UpdatedAtUtc =
+                DateTime.UtcNow;
+            await dbContext.SaveChangesAsync();
+            SuccessMessage = "The GHOS override was removed.";
+            await LoadAsync();
+        }
+        catch
+        {
+            ErrorMessage =
+                "GHOS could not remove this override.";
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+
+    private static string FormatDate(DateTime? value) =>
+        value is null
+            ? "Date not set"
+            : DateOnly.FromDateTime(value.Value)
+                .ToString("ddd, MMM d, yyyy");
+
+    private static string FormatTimestamp(DateTime? value)
+    {
+        if (value is null)
+        {
+            return "Not available";
+        }
+
+        var central = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(
+                value.Value,
+                DateTimeKind.Utc),
+            TimeZoneInfo.FindSystemTimeZoneById(
+                "America/Chicago"));
+        return central.ToString("MMM d, yyyy 'at' h:mm tt");
+    }
+
+    private static string GetAddress(SalesOrder order)
+    {
+        var locality = string.Join(
+            " ",
+            new[]
+            {
+                order.DeliveryCity,
+                order.DeliveryState,
+                order.DeliveryPostalCode
+            }.Where(value =>
+                !string.IsNullOrWhiteSpace(value)));
+        return string.IsNullOrWhiteSpace(locality)
+            ? order.DeliveryAddress
+            : $"{order.DeliveryAddress}, {locality}";
+    }
+
+    private string? GetDispatchUrl(Delivery delivery) =>
+        DispatchOrderLinks.Build(
+            DispatchBaseUrl,
+            delivery.ExternalDispatchId);
+}

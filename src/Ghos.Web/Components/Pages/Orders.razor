@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = GhosPolicies.Operations)]
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject DispatchSyncService DispatchSyncService
 
 <PageTitle>Orders | GHOS</PageTitle>
 
@@ -211,6 +212,17 @@ else
                         }
                     </div>
                 }
+
+                @if (GetDispatchUrl(SelectedOrder) is
+                    { } dispatchUrl)
+                {
+                    <a class="open-dispatch-order"
+                       href="@dispatchUrl"
+                       target="_blank"
+                       rel="noopener noreferrer">
+                        Open matching order in Dispatch ↗
+                    </a>
+                }
             }
         </aside>
     </div>
@@ -223,6 +235,7 @@ else
         OrderItems.FirstOrDefault(item => item.Id == SelectedOrderId);
     private string SearchText { get; set; } = string.Empty;
     private string StatusFilter { get; set; } = "Current";
+    private string? DispatchBaseUrl { get; set; }
     private bool Loading { get; set; } = true;
 
     protected override async Task OnInitializedAsync()
@@ -241,6 +254,9 @@ else
             .OrderByDescending(item => item.SourceUpdatedAtUtc)
             .ThenByDescending(item => item.UpdatedAtUtc)
             .ToListAsync();
+        var settings =
+            await DispatchSyncService.GetSettingsAsync();
+        DispatchBaseUrl = settings?.BaseUrl;
         SelectedOrderId =
             OrderItems.Any(item => item.Id == SelectedOrderId)
                 ? SelectedOrderId
@@ -358,4 +374,9 @@ else
 
     private static string FormatSyncTime(DateTime? utc) =>
         utc is null ? "never" : utc.Value.ToString("MMM d, h:mm tt 'UTC'");
+
+    private string? GetDispatchUrl(SalesOrder order) =>
+        DispatchOrderLinks.Build(
+            DispatchBaseUrl,
+            order.ExternalOrderId);
 }

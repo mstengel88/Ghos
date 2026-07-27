@@ -1,0 +1,329 @@
+.reconciliation-heading {
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 22px;
+}
+
+.reconciliation-heading a {
+    margin-bottom: 12px;
+    color: #607a1b;
+    display: block;
+    font-size: .67rem;
+    font-weight: 850;
+    text-decoration: none;
+}
+
+.reconciliation-heading h2 {
+    margin: 6px 0;
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+
+.reconciliation-heading p {
+    max-width: 760px;
+    margin: 0;
+    color: #6d786e;
+    line-height: 1.55;
+}
+
+.reconciliation-heading > div:last-child {
+    min-width: 130px;
+    padding: 13px 16px;
+    border: 1px solid #e0e6de;
+    border-radius: 10px;
+    background: white;
+}
+
+.reconciliation-heading > div:last-child strong,
+.reconciliation-heading > div:last-child span {
+    display: block;
+}
+
+.reconciliation-heading > div:last-child strong {
+    font-size: 1.4rem;
+}
+
+.reconciliation-heading > div:last-child span {
+    color: #879188;
+    font-size: .57rem;
+}
+
+.reconciliation-alert {
+    margin-bottom: 12px;
+    padding: 10px 13px;
+    border-radius: 8px;
+    font-size: .65rem;
+    font-weight: 750;
+}
+
+.reconciliation-alert.success {
+    background: #edf6df;
+    color: #587217;
+}
+
+.reconciliation-alert.error {
+    background: #fae9e9;
+    color: #924141;
+}
+
+.reconciliation-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 350px;
+    gap: 15px;
+    align-items: start;
+}
+
+.reconciliation-list,
+.reconciliation-detail {
+    padding: 18px;
+}
+
+.reconciliation-list-heading {
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.reconciliation-list-heading h3,
+.reconciliation-history h3 {
+    margin: 4px 0 0;
+    font-size: .94rem;
+}
+
+.candidate-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.candidate-list > button {
+    padding: 12px;
+    border: 1px solid #e0e6de;
+    border-radius: 8px;
+    background: #fafbf9;
+    color: #4b584e;
+    text-align: left;
+}
+
+.candidate-list > button:hover,
+.candidate-list > button.selected {
+    border-color: #9BC623;
+    background: #fbfdf5;
+}
+
+.candidate-list > button > span {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.candidate-list i {
+    color: #9a681f;
+    font-size: .51rem;
+    font-style: normal;
+    font-weight: 800;
+}
+
+.candidate-list > button > strong,
+.candidate-list > button > small {
+    margin-top: 6px;
+    display: block;
+}
+
+.candidate-list > button > strong {
+    font-size: .65rem;
+}
+
+.candidate-list > button > small {
+    color: #7f8a81;
+    font-size: .53rem;
+}
+
+.reconciliation-detail {
+    position: sticky;
+    top: 110px;
+}
+
+.reconciliation-detail h3 {
+    margin: 12px 0 3px;
+    font-size: 1rem;
+}
+
+.reconciliation-detail > p {
+    margin: 0;
+    color: #7c877e;
+    font-size: .62rem;
+}
+
+.reconciliation-detail dl {
+    margin: 17px 0;
+    display: grid;
+    gap: 9px;
+}
+
+.reconciliation-detail dl > div {
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e8ece6;
+}
+
+.reconciliation-detail dt {
+    color: #8a948b;
+    font-size: .52rem;
+    font-weight: 800;
+}
+
+.reconciliation-detail dd {
+    margin: 4px 0 0;
+    color: #465248;
+    font-size: .64rem;
+}
+
+.dispatch-order-link {
+    color: #5f7c14;
+    font-size: .62rem;
+    font-weight: 850;
+    text-decoration: none;
+}
+
+.reconciliation-confirm {
+    margin-top: 18px;
+    padding-top: 15px;
+    border-top: 1px solid #e4e9e2;
+    display: grid;
+    gap: 11px;
+}
+
+.reconciliation-confirm label:not(.confirmation-check) {
+    display: grid;
+    gap: 6px;
+}
+
+.reconciliation-confirm label > span {
+    color: #59665c;
+    font-size: .56rem;
+    font-weight: 800;
+}
+
+.reconciliation-confirm textarea {
+    width: 100%;
+    padding: 9px;
+    border: 1px solid #d8dfd6;
+    border-radius: 7px;
+    font: inherit;
+    font-size: .62rem;
+    resize: vertical;
+}
+
+.confirmation-check {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 8px;
+}
+
+.reconciliation-confirm > button {
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 7px;
+    background: #9BC623;
+    color: #1d2a20;
+    font: inherit;
+    font-size: .62rem;
+    font-weight: 850;
+}
+
+.reconciliation-confirm > button:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.reconciliation-empty {
+    min-height: 220px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    color: #7c877d;
+    text-align: center;
+}
+
+.reconciliation-empty h3 {
+    margin: 10px 0 4px;
+}
+
+.reconciliation-empty p {
+    margin: 0;
+    font-size: .62rem;
+}
+
+.reconciliation-history {
+    margin-top: 15px;
+    padding: 18px;
+}
+
+.reconciliation-history > div:last-child {
+    margin-top: 13px;
+    display: grid;
+    gap: 7px;
+}
+
+.reconciliation-history article {
+    padding: 11px;
+    border: 1px solid #e4e9e2;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.reconciliation-history article strong,
+.reconciliation-history article span,
+.reconciliation-history article small {
+    display: block;
+}
+
+.reconciliation-history article strong {
+    font-size: .62rem;
+}
+
+.reconciliation-history article span,
+.reconciliation-history article small {
+    margin-top: 3px;
+    color: #7c877e;
+    font-size: .52rem;
+}
+
+.reconciliation-history article button {
+    padding: 6px 9px;
+    border: 1px solid #dce3da;
+    border-radius: 6px;
+    background: white;
+    color: #68766b;
+    font: inherit;
+    font-size: .53rem;
+    font-weight: 800;
+}
+
+@media (max-width: 1000px) {
+    .reconciliation-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .reconciliation-detail {
+        position: static;
+    }
+}
+
+@media (max-width: 700px) {
+    .reconciliation-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .candidate-list {
+        grid-template-columns: 1fr;
+    }
+}

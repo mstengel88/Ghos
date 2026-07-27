@@ -229,6 +229,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             delivery.Property(item => item.Status)
                 .HasConversion<string>()
                 .HasMaxLength(24);
+            delivery.Property(item =>
+                    item.ReconciledStatusOverride)
+                .HasConversion<string>()
+                .HasMaxLength(24);
             delivery.Property(item => item.TravelMinutes)
                 .HasPrecision(10, 2);
             delivery.Property(item => item.TravelMiles)

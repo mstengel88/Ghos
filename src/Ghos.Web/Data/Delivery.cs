@@ -39,6 +39,16 @@ public sealed class Delivery
     public DeliveryStatus Status { get; set; } =
         DeliveryStatus.Unscheduled;
 
+    public DeliveryStatus? ReconciledStatusOverride { get; set; }
+
+    [MaxLength(500)]
+    public string? ReconciliationNote { get; set; }
+
+    public DateTime? ReconciledAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? ReconciledByUserId { get; set; }
+
     public DateTime? ScheduledForUtc { get; set; }
 
     [MaxLength(80)]

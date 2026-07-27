@@ -40,6 +40,11 @@ builder.Services.AddHttpClient<DispatchIntegrationClient>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
 });
 builder.Services.AddScoped<DispatchSyncService>();
+builder.Services.Configure<DispatchSyncOptions>(
+    builder.Configuration.GetSection(
+        DispatchSyncOptions.SectionName));
+builder.Services.AddHostedService<
+    DispatchAutomaticSyncService>();
 builder.Services.Configure<AssetStorageOptions>(
     builder.Configuration.GetSection(AssetStorageOptions.SectionName));
 builder.Services.AddScoped<AssetStorageService>();
