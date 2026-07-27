@@ -617,7 +617,9 @@ else
                 DispatchSyncMessage =
                     $"{syncResult.Products} products · " +
                     $"{syncResult.Companies} companies · " +
-                    $"{syncResult.ExistingQuotes + syncResult.ImportedQuotes} saved quotes";
+                    $"{syncResult.ExistingQuotes + syncResult.ImportedQuotes} saved quotes · " +
+                    $"{syncResult.MaterialRules} delivery rules · " +
+                    $"{syncResult.OriginAddresses} origins";
             }
         }
         catch (Exception exception)

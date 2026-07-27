@@ -51,6 +51,16 @@
     color: var(--ghos-accent-text);
 }
 
+.sync-action {
+    font: inherit;
+    cursor: pointer;
+}
+
+.sync-action:disabled {
+    cursor: wait;
+    opacity: .6;
+}
+
 .quote-summary {
     margin-bottom: 18px;
     display: grid;

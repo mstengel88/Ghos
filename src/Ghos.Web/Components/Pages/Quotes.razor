@@ -4,6 +4,8 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
+@inject ShopifySyncService ShopifySyncService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Quotes | GHOS</PageTitle>
 
@@ -18,6 +20,12 @@
         {
             <span class="sync-message">@SyncMessage</span>
         }
+        <button type="button"
+                class="secondary-action sync-action"
+                disabled="@Syncing"
+                @onclick="RefreshAllAsync">
+            @(Syncing ? "Refreshing…" : "Refresh quote data")
+        </button>
         <a class="secondary-action" href="/project-tools">Material calculator</a>
         <a class="primary-action" href="/quotes/new">+ New quote</a>
     </div>
@@ -123,6 +131,7 @@ else
 @code {
     private List<CustomerQuote> QuoteItems { get; set; } = [];
     private bool Loading { get; set; } = true;
+    private bool Syncing { get; set; }
     private string SearchText { get; set; } = string.Empty;
     private string StatusFilter { get; set; } = string.Empty;
     private string? SyncMessage { get; set; }
@@ -143,13 +152,15 @@ else
     {
         try
         {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            await ShopifySyncService.SynchronizeIfStaleAsync(
+                authenticationState.User);
             var result =
                 await DispatchQuoteDataSyncService.SynchronizeIfStaleAsync();
             if (result is not null)
             {
-                SyncMessage =
-                    $"Dispatch v2: {result.ExistingQuotes + result.ImportedQuotes} quotes · " +
-                    $"{result.Companies} companies";
+                SyncMessage = BuildSyncMessage(result);
             }
         }
         catch (Exception exception)
@@ -157,14 +168,53 @@ else
             SyncMessage = $"Dispatch sync unavailable: {exception.Message}";
         }
 
-        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        await LoadQuotesAsync();
+        Loading = false;
+    }
+
+    private async Task RefreshAllAsync()
+    {
+        Syncing = true;
+        SyncMessage = "Refreshing Shopify metafields and Supabase quote data…";
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var shopify = await ShopifySyncService.SynchronizeAsync(
+                authenticationState.User);
+            var dispatch = await DispatchQuoteDataSyncService
+                .SynchronizeAsync();
+            SyncMessage =
+                $"{BuildSyncMessage(dispatch)} · " +
+                $"{shopify.Total} Shopify products";
+            await LoadQuotesAsync();
+        }
+        catch (Exception exception)
+        {
+            SyncMessage = $"Quote data refresh failed: {exception.Message}";
+        }
+        finally
+        {
+            Syncing = false;
+        }
+    }
+
+    private async Task LoadQuotesAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
         QuoteItems = await dbContext.CustomerQuotes
             .AsNoTracking()
             .Include(quote => quote.Lines)
             .OrderByDescending(quote => quote.UpdatedAtUtc)
             .ToListAsync();
-        Loading = false;
     }
+
+    private static string BuildSyncMessage(
+        DispatchQuoteDataSyncResult result) =>
+        $"Dispatch v2: {result.ExistingQuotes + result.ImportedQuotes} quotes · " +
+        $"{result.Companies} companies · {result.Products} product prices · " +
+        $"{result.MaterialRules} delivery rules · {result.OriginAddresses} origins";
 
     private static string GetStatusLabel(QuoteStatus status) =>
         status switch

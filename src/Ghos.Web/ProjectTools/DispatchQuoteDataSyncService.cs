@@ -14,7 +14,10 @@ public sealed record DispatchQuoteDataSyncResult(
     int Companies,
     int ImportedQuotes,
     int ExistingQuotes,
-    DateTime CompletedAtUtc);
+    DateTime CompletedAtUtc,
+    int MaterialRules = 0,
+    int OriginAddresses = 0,
+    int Settings = 0);
 
 public sealed partial class DispatchQuoteDataSyncService(
     HttpClient httpClient,
@@ -51,12 +54,19 @@ public sealed partial class DispatchQuoteDataSyncService(
             DateTime.UtcNow - configuration.DispatchDataLastSyncedAtUtc <
             refreshWindow)
         {
+            var materialRuleCount = await dbContext.QuoteMaterialRules
+                .CountAsync(cancellationToken);
+            var originCount = await dbContext.QuoteOriginAddresses
+                .CountAsync(cancellationToken);
             return new(
                 configuration.DispatchDataLastProductCount,
                 configuration.DispatchDataLastCompanyCount,
                 0,
                 configuration.DispatchDataLastQuoteCount,
-                configuration.DispatchDataLastSyncedAtUtc.Value);
+                configuration.DispatchDataLastSyncedAtUtc.Value,
+                materialRuleCount,
+                originCount,
+                1);
         }
 
         return await SynchronizeAsync(cancellationToken);
@@ -75,11 +85,25 @@ public sealed partial class DispatchQuoteDataSyncService(
         var quoteRows = await GetAsync<LegacyQuoteRow>(
             "custom_delivery_quotes?select=*&order=created_at.asc",
             cancellationToken);
+        var materialRuleRows = await GetAsync<MaterialRuleRow>(
+            "shipping_material_rules?select=*&order=sort_order.asc",
+            cancellationToken);
+        var originRows = await GetAsync<OriginAddressRow>(
+            "origin_addresses?select=*&order=label.asc",
+            cancellationToken);
+        var settingsRows = await GetAsync<AppSettingsRow>(
+            "shopify_app_settings?select=*&order=updated_at.desc&limit=1",
+            cancellationToken);
 
         await using var dbContext =
             await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await ApplyProductsAsync(dbContext, productRows, cancellationToken);
         await ApplyCompaniesAsync(dbContext, companyRows, cancellationToken);
+        await ApplyMaterialRulesAsync(
+            dbContext,
+            materialRuleRows,
+            cancellationToken);
+        await ApplyOriginsAsync(dbContext, originRows, cancellationToken);
         var (imported, existing) = await ApplyQuotesAsync(
             dbContext,
             quoteRows,
@@ -92,6 +116,7 @@ public sealed partial class DispatchQuoteDataSyncService(
             configuration = new QuoteConfiguration();
             dbContext.QuoteConfigurations.Add(configuration);
         }
+        ApplySettings(configuration, settingsRows.FirstOrDefault());
 
         var completedAt = DateTime.UtcNow;
         configuration.DispatchDataLastSyncedAtUtc = completedAt;
@@ -106,38 +131,64 @@ public sealed partial class DispatchQuoteDataSyncService(
             companyRows.Count,
             imported,
             existing,
-            completedAt);
+            completedAt,
+            materialRuleRows.Count,
+            originRows.Count,
+            settingsRows.Count);
     }
 
     private async Task<IReadOnlyList<T>> GetAsync<T>(
         string relativePath,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"{_options.SupabaseUrl.TrimEnd('/')}/rest/v1/{relativePath}");
-        request.Headers.TryAddWithoutValidation(
-            "apikey",
-            _options.ServiceRoleKey);
-        request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            _options.ServiceRoleKey);
-        request.Headers.TryAddWithoutValidation("Range", "0-9999");
-
-        using var response = await httpClient.SendAsync(
-            request,
-            cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        const int pageSize = 1000;
+        var rows = new List<T>();
+        for (var start = 0; ; start += pageSize)
         {
-            logger.LogWarning(
-                "Dispatch quote data returned HTTP {Status}.",
-                (int)response.StatusCode);
-            throw new InvalidOperationException(
-                $"Dispatch quote data returned HTTP {(int)response.StatusCode}.");
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{_options.SupabaseUrl.TrimEnd('/')}/rest/v1/{relativePath}");
+            request.Headers.TryAddWithoutValidation(
+                "apikey",
+                _options.ServiceRoleKey);
+            request.Headers.Authorization = new AuthenticationHeaderValue(
+                "Bearer",
+                _options.ServiceRoleKey);
+            request.Headers.TryAddWithoutValidation(
+                "Range",
+                $"{start}-{start + pageSize - 1}");
+
+            using var response = await httpClient.SendAsync(
+                request,
+                cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(
+                cancellationToken);
+            if (response.StatusCode ==
+                System.Net.HttpStatusCode.RequestedRangeNotSatisfiable)
+            {
+                break;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogWarning(
+                    "Dispatch quote data returned HTTP {Status}.",
+                    (int)response.StatusCode);
+                throw new InvalidOperationException(
+                    $"Dispatch quote data returned HTTP {(int)response.StatusCode}.");
+            }
+
+            var page = JsonSerializer.Deserialize<List<T>>(
+                body,
+                JsonOptions) ?? [];
+            rows.AddRange(page);
+            if (page.Count < pageSize)
+            {
+                break;
+            }
         }
 
-        return JsonSerializer.Deserialize<List<T>>(body, JsonOptions) ?? [];
+        return rows;
     }
 
     private static async Task ApplyProductsAsync(
@@ -187,9 +238,156 @@ public sealed partial class DispatchQuoteDataSyncService(
             variant.ImageUrl = Clean(row.ImageUrl) ?? variant.ImageUrl;
             variant.PickupVendor =
                 Clean(row.PickupVendor) ?? variant.PickupVendor;
+            if (row.Price is not null)
+            {
+                variant.Price = Math.Max(0m, row.Price.Value);
+            }
+
+            variant.CoveragePerOrderUnitSqFt =
+                row.CoveragePerOrderUnitSqFt ??
+                variant.CoveragePerOrderUnitSqFt;
+            variant.CalculatorOrderUnitLabel =
+                Clean(row.CalculatorOrderUnitLabel) ??
+                variant.CalculatorOrderUnitLabel;
+            variant.PiecesPerOrderUnit =
+                row.PiecesPerOrderUnit ?? variant.PiecesPerOrderUnit;
+            variant.CalculatorUnitLengthInches =
+                row.UnitLengthInches ??
+                variant.CalculatorUnitLengthInches;
+            variant.CalculatorUnitHeightInches =
+                row.UnitHeightInches ??
+                variant.CalculatorUnitHeightInches;
+            variant.LayersPerPallet =
+                row.LayersPerPallet ?? variant.LayersPerPallet;
+            variant.SquareFeetPerLayer =
+                row.SquareFeetPerLayer ?? variant.SquareFeetPerLayer;
+            variant.PalletWeightLbs =
+                row.PalletWeightLbs ?? variant.PalletWeightLbs;
+
+            var product = variant.Product;
+            product.ProjectCalculatorType =
+                Clean(row.ProjectCalculatorType)?.ToLowerInvariant() ??
+                product.ProjectCalculatorType;
+            product.CoveragePerOrderUnitSqFt =
+                row.CoveragePerOrderUnitSqFt ??
+                product.CoveragePerOrderUnitSqFt;
+            product.CalculatorOrderUnitLabel =
+                Clean(row.CalculatorOrderUnitLabel) ??
+                product.CalculatorOrderUnitLabel;
+            product.PiecesPerOrderUnit =
+                row.PiecesPerOrderUnit ?? product.PiecesPerOrderUnit;
+            product.CalculatorUnitLengthInches =
+                row.UnitLengthInches ??
+                product.CalculatorUnitLengthInches;
+            product.CalculatorUnitHeightInches =
+                row.UnitHeightInches ??
+                product.CalculatorUnitHeightInches;
+            product.LayersPerPallet =
+                row.LayersPerPallet ?? product.LayersPerPallet;
+            product.SquareFeetPerLayer =
+                row.SquareFeetPerLayer ?? product.SquareFeetPerLayer;
+            product.PalletWeightLbs =
+                row.PalletWeightLbs ?? product.PalletWeightLbs;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task ApplyMaterialRulesAsync(
+        ApplicationDbContext dbContext,
+        IReadOnlyList<MaterialRuleRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var rules = await dbContext.QuoteMaterialRules
+            .ToListAsync(cancellationToken);
+        var byPrefix = rules.ToDictionary(
+            rule => rule.SkuPrefix,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in rows.Where(row =>
+            !string.IsNullOrWhiteSpace(row.Prefix) &&
+            !string.IsNullOrWhiteSpace(row.MaterialName)))
+        {
+            var prefix = row.Prefix.Trim();
+            if (!byPrefix.TryGetValue(prefix, out var rule))
+            {
+                rule = new QuoteMaterialRule
+                {
+                    SkuPrefix = prefix
+                };
+                dbContext.QuoteMaterialRules.Add(rule);
+                byPrefix[prefix] = rule;
+            }
+
+            rule.MaterialName = row.MaterialName.Trim();
+            rule.TruckCapacity = row.TruckCapacity > 0
+                ? row.TruckCapacity
+                : 22m;
+            rule.VendorSource = Clean(row.VendorSource);
+            rule.IsActive = row.IsActive;
+            rule.SortOrder = row.SortOrder;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task ApplyOriginsAsync(
+        ApplicationDbContext dbContext,
+        IReadOnlyList<OriginAddressRow> rows,
+        CancellationToken cancellationToken)
+    {
+        var origins = await dbContext.QuoteOriginAddresses
+            .ToListAsync(cancellationToken);
+        var byLabel = origins.ToDictionary(
+            origin => origin.Label,
+            StringComparer.OrdinalIgnoreCase);
+        var defaultRow = rows.FirstOrDefault(row =>
+                row.IsActive && row.IsDefault) ??
+            rows.FirstOrDefault(row => row.IsActive);
+
+        foreach (var origin in origins)
+        {
+            origin.IsDefault = false;
+        }
+
+        foreach (var row in rows.Where(row =>
+            !string.IsNullOrWhiteSpace(row.Label) &&
+            !string.IsNullOrWhiteSpace(row.Address)))
+        {
+            var label = row.Label.Trim();
+            if (!byLabel.TryGetValue(label, out var origin))
+            {
+                origin = new QuoteOriginAddress
+                {
+                    Label = label
+                };
+                dbContext.QuoteOriginAddresses.Add(origin);
+                byLabel[label] = origin;
+            }
+
+            origin.Address = row.Address.Trim();
+            origin.IsActive = row.IsActive;
+            origin.IsDefault = ReferenceEquals(row, defaultRow);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void ApplySettings(
+        QuoteConfiguration configuration,
+        AppSettingsRow? row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        configuration.UseTestFlatRate = row.UseTestFlatRate;
+        configuration.TestFlatRate =
+            Math.Max(0m, row.TestFlatRateCents / 100m);
+        configuration.EnableCalculatedRates = row.EnableCalculatedRates;
+        configuration.EnableRemoteSurcharge = row.EnableRemoteSurcharge;
+        configuration.ShowVendorSource = row.ShowVendorSource;
     }
 
     private static async Task ApplyCompaniesAsync(
@@ -504,6 +702,9 @@ public sealed partial class DispatchQuoteDataSyncService(
         [JsonPropertyName("price_unit_label")]
         public string? PriceUnitLabel { get; init; }
 
+        [JsonPropertyName("price")]
+        public decimal? Price { get; init; }
+
         [JsonPropertyName("contractor_tier_1_price")]
         public decimal? ContractorTier1Price { get; init; }
 
@@ -515,6 +716,60 @@ public sealed partial class DispatchQuoteDataSyncService(
 
         [JsonPropertyName("tier_2_price")]
         public decimal? Tier2Price { get; init; }
+
+        [JsonPropertyName("project_calculator_type")]
+        public string? ProjectCalculatorType { get; init; }
+
+        [JsonPropertyName("coverage_per_order_unit_sq_ft")]
+        public decimal? CoveragePerOrderUnitSqFt { get; init; }
+
+        [JsonPropertyName("calculator_order_unit_label")]
+        public string? CalculatorOrderUnitLabel { get; init; }
+
+        [JsonPropertyName("pieces_per_order_unit")]
+        public int? PiecesPerOrderUnit { get; init; }
+
+        [JsonPropertyName("unit_length_inches")]
+        public decimal? UnitLengthInches { get; init; }
+
+        [JsonPropertyName("unit_height_inches")]
+        public decimal? UnitHeightInches { get; init; }
+
+        [JsonPropertyName("layers_per_pallet")]
+        public int? LayersPerPallet { get; init; }
+
+        [JsonPropertyName("square_feet_per_layer")]
+        public decimal? SquareFeetPerLayer { get; init; }
+
+        [JsonPropertyName("pallet_weight_lbs")]
+        public int? PalletWeightLbs { get; init; }
+    }
+
+    private sealed class MaterialRuleRow
+    {
+        [JsonPropertyName("prefix")] public string Prefix { get; init; } = string.Empty;
+        [JsonPropertyName("material_name")] public string MaterialName { get; init; } = string.Empty;
+        [JsonPropertyName("truck_capacity")] public decimal TruckCapacity { get; init; }
+        [JsonPropertyName("vendor_source")] public string? VendorSource { get; init; }
+        [JsonPropertyName("is_active")] public bool IsActive { get; init; } = true;
+        [JsonPropertyName("sort_order")] public int SortOrder { get; init; }
+    }
+
+    private sealed class OriginAddressRow
+    {
+        [JsonPropertyName("label")] public string Label { get; init; } = string.Empty;
+        [JsonPropertyName("address")] public string Address { get; init; } = string.Empty;
+        [JsonPropertyName("is_active")] public bool IsActive { get; init; } = true;
+        [JsonPropertyName("is_default")] public bool IsDefault { get; init; }
+    }
+
+    private sealed class AppSettingsRow
+    {
+        [JsonPropertyName("use_test_flat_rate")] public bool UseTestFlatRate { get; init; }
+        [JsonPropertyName("test_flat_rate_cents")] public decimal TestFlatRateCents { get; init; } = 5000m;
+        [JsonPropertyName("enable_calculated_rates")] public bool EnableCalculatedRates { get; init; } = true;
+        [JsonPropertyName("enable_remote_surcharge")] public bool EnableRemoteSurcharge { get; init; } = true;
+        [JsonPropertyName("show_vendor_source")] public bool ShowVendorSource { get; init; } = true;
     }
 
     private sealed class B2BCompanyRow
