@@ -13,6 +13,7 @@
         <p>A unified operational view of customer orders and their linked delivery tickets.</p>
     </div>
     <div class="heading-actions">
+        <DispatchRefreshControl OnSynchronized="LoadAsync" />
         <a href="/settings/dispatch">Dispatch sync</a>
         <a href="/deliveries">Open Delivery Board →</a>
     </div>
@@ -226,6 +227,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         await using var dbContext =
             await DbContextFactory.CreateDbContextAsync();
         OrderItems = await dbContext.SalesOrders
@@ -236,7 +242,9 @@ else
             .ThenByDescending(item => item.UpdatedAtUtc)
             .ToListAsync();
         SelectedOrderId =
-            OrderItems.FirstOrDefault(IsCurrentOrder)?.Id ??
+            OrderItems.Any(item => item.Id == SelectedOrderId)
+                ? SelectedOrderId
+                : OrderItems.FirstOrDefault(IsCurrentOrder)?.Id ??
             OrderItems.FirstOrDefault()?.Id;
         Loading = false;
     }

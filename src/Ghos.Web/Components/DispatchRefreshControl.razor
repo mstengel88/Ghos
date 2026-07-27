@@ -1,0 +1,110 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject DispatchSyncService DispatchSyncService
+
+<div class="dispatch-refresh">
+    <button type="button"
+            disabled="@(!Configured || Synchronizing)"
+            @onclick="SynchronizeAsync">
+        <span class="refresh-icon @(Synchronizing ? "spinning" : null)">↻</span>
+        @(Synchronizing ? "Refreshing…" : "Refresh from Dispatch")
+    </button>
+    <small class="@(!string.IsNullOrWhiteSpace(ErrorMessage) ? "error" : null)">
+        @GetStatusText()
+    </small>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    [Parameter]
+    public EventCallback OnSynchronized { get; set; }
+
+    private bool Configured { get; set; }
+    private bool Synchronizing { get; set; }
+    private DateTime? LastSuccessfulSyncAtUtc { get; set; }
+    private string? ResultMessage { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Configured = await DispatchSyncService.IsConfiguredAsync();
+        var settings = await DispatchSyncService.GetSettingsAsync();
+        LastSuccessfulSyncAtUtc =
+            settings?.LastSuccessfulSyncAtUtc;
+    }
+
+    private async Task SynchronizeAsync()
+    {
+        if (!Configured || Synchronizing ||
+            AuthenticationStateTask is null)
+        {
+            return;
+        }
+
+        Synchronizing = true;
+        ResultMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateTask;
+            var result = await DispatchSyncService.SynchronizeAsync(
+                authenticationState.User);
+            LastSuccessfulSyncAtUtc = result.CompletedAtUtc;
+            ResultMessage = result.Received == 0
+                ? "Up to date"
+                : $"{result.Received:N0} record(s) checked";
+            await OnSynchronized.InvokeAsync();
+        }
+        catch (DispatchConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch
+        {
+            ErrorMessage =
+                "Refresh failed; existing GHOS data was retained.";
+        }
+        finally
+        {
+            Synchronizing = false;
+        }
+    }
+
+    private string GetStatusText()
+    {
+        if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            return ErrorMessage;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ResultMessage))
+        {
+            return ResultMessage;
+        }
+
+        if (!Configured)
+        {
+            return "Dispatch connection required";
+        }
+
+        return LastSuccessfulSyncAtUtc is null
+            ? "Not synchronized yet"
+            : $"Updated {FormatLocalTime(
+                LastSuccessfulSyncAtUtc.Value)}";
+    }
+
+    private static string FormatLocalTime(DateTime utc)
+    {
+        var centralTime = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc),
+            TimeZoneInfo.FindSystemTimeZoneById(
+                "America/Chicago"));
+        return DateOnly.FromDateTime(centralTime) ==
+                DispatchOperationalTime.Today
+            ? centralTime.ToString("'today at' h:mm tt")
+            : centralTime.ToString("MMM d 'at' h:mm tt");
+    }
+}

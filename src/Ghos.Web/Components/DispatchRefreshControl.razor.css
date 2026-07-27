@@ -1,0 +1,60 @@
+.dispatch-refresh {
+    min-width: 150px;
+    display: grid;
+    justify-items: end;
+    gap: 4px;
+}
+
+.dispatch-refresh button {
+    min-height: 34px;
+    padding: 7px 11px;
+    border: 1px solid #d9e1d7;
+    border-radius: 7px;
+    background: white;
+    color: #5b741b;
+    font: inherit;
+    font-size: .62rem;
+    font-weight: 850;
+}
+
+.dispatch-refresh button:hover:not(:disabled) {
+    border-color: #9BC623;
+    background: #f9fcec;
+}
+
+.dispatch-refresh button:disabled {
+    cursor: wait;
+    opacity: .62;
+}
+
+.dispatch-refresh small {
+    color: #8a948c;
+    font-size: .48rem;
+}
+
+.dispatch-refresh small.error {
+    max-width: 220px;
+    color: #a24747;
+    text-align: right;
+}
+
+.refresh-icon {
+    margin-right: 4px;
+    display: inline-block;
+}
+
+.refresh-icon.spinning {
+    animation: dispatch-spin .8s linear infinite;
+}
+
+@keyframes dispatch-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 760px) {
+    .dispatch-refresh {
+        justify-items: start;
+    }
+}

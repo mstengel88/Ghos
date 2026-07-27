@@ -16,6 +16,7 @@
         <p>A read-only GHOS mirror of dispatch assignments, route progress, and proof-of-delivery status.</p>
     </div>
     <div class="heading-actions">
+        <DispatchRefreshControl OnSynchronized="LoadAsync" />
         <a href="/settings/dispatch">Dispatch sync</a>
         <a href="/orders">Open Orders →</a>
     </div>
@@ -378,6 +379,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         await using var dbContext =
             await DbContextFactory.CreateDbContextAsync();
         DeliveryItems = await dbContext.Deliveries
@@ -389,9 +395,12 @@ else
         SelectedDeliveryId = DeliveryItems.Any(item =>
                 item.Id == RequestedDeliveryId)
             ? RequestedDeliveryId
-            : DeliveryItems.FirstOrDefault(
-                    DispatchOperationalTime.IsCurrentWork)?.Id ??
-                DeliveryItems.FirstOrDefault()?.Id;
+            : DeliveryItems.Any(item =>
+                    item.Id == SelectedDeliveryId)
+                ? SelectedDeliveryId
+                : DeliveryItems.FirstOrDefault(
+                        DispatchOperationalTime.IsCurrentWork)?.Id ??
+                    DeliveryItems.FirstOrDefault()?.Id;
         Loading = false;
     }
 
