@@ -47,29 +47,52 @@
         updateButton(theme);
     };
 
-    const connectButton = () => {
-        const button = document.getElementById("ghos-theme-toggle");
-        if (!button || button.dataset.themeConnected === "true") {
-            updateButton(getTheme());
+    applyTheme(getTheme());
+
+    /*
+     * Use event delegation instead of binding directly to the button.
+     * Blazor can replace layout DOM while reconnecting or navigating; a
+     * document-level listener survives that replacement in every browser.
+     */
+    document.addEventListener("click", (event) => {
+        const target = event.target;
+        const button = target instanceof Element
+            ? target.closest("#ghos-theme-toggle")
+            : null;
+        if (!button) {
             return;
         }
 
-        button.dataset.themeConnected = "true";
-        button.addEventListener("click", () => {
-            const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
-            try {
-                globalThis.localStorage.setItem(storageKey, nextTheme);
-            } catch {
-                // The theme still changes for this page when storage is unavailable.
-            }
-            applyTheme(nextTheme);
-        });
-        updateButton(getTheme());
-    };
+        event.preventDefault();
+        const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
+        try {
+            globalThis.localStorage.setItem(storageKey, nextTheme);
+        } catch {
+            // The theme still changes for this page when storage is unavailable.
+        }
+        applyTheme(nextTheme);
+    });
 
-    applyTheme(getTheme());
-    document.addEventListener("DOMContentLoaded", connectButton);
-    document.addEventListener("enhancedload", connectButton);
+    const refreshButton = () => updateButton(root.dataset.theme || getTheme());
+    document.addEventListener("DOMContentLoaded", refreshButton);
+
+    /*
+     * Refresh the label/icon when Blazor inserts a new header button. The
+     * observer never binds click listeners and therefore cannot duplicate them.
+     */
+    const buttonObserver = new MutationObserver((mutations) => {
+        if (mutations.some((mutation) =>
+            Array.from(mutation.addedNodes).some((node) =>
+                node instanceof Element &&
+                (node.id === "ghos-theme-toggle" ||
+                    node.querySelector?.("#ghos-theme-toggle"))))) {
+            refreshButton();
+        }
+    });
+    buttonObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+    });
 
     media.addEventListener?.("change", () => {
         if (!getStoredTheme()) {
