@@ -282,8 +282,79 @@ public sealed class QuoteConfiguration
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 
+    public DateTime? DispatchDataLastSyncedAtUtc { get; set; }
+
+    public int DispatchDataLastProductCount { get; set; }
+
+    public int DispatchDataLastCompanyCount { get; set; }
+
+    public int DispatchDataLastQuoteCount { get; set; }
+
     [MaxLength(450)]
     public string? UpdatedByUserId { get; set; }
+}
+
+public sealed class QuoteB2BCompany
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    [MaxLength(120)]
+    public string ExternalId { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string ShopifyCompanyId { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string? ShopifyCompanyContactId { get; set; }
+
+    [MaxLength(120)]
+    public string? ShopifyCompanyLocationId { get; set; }
+
+    [MaxLength(160)]
+    public string CompanyName { get; set; } = string.Empty;
+
+    public ContractorTier ContractorTier { get; set; } = ContractorTier.Tier1;
+
+    public string? CatalogTitles { get; set; }
+
+    [MaxLength(160)]
+    public string? ContactName { get; set; }
+
+    [MaxLength(240)]
+    public string? Email { get; set; }
+
+    [MaxLength(40)]
+    public string? Phone { get; set; }
+
+    [MaxLength(240)]
+    public string? BillingAddressLine1 { get; set; }
+
+    [MaxLength(240)]
+    public string? BillingAddressLine2 { get; set; }
+
+    [MaxLength(120)]
+    public string? BillingCity { get; set; }
+
+    [MaxLength(40)]
+    public string? BillingState { get; set; }
+
+    [MaxLength(20)]
+    public string? BillingPostalCode { get; set; }
+
+    [MaxLength(8)]
+    public string? BillingCountry { get; set; }
+
+    public bool IsTaxExempt { get; set; }
+
+    [MaxLength(160)]
+    public string? PaymentTermsName { get; set; }
+
+    [MaxLength(120)]
+    public string? PaymentTermsTemplateId { get; set; }
+
+    public int? PaymentTermsDueInDays { get; set; }
+
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 public sealed class QuoteMaterialRule

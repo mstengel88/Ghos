@@ -36,6 +36,9 @@ public sealed class ProductVariant
     [MaxLength(2048)]
     public string? ImageUrl { get; set; }
 
+    [MaxLength(160)]
+    public string? PickupVendor { get; set; }
+
     public bool AvailableForSale { get; set; }
 
     public int SortOrder { get; set; }

@@ -6,6 +6,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject QuoteDeliveryService DeliveryService
+@inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
 @inject NavigationManager Navigation
 
 <PageTitle>@(IsNew ? "New quote" : Model.QuoteNumber) | GHOS</PageTitle>
@@ -18,6 +19,10 @@
         <p>Customer, contractor, and custom pricing with the same material calculator and delivery math used by Dispatch v2.</p>
     </div>
     <div class="heading-actions">
+        @if (!string.IsNullOrWhiteSpace(DispatchSyncMessage))
+        {
+            <span class="sync-note">@DispatchSyncMessage</span>
+        }
         @if (!IsNew)
         {
             <a class="secondary-action" href="/quotes/@QuoteId/print" target="_blank">Print quote</a>
@@ -80,6 +85,19 @@ else
                     @if (Model.Audience == QuoteAudience.Contractor)
                     {
                         <div class="contractor-strip">
+                            <label>
+                                <span>Shopify B2B company</span>
+                                <select value="@SelectedCompanyExternalId"
+                                        @onchange="CompanyChanged">
+                                    <option value="">Choose a company…</option>
+                                    @foreach (var company in B2BCompanies)
+                                    {
+                                        <option value="@company.ExternalId">
+                                            @company.CompanyName
+                                        </option>
+                                    }
+                                </select>
+                            </label>
                             <label>
                                 <span>Contractor price level</span>
                                 <InputSelect @bind-Value="Model.ContractorTier"
@@ -488,11 +506,14 @@ else
     private bool PrintAfterSave { get; set; }
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
+    private string? DispatchSyncMessage { get; set; }
     private string SelectedOptionKey { get; set; } = string.Empty;
+    private string SelectedCompanyExternalId { get; set; } = string.Empty;
     private string ProductSearch { get; set; } = string.Empty;
     private Guid? ActiveCalculatorLineKey { get; set; }
     private QuoteEditModel Model { get; set; } = new();
     private List<ProductOption> ProductOptions { get; set; } = [];
+    private List<QuoteB2BCompany> B2BCompanies { get; set; } = [];
 
     private IEnumerable<ProductOption> FilteredProductOptions =>
         ProductOptions.Where(option =>
@@ -520,6 +541,24 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var syncResult =
+                await DispatchQuoteDataSyncService.SynchronizeIfStaleAsync();
+            if (syncResult is not null)
+            {
+                DispatchSyncMessage =
+                    $"{syncResult.Products} products · " +
+                    $"{syncResult.Companies} companies · " +
+                    $"{syncResult.ExistingQuotes + syncResult.ImportedQuotes} saved quotes";
+            }
+        }
+        catch (Exception exception)
+        {
+            DispatchSyncMessage =
+                $"Dispatch data unavailable: {exception.Message}";
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
         var products = await dbContext.Products
             .AsNoTracking()
@@ -535,6 +574,10 @@ else
             (configuration?.DefaultTaxRate ?? .055m) * 100m;
         Model.RatePerMinute =
             configuration?.DefaultRatePerMinute ?? 2.08m;
+        B2BCompanies = await dbContext.QuoteB2BCompanies
+            .AsNoTracking()
+            .OrderBy(company => company.CompanyName)
+            .ToListAsync();
 
         ProductOptions = products
             .SelectMany(product =>
@@ -567,7 +610,7 @@ else
                                 : $"{product.Name} — {variant.Title}",
                             product.Name,
                             variant.Sku ?? product.ProductCode,
-                            product.ShopifyVendor,
+                            variant.PickupVendor ?? product.ShopifyVendor,
                             product.ShopifyHandle,
                             variant.ImageUrl ?? product.ShopifyFeaturedImageUrl,
                             variant.ShopifyVariantId,
@@ -591,6 +634,15 @@ else
             }
 
             Model = QuoteEditModel.FromEntity(quote);
+            SelectedCompanyExternalId = B2BCompanies
+                .FirstOrDefault(company =>
+                    company.ShopifyCompanyId == Model.ShopifyCompanyId &&
+                    (!string.IsNullOrWhiteSpace(
+                        Model.ShopifyCompanyLocationId)
+                        ? company.ShopifyCompanyLocationId ==
+                          Model.ShopifyCompanyLocationId
+                        : true))
+                ?.ExternalId ?? string.Empty;
         }
         else if (InitialProductId is not null)
         {
@@ -607,6 +659,44 @@ else
         }
 
         Loading = false;
+    }
+
+    private void CompanyChanged(ChangeEventArgs args)
+    {
+        SelectedCompanyExternalId =
+            args.Value?.ToString() ?? string.Empty;
+        var company = B2BCompanies.FirstOrDefault(candidate =>
+            candidate.ExternalId == SelectedCompanyExternalId);
+        if (company is null)
+        {
+            return;
+        }
+
+        Model.CompanyName = company.CompanyName;
+        Model.CustomerName = company.ContactName ?? Model.CustomerName;
+        Model.Email = company.Email ?? Model.Email;
+        Model.Phone = company.Phone ?? Model.Phone;
+        Model.ContractorTier = company.ContractorTier;
+        Model.IsTaxExempt = company.IsTaxExempt;
+        Model.ShopifyCompanyId = company.ShopifyCompanyId;
+        Model.ShopifyCompanyContactId =
+            company.ShopifyCompanyContactId;
+        Model.ShopifyCompanyLocationId =
+            company.ShopifyCompanyLocationId;
+        Model.PaymentTermsName = company.PaymentTermsName;
+        Model.PaymentTermsTemplateId =
+            company.PaymentTermsTemplateId;
+        Model.PaymentTermsDueInDays =
+            company.PaymentTermsDueInDays;
+        Model.BillingAddressLine1 =
+            company.BillingAddressLine1;
+        Model.BillingAddressLine2 =
+            company.BillingAddressLine2;
+        Model.BillingCity = company.BillingCity;
+        Model.BillingState = company.BillingState ?? "WI";
+        Model.BillingPostalCode = company.BillingPostalCode;
+        Model.BillingCountry = company.BillingCountry ?? "US";
+        ApplyAudiencePricing();
     }
 
     private void ChangeAudience(QuoteAudience audience)

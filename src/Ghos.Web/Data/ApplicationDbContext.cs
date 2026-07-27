@@ -60,6 +60,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<QuoteOriginAddress> QuoteOriginAddresses =>
         Set<QuoteOriginAddress>();
 
+    public DbSet<QuoteB2BCompany> QuoteB2BCompanies =>
+        Set<QuoteB2BCompany>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -363,6 +366,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<QuoteOriginAddress>(origin =>
         {
             origin.HasIndex(item => item.Label).IsUnique();
+        });
+
+        builder.Entity<QuoteB2BCompany>(company =>
+        {
+            company.HasIndex(item => item.ExternalId).IsUnique();
+            company.HasIndex(item => item.ShopifyCompanyId);
+            company.HasIndex(item => item.CompanyName);
+            company.Property(item => item.ContractorTier)
+                .HasConversion<string>()
+                .HasMaxLength(24);
         });
     }
 }

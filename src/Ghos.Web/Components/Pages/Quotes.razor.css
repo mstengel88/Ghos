@@ -23,6 +23,11 @@
     gap: 10px;
 }
 
+.sync-message {
+    color: var(--ghos-text-muted);
+    font-size: .58rem;
+}
+
 .primary-action,
 .secondary-action {
     min-height: 40px;
