@@ -41,6 +41,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<DispatchConnectionSettings> DispatchConnectionSettings =>
         Set<DispatchConnectionSettings>();
 
+    public DbSet<DumpSiteConnectionSettings> DumpSiteConnectionSettings =>
+        Set<DumpSiteConnectionSettings>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -247,6 +250,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<DispatchConnectionSettings>(settings =>
         {
             settings.ToTable("DispatchConnectionSettings");
+        });
+
+        builder.Entity<DumpSiteConnectionSettings>(settings =>
+        {
+            settings.ToTable("DumpSiteConnectionSettings");
         });
     }
 }

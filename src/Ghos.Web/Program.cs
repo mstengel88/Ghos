@@ -4,6 +4,7 @@ using Ghos.Web.Auth;
 using Ghos.Web.Components;
 using Ghos.Web.Data;
 using Ghos.Web.Dispatch;
+using Ghos.Web.DumpSite;
 using Ghos.Web.Exports;
 using Ghos.Web.Marketing;
 using Ghos.Web.Shopify;
@@ -45,6 +46,13 @@ builder.Services.Configure<DispatchSyncOptions>(
         DispatchSyncOptions.SectionName));
 builder.Services.AddHostedService<
     DispatchAutomaticSyncService>();
+builder.Services.AddScoped<DumpSiteCredentialStore>();
+builder.Services.AddHttpClient<DumpSiteBridgeClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-DumpSite/1.0");
+});
+builder.Services.AddScoped<DumpSiteOperatorService>();
 builder.Services.Configure<AssetStorageOptions>(
     builder.Configuration.GetSection(AssetStorageOptions.SectionName));
 builder.Services.AddScoped<AssetStorageService>();

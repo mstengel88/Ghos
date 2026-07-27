@@ -1,0 +1,27 @@
+<div class="copy-field">
+    <div>
+        <small>@Label</small>
+        <strong>@DisplayValue</strong>
+    </div>
+    <button type="button"
+            @onclick="CopyAsync">
+        Copy
+    </button>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public EventCallback<string> OnCopy { get; set; }
+
+    private string DisplayValue =>
+        string.IsNullOrWhiteSpace(Value) ? "—" : Value;
+
+    private Task CopyAsync() =>
+        OnCopy.InvokeAsync(Value);
+}

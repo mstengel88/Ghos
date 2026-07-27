@@ -1,0 +1,458 @@
+@page "/dumpsite/queue"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@attribute [Authorize(Policy = GhosPolicies.Operations)]
+@inject DumpSiteOperatorService OperatorService
+@inject IJSRuntime JS
+@inject ILogger<DumpSiteQueue> Logger
+
+<PageTitle>Dumpsite Queue | GHOS</PageTitle>
+
+<div class="queue-heading">
+    <div>
+        <span class="panel-label">DUMPSITE OPERATIONS</span>
+        <h2>Counterpoint ticket queue</h2>
+        <p>Process fallback dump-site submissions from inside GHOS. Each entry stays locked to this GHOS operator identity for 30 minutes while the ticket is created in Counterpoint.</p>
+    </div>
+    <div class="heading-actions">
+        <span class="queue-count"><strong>@Records.Count</strong> waiting</span>
+        <button class="secondary-action"
+                type="button"
+                disabled="@Busy"
+                @onclick="LoadQueueAsync">
+            @(Busy ? "Refreshing…" : "Refresh queue")
+        </button>
+    </div>
+</div>
+
+@if (!Configured)
+{
+    <section class="panel setup-required">
+        <div>!</div>
+        <section>
+            <span class="panel-label">SETUP REQUIRED</span>
+            <h3>Connect the Dumpsite bridge</h3>
+            <p>An administrator must enter the existing Supabase bridge address, shared secret, and Counterpoint mappings before this queue can load.</p>
+            <AuthorizeView Policy="@GhosPolicies.AdministratorOnly">
+                <a class="primary-action" href="/settings/dumpsite">Open Dumpsite settings</a>
+            </AuthorizeView>
+        </section>
+    </section>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+    {
+        <div class="queue-alert error" role="alert">@ErrorMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+    {
+        <div class="queue-alert success" role="status">@SuccessMessage</div>
+    }
+
+    <div class="queue-layout">
+        <section class="panel queue-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">SAFE FALLBACK</span>
+                    <h3>Waiting submissions</h3>
+                </div>
+                <small>Auto-refreshes every 30 seconds</small>
+            </div>
+
+            @if (Loading && Records.Count == 0)
+            {
+                <div class="queue-empty">
+                    <span class="loading-ring"></span>
+                    <h4>Loading the secure queue…</h4>
+                </div>
+            }
+            else if (Records.Count == 0)
+            {
+                <div class="queue-empty">
+                    <span class="empty-check">✓</span>
+                    <h4>The fallback queue is clear</h4>
+                    <p>New explicitly queued dump-site submissions will appear here.</p>
+                </div>
+            }
+            else
+            {
+                <div class="queue-list">
+                    @foreach (var record in Records)
+                    {
+                        <article class="queue-card @(record.MappingError is null ? "" : "mapping-error") @(Active?.Id == record.Id ? "active" : "")">
+                            <div>
+                                <div class="card-meta">
+                                    <strong>@record.ConfirmationId</strong>
+                                    @if (record.Claimed)
+                                    {
+                                        <span>Locked by GHOS</span>
+                                    }
+                                </div>
+                                <h4>@record.CompanyName</h4>
+                                @if (record.MappingError is null)
+                                {
+                                    <p>@record.MaterialType · @record.VehicleType</p>
+                                }
+                                else
+                                {
+                                    <p class="mapping-message">@record.MappingError</p>
+                                }
+                                <small>Submitted @FormatDate(record.SubmittedAtUtc)</small>
+                            </div>
+                            <button class="start-button"
+                                    type="button"
+                                    disabled="@(record.MappingError is not null || Busy || (Active is not null && Active.Id != record.Id))"
+                                    @onclick="() => StartTicketAsync(record)">
+                                @(BusyEntryId == record.Id
+                                    ? "Locking…"
+                                    : record.Claimed
+                                        ? "Resume ticket"
+                                        : "Start ticket")
+                            </button>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <aside class="panel ticket-panel">
+            @if (Active is null)
+            {
+                <div class="ticket-placeholder">
+                    <span>201-D</span>
+                    <h3>Select a submission</h3>
+                    <p>Start a ticket to lock the entry and display the exact values to copy into Counterpoint.</p>
+                </div>
+            }
+            else
+            {
+                <div class="ticket-heading">
+                    <div>
+                        <span class="status-pill">Locked for ticket entry</span>
+                        <h3>@Active.ConfirmationId</h3>
+                        <p>@Active.CompanyName · @Active.TruckNumber</p>
+                    </div>
+                    <strong>@Active.Total.ToString("C")</strong>
+                </div>
+
+                <div class="ticket-summary">
+                    <span><small>Driver</small><strong>@Display(Active.DriverName)</strong></span>
+                    <span><small>Material</small><strong>@Active.MaterialType</strong></span>
+                    <span><small>Vehicle</small><strong>@Active.VehicleType</strong></span>
+                    <span><small>Submitted</small><strong>@FormatDate(Active.SubmittedAtUtc)</strong></span>
+                </div>
+
+                <section class="ticket-section">
+                    <span class="section-label">CUSTOMER</span>
+                    <CopyField Label="Customer number"
+                               Value="@Active.CustomerNumber"
+                               OnCopy="@CopyAsync" />
+                </section>
+
+                <section class="ticket-section">
+                    <span class="section-label">ITEM</span>
+                    <CopyField Label="Barcode"
+                               Value="@Active.Barcode"
+                               OnCopy="@CopyAsync" />
+                    <CopyField Label="Quantity"
+                               Value="@Active.Quantity.ToString("0.##")"
+                               OnCopy="@CopyAsync" />
+                    <CopyField Label="Expected price"
+                               Value="@Active.UnitPrice.ToString("0.00")"
+                               OnCopy="@CopyAsync" />
+                </section>
+
+                <section class="ticket-section">
+                    <span class="section-label">REFERENCE & COMMENTS</span>
+                    <CopyField Label="PO / reference"
+                               Value="@Active.ConfirmationId"
+                               OnCopy="@CopyAsync" />
+                    @for (var index = 0; index < Active.Comments.Count; index++)
+                    {
+                        var comment = Active.Comments[index];
+                        <CopyField Label="@($"Comment {index + 1}")"
+                                   Value="@comment"
+                                   OnCopy="@CopyAsync" />
+                    }
+                </section>
+
+                <section class="ticket-section system-values">
+                    <span class="section-label">COUNTERPOINT DEFAULTS</span>
+                    <div>
+                        <span><small>Location</small><strong>@Active.Location</strong></span>
+                        <span><small>Station</small><strong>@Active.Station</strong></span>
+                        <span><small>Drawer</small><strong>@Active.Drawer</strong></span>
+                        <span><small>Sales rep</small><strong>@Active.SalesRep</strong></span>
+                    </div>
+                </section>
+
+                <section class="completion-section">
+                    <label>
+                        <span>Counterpoint hold-ticket number</span>
+                        <input @bind="TicketNumber"
+                               @bind:event="oninput"
+                               autocomplete="off"
+                               placeholder="Enter the number returned by Counterpoint" />
+                    </label>
+                    <label class="confirmation-check">
+                        <input @bind="TicketCreatedConfirmed"
+                               type="checkbox" />
+                        <span>I created and held this ticket in Counterpoint.</span>
+                    </label>
+                    <button class="primary-action complete-button"
+                            type="button"
+                            disabled="@(!CanComplete || Busy)"
+                            @onclick="CompleteAsync">
+                        @(Busy ? "Saving…" : "Mark ticket created")
+                    </button>
+                    <button class="release-button"
+                            type="button"
+                            disabled="@Busy"
+                            @onclick="ReleaseAsync">
+                        Release back to queue
+                    </button>
+                </section>
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource _disposeToken = new();
+    private List<DumpSiteQueueRecord> Records { get; set; } = [];
+    private DumpSiteQueueRecord? Active { get; set; }
+    private Guid? BusyEntryId { get; set; }
+    private bool Configured { get; set; }
+    private bool Loading { get; set; }
+    private bool Busy { get; set; }
+    private bool TicketCreatedConfirmed { get; set; }
+    private string TicketNumber { get; set; } = string.Empty;
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+    private bool CanComplete =>
+        Active?.ClaimToken is not null &&
+        TicketCreatedConfirmed &&
+        !string.IsNullOrWhiteSpace(TicketNumber);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Configured = await OperatorService.IsConfiguredAsync();
+        if (!Configured)
+        {
+            return;
+        }
+
+        await LoadQueueAsync();
+        _ = RefreshLoopAsync(_disposeToken.Token);
+    }
+
+    private async Task LoadQueueAsync()
+    {
+        Loading = true;
+        ErrorMessage = null;
+        try
+        {
+            Records = (await OperatorService.ListAsync())
+                .ToList();
+            if (Active is null)
+            {
+                Active = Records.FirstOrDefault(item =>
+                    item.Claimed &&
+                    item.ClaimToken.HasValue &&
+                    item.MappingError is null);
+            }
+            else
+            {
+                Active = Records.FirstOrDefault(item =>
+                    item.Id == Active.Id) ?? Active;
+            }
+        }
+        catch (DumpSiteConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not load the Dumpsite queue.");
+            ErrorMessage =
+                "GHOS could not load the Dumpsite queue. Existing submissions were not changed.";
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private async Task StartTicketAsync(
+        DumpSiteQueueRecord record)
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        Busy = true;
+        BusyEntryId = record.Id;
+        try
+        {
+            Active = record.Claimed && record.ClaimToken.HasValue
+                ? record
+                : await OperatorService.ClaimAsync(record.Id);
+            TicketNumber = string.Empty;
+            TicketCreatedConfirmed = false;
+            SuccessMessage =
+                $"{Active.ConfirmationId} is locked for ticket entry.";
+            await LoadQueueAsync();
+        }
+        catch (DumpSiteConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+            await LoadQueueAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not claim Dumpsite entry {EntryId}.",
+                record.Id);
+            ErrorMessage =
+                "GHOS could not lock that submission. Refresh the queue and try again.";
+        }
+        finally
+        {
+            Busy = false;
+            BusyEntryId = null;
+        }
+    }
+
+    private async Task ReleaseAsync()
+    {
+        if (Active?.ClaimToken is not Guid claimToken)
+        {
+            return;
+        }
+
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        var confirmationId = Active.ConfirmationId;
+        try
+        {
+            await OperatorService.ReleaseAsync(
+                Active.Id,
+                claimToken);
+            Active = null;
+            TicketNumber = string.Empty;
+            TicketCreatedConfirmed = false;
+            SuccessMessage =
+                $"{confirmationId} was released back to the queue.";
+            await LoadQueueAsync();
+        }
+        catch (DumpSiteConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not release Dumpsite entry.");
+            ErrorMessage =
+                "GHOS could not release the submission. Its current queue state was retained.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task CompleteAsync()
+    {
+        if (Active?.ClaimToken is not Guid claimToken ||
+            !CanComplete)
+        {
+            return;
+        }
+
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        var confirmationId = Active.ConfirmationId;
+        try
+        {
+            var cleanTicketNumber =
+                DumpSiteOperatorService.CleanTicketNumber(
+                    TicketNumber);
+            await OperatorService.CompleteAsync(
+                Active.Id,
+                claimToken,
+                cleanTicketNumber);
+            Active = null;
+            TicketNumber = string.Empty;
+            TicketCreatedConfirmed = false;
+            SuccessMessage =
+                $"{confirmationId} was recorded as Counterpoint ticket {cleanTicketNumber}.";
+            await LoadQueueAsync();
+        }
+        catch (DumpSiteConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not complete Dumpsite entry.");
+            ErrorMessage =
+                "GHOS could not record the ticket. The queue entry was not completed.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task CopyAsync(string value)
+    {
+        await JS.InvokeVoidAsync("ghos.copyText", value);
+        SuccessMessage = "Copied to the clipboard.";
+    }
+
+    private async Task RefreshLoopAsync(
+        CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(
+            TimeSpan.FromSeconds(30));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(
+                       cancellationToken))
+            {
+                if (Active is null && !Busy)
+                {
+                    await InvokeAsync(LoadQueueAsync);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal component disposal.
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _disposeToken.Cancel();
+        _disposeToken.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string FormatDate(DateTime timestamp) =>
+        timestamp.ToLocalTime().ToString(
+            "MMM d, yyyy · h:mm tt");
+
+    private static string Display(string value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+}

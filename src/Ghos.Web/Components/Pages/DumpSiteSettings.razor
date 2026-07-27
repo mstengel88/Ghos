@@ -1,0 +1,307 @@
+@page "/settings/dumpsite"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.AdministratorOnly)]
+@inject DumpSiteBridgeClient BridgeClient
+@inject DumpSiteCredentialStore CredentialStore
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<DumpSiteSettings> Logger
+
+<PageTitle>Dumpsite connection | GHOS</PageTitle>
+
+<div class="dump-settings-heading">
+    <div>
+        <a href="/settings">← Settings</a>
+        <span class="panel-label">DUMPSITE CONNECTION</span>
+        <h2>Operator queue connection</h2>
+        <p>Move the secure fallback queue into GHOS while Supabase remains the source of truth for dump-site check-ins and Counterpoint ticket state.</p>
+    </div>
+    <div class="connection-state @(Configured ? "connected" : "pending")">
+        <i></i>
+        <div>
+            <strong>@(Configured ? "Connection configured" : "Setup required")</strong>
+            <span>@(Settings?.BridgeApiBaseUrl ?? "No bridge address saved")</span>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="dump-alert error" role="alert">@ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="dump-alert success" role="status">@SuccessMessage</div>
+}
+
+@if (!Configured || ShowForm)
+{
+    <EditForm Model="@ConnectionModel"
+              OnValidSubmit="@TestAndSaveAsync"
+              FormName="dumpsite-connection">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="validation-summary" />
+
+        <section class="panel settings-section">
+            <div class="section-number">1</div>
+            <div>
+                <span class="panel-label">SECURE BRIDGE</span>
+                <h3>Connect the existing dump-site backend</h3>
+                <p>The shared secret is tested before it is encrypted and saved. It is never returned to the browser or committed to GitHub.</p>
+
+                <div class="field-grid">
+                    <label class="wide">
+                        <span>Supabase bridge API address</span>
+                        <input @bind="ConnectionModel.BridgeApiBaseUrl"
+                               @bind:event="oninput"
+                               type="url"
+                               autocomplete="url"
+                               placeholder="https://PROJECT.supabase.co/functions/v1/dump-site-bridge" />
+                        <ValidationMessage For="@(() => ConnectionModel.BridgeApiBaseUrl)" />
+                    </label>
+
+                    <label>
+                        <span>Bridge shared secret</span>
+                        <input @bind="ConnectionModel.SharedSecret"
+                               @bind:event="oninput"
+                               type="password"
+                               autocomplete="new-password"
+                               placeholder="Paste the existing DUMP_SITE_BRIDGE_SECRET" />
+                        <ValidationMessage For="@(() => ConnectionModel.SharedSecret)" />
+                    </label>
+
+                    <label>
+                        <span>Operator bridge ID</span>
+                        <input @bind="ConnectionModel.BridgeId"
+                               @bind:event="oninput"
+                               autocomplete="off" />
+                        <ValidationMessage For="@(() => ConnectionModel.BridgeId)" />
+                    </label>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel settings-section">
+            <div class="section-number">2</div>
+            <div>
+                <span class="panel-label">COUNTERPOINT MAPPINGS</span>
+                <h3>Ticket-entry values</h3>
+                <p>These are the same safe mappings used by the Windows operator page. GHOS only prepares copyable ticket details; it never writes directly to Counterpoint.</p>
+
+                <div class="defaults-grid">
+                    <label>
+                        <span>Location</span>
+                        <input @bind="ConnectionModel.CounterpointLocation"
+                               @bind:event="oninput" />
+                    </label>
+                    <label>
+                        <span>Station</span>
+                        <input @bind="ConnectionModel.CounterpointStation"
+                               @bind:event="oninput" />
+                    </label>
+                    <label>
+                        <span>Drawer</span>
+                        <input @bind="ConnectionModel.CounterpointDrawer"
+                               @bind:event="oninput" />
+                    </label>
+                    <label>
+                        <span>Sales rep</span>
+                        <input @bind="ConnectionModel.CounterpointSalesRep"
+                               @bind:event="oninput" />
+                    </label>
+                </div>
+
+                <div class="mapping-grid">
+                    <label>
+                        <span>Company → Counterpoint customer mappings</span>
+                        <textarea @bind="ConnectionModel.CompanyMappingsJson"
+                                  @bind:event="oninput"
+                                  spellcheck="false"></textarea>
+                        <small>Use a Shopify company ID or exact company name as each JSON key.</small>
+                    </label>
+                    <label>
+                        <span>Material and vehicle item mappings</span>
+                        <textarea @bind="ConnectionModel.ItemMappingsJson"
+                                  @bind:event="oninput"
+                                  spellcheck="false"></textarea>
+                        <small>The current 18 Dumpsite combinations are preloaded.</small>
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button class="primary-action"
+                            type="submit"
+                            disabled="@Busy">
+                        @(Busy ? "Testing and saving…" : "Test and save connection")
+                    </button>
+                    @if (Configured)
+                    {
+                        <button class="secondary-action"
+                                type="button"
+                                disabled="@Busy"
+                                @onclick="CancelEdit">
+                            Cancel
+                        </button>
+                    }
+                </div>
+            </div>
+        </section>
+    </EditForm>
+}
+else
+{
+    <div class="configured-grid">
+        <section class="panel connection-summary">
+            <span class="panel-label">ACTIVE CONNECTION</span>
+            <h3>GHOS owns the operator web experience</h3>
+            <dl>
+                <div>
+                    <dt>Bridge API</dt>
+                    <dd>@Settings!.BridgeApiBaseUrl</dd>
+                </div>
+                <div>
+                    <dt>Bridge ID</dt>
+                    <dd>@Settings.BridgeId</dd>
+                </div>
+                <div>
+                    <dt>Last verified</dt>
+                    <dd>@FormatTimestamp(Settings.LastHealthCheckAtUtc)</dd>
+                </div>
+            </dl>
+            <div class="form-actions">
+                <a class="primary-action queue-link" href="/dumpsite/queue">Open Dumpsite queue</a>
+                <button class="secondary-action"
+                        type="button"
+                        @onclick="BeginEdit">
+                    Replace or update connection
+                </button>
+            </div>
+        </section>
+
+        <section class="panel migration-summary">
+            <span class="panel-label">CONSOLIDATION</span>
+            <h3>Windows web process can be retired</h3>
+            <p>After the GHOS queue is verified with a real queued entry, disable the old <code>GreenHills Dump Site Operator</code> scheduled task on the Windows server. The Counterpoint desktop application stays where it is.</p>
+        </section>
+    </div>
+}
+
+@code {
+    private DumpSiteConnectionSettings? Settings { get; set; }
+    private DumpSiteConnectionInput ConnectionModel { get; set; } =
+        NewInput();
+    private bool Configured { get; set; }
+    private bool ShowForm { get; set; }
+    private bool Busy { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Settings = await CredentialStore.GetSettingsAsync();
+        Configured = Settings is not null;
+        if (Settings is not null)
+        {
+            ConnectionModel = FromSettings(Settings);
+        }
+    }
+
+    private async Task TestAndSaveAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            DumpSiteCredentialStore.NormalizeJsonObject(
+                ConnectionModel.ItemMappingsJson,
+                "item mappings");
+            DumpSiteCredentialStore.NormalizeJsonObject(
+                ConnectionModel.CompanyMappingsJson,
+                "company mappings");
+            await BridgeClient.TestAsync(
+                ConnectionModel.BridgeApiBaseUrl,
+                ConnectionModel.SharedSecret,
+                ConnectionModel.BridgeId);
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await CredentialStore.SaveAsync(
+                ConnectionModel,
+                userId);
+
+            Settings = await CredentialStore.GetSettingsAsync();
+            Configured = true;
+            ShowForm = false;
+            ConnectionModel.SharedSecret = string.Empty;
+            SuccessMessage =
+                "Dumpsite connected. The operator queue is now available inside GHOS.";
+        }
+        catch (DumpSiteConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not save the Dumpsite connection.");
+            ErrorMessage =
+                "GHOS could not test or save the Dumpsite connection. Nothing was changed.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private void BeginEdit()
+    {
+        ConnectionModel = Settings is null
+            ? NewInput()
+            : FromSettings(Settings);
+        ShowForm = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+    }
+
+    private void CancelEdit()
+    {
+        ConnectionModel = Settings is null
+            ? NewInput()
+            : FromSettings(Settings);
+        ShowForm = false;
+        ErrorMessage = null;
+    }
+
+    private static DumpSiteConnectionInput NewInput() =>
+        new()
+        {
+            ItemMappingsJson = DumpSiteDefaults.ItemMappingsJson,
+            CompanyMappingsJson =
+                DumpSiteDefaults.CompanyMappingsJson
+        };
+
+    private static DumpSiteConnectionInput FromSettings(
+        DumpSiteConnectionSettings settings) =>
+        new()
+        {
+            BridgeApiBaseUrl = settings.BridgeApiBaseUrl,
+            BridgeId = settings.BridgeId,
+            ItemMappingsJson = settings.ItemMappingsJson,
+            CompanyMappingsJson = settings.CompanyMappingsJson,
+            CounterpointLocation =
+                settings.CounterpointLocation,
+            CounterpointStation =
+                settings.CounterpointStation,
+            CounterpointDrawer = settings.CounterpointDrawer,
+            CounterpointSalesRep =
+                settings.CounterpointSalesRep
+        };
+
+    private static string FormatTimestamp(DateTime? timestamp) =>
+        timestamp?.ToLocalTime().ToString(
+            "MMM d, yyyy · h:mm tt") ?? "Not verified";
+}

@@ -1,0 +1,46 @@
+.copy-field {
+    margin-top: 8px;
+    padding: 10px 11px;
+    border: 1px solid #e0e6dd;
+    border-radius: 9px;
+    background: #fafbf9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.copy-field small,
+.copy-field strong {
+    display: block;
+}
+
+.copy-field small {
+    margin-bottom: 3px;
+    color: #818c82;
+    font-size: .64rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.copy-field strong {
+    overflow-wrap: anywhere;
+    font-size: .76rem;
+}
+
+.copy-field button {
+    min-height: 32px;
+    padding: 6px 10px;
+    border: 1px solid #cdd6c9;
+    border-radius: 7px;
+    background: white;
+    color: #5d7818;
+    font-size: .69rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.copy-field button:hover {
+    border-color: #9BC623;
+}
