@@ -233,7 +233,7 @@ public sealed class ShopifySyncService(
                     }
                     product.UpdatedAtUtc = now;
                     product.UpdatedByUserId = userId;
-                    MergeVariants(product, snapshot);
+                    MergeVariants(product, snapshot, dbContext);
                     updated++;
                 }
                 else
@@ -453,7 +453,10 @@ public sealed class ShopifySyncService(
         product.ShopifyLastSyncedAtUtc = syncedAtUtc;
     }
 
-    private static void MergeVariants(Product product, ShopifyProductSnapshot snapshot)
+    private static void MergeVariants(
+        Product product,
+        ShopifyProductSnapshot snapshot,
+        ApplicationDbContext? dbContext = null)
     {
         var incomingIds = snapshot.Variants
             .Select(variant => variant.Id)
@@ -485,6 +488,15 @@ public sealed class ShopifySyncService(
                     ShopifyVariantId = incoming.Id
                 };
                 product.Variants.Add(variant);
+
+                // Existing products are already tracked. Explicitly register a newly
+                // discovered Shopify variant as Added so EF emits INSERT rather than
+                // interpreting its client-generated Guid as an existing row to update.
+                if (dbContext is not null &&
+                    dbContext.Entry(product).State != EntityState.Detached)
+                {
+                    dbContext.ProductVariants.Add(variant);
+                }
             }
 
             variant.Title = incoming.Title;
