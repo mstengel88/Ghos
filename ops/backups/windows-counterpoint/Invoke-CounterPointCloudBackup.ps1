@@ -126,8 +126,16 @@ try {
 
     switch ($Mode) {
         "Initialize" {
-            & $ResticPath snapshots --compact *> $null
-            if ($LASTEXITCODE -ne 0) {
+            # A missing repository is expected on the first run. Windows
+            # PowerShell converts native stderr into an error record, so
+            # temporarily avoid Stop semantics while probing for the config.
+            $PreviousErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            & $ResticPath snapshots --compact 1> $null 2> $null
+            $RepositoryProbeExitCode = $LASTEXITCODE
+            $ErrorActionPreference = $PreviousErrorActionPreference
+
+            if ($RepositoryProbeExitCode -ne 0) {
                 Invoke-Restic @("init")
             }
             Invoke-Restic @("check")
@@ -270,8 +278,9 @@ try {
 }
 catch {
     Write-BackupStatus "Failure" $Mode $_.Exception.Message
-    $_ | Out-String | Tee-Object -FilePath $Script:LogPath -Append |
-        Write-Error
+    $ErrorText = $_ | Out-String
+    $ErrorText | Add-Content -Path $Script:LogPath -Encoding UTF8
+    [Console]::Error.WriteLine($ErrorText)
     exit 1
 }
 finally {

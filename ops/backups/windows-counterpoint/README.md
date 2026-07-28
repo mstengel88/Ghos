@@ -44,6 +44,9 @@ application key, and a separate 20+ character restic encryption password.
 Store the restic password in the company password manager and sealed recovery
 record. Losing it makes the backup unrecoverable.
 
+Do not display or stage either secret in Notepad, a command line, screenshots,
+chat, or source control. Enter secrets only at the installer's hidden prompts.
+
 ## First upload and status
 
 Start the initial upload:
