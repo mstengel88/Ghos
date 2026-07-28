@@ -34,6 +34,28 @@ if [[ ! -e "$CONFIG_DIR/excludes.txt" ]]; then
   install -m 0600 "$SCRIPT_DIR/config/excludes.txt" "$CONFIG_DIR/excludes.txt"
 fi
 
+# When installed from the GHOS application repository, connect the backup
+# agent to the authenticated dashboard endpoint without printing the secret.
+APP_ENV_FILE="${GHOS_APP_ENV_FILE:-$SCRIPT_DIR/../../.env}"
+if [[ -r "$APP_ENV_FILE" ]]; then
+  dashboard_secret="$(
+    sed -n 's/^GHOS_BACKUP_STATUS_INTEGRATION_SECRET=//p' "$APP_ENV_FILE" |
+      tail -n 1
+  )"
+  if [[ ${#dashboard_secret} -ge 32 ]]; then
+    sed -i \
+      -e '/^BACKUP_WEBHOOK_URL=/d' \
+      -e '/^BACKUP_WEBHOOK_TOKEN=/d' \
+      "$CONFIG_DIR/backup.env"
+    printf '%s\n' \
+      "BACKUP_WEBHOOK_URL=${GHOS_BACKUP_STATUS_URL:-http://127.0.0.1:8080/api/integrations/backup-status/ghos}" \
+      "BACKUP_WEBHOOK_TOKEN=$dashboard_secret" \
+      >>"$CONFIG_DIR/backup.env"
+    chmod 0600 "$CONFIG_DIR/backup.env"
+    dashboard_secret=
+  fi
+fi
+
 for command_name in ghos-backup ghos-backup-init ghos-backup-maintenance ghos-backup-restore-drill ghos-backup-watchdog ghos-backup-configure-b2; do
   ln -sfn "$BIN_DIR/bin/$command_name" "/usr/local/sbin/$command_name"
 done

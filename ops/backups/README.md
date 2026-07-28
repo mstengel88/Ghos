@@ -36,6 +36,11 @@ Required and recommended targets:
 The systemd sandbox treats `/mnt/ghos-backup` as optional, so a cloud-only
 installation runs normally before independent local backup storage is added.
 
+When the installer is run from `/opt/ghos`, it also connects the backup agent
+to the GHOS dashboard using the root-protected backup configuration. The
+integration secret is read from the application `.env` file and is never
+printed.
+
 The repository password must be unique, stored in a password manager, printed
 into the sealed recovery envelope, and copied to neither Git nor the repository
 it protects. Losing it makes the encrypted backup unrecoverable.
