@@ -89,17 +89,38 @@ docker compose \
 
 Do not use `down --volumes` after migration data has been loaded.
 
-## Next acceptance step
+## Local-Delivery schema rehearsal
 
-The lab is ready for isolated schema compatibility testing. No application
-should point at it yet. The next step is to compare Local-Delivery with the
-legacy dispatch schema in Quote Live, establish Dispatch V2 Sandbox as the
-canonical migration baseline, and restore a non-production schema copy before
-transferring any production rows. The quote tool remains a continuing
-application even though its older dispatch implementation will be retired.
+The read-only managed-project comparison is documented in
+`projects/local-delivery.md`. Dispatch V2 Sandbox is the canonical continuing
+dispatch runtime; the older dispatch implementation will be retired after data
+reconciliation, while its quote tool remains in migration scope.
 
-The read-only comparison is complete and documented in
-`projects/local-delivery.md`. The next lab action is to generate a from-zero
-Local-Delivery baseline, restore it without production rows, and verify all 22
-tables, 26 policies, eight functions/triggers, 106 indexes, Auth dependencies,
-Realtime behavior, and the `dispatch-photos` bucket contract.
+A schema-only Local-Delivery compatibility baseline has been restored into the
+lab without production rows, Auth identities, secrets, or Storage objects. The
+rehearsal matches the managed project contract:
+
+- 22 public tables, all with RLS enabled;
+- 26 public policies;
+- eight public functions and eight active application triggers;
+- 106 public indexes;
+- exact column names, types, nullability, and defaults for all 22 tables;
+- matching primary, foreign-key, and check constraints;
+- `dispatch_notifications` in the Supabase Realtime publication;
+- public `dispatch-photos` bucket metadata, without production objects.
+
+Five tables have physical column-order drift inherited from historical source
+migrations. Semantic signatures match, and the difference is documented in the
+baseline source manifest. The final consolidated migration should preserve the
+managed order, but application compatibility does not depend on it.
+
+The pre-rehearsal local schema-only backup is:
+
+```text
+/tmp/ghos-local-lab-before-local-delivery-20260727.sql
+SHA-256: 6e8d4d089481a9a5913d14ed39fda605cdf9f9763c3ff1d3884a29f04150da12
+```
+
+No application should point at the lab yet. The next acceptance step is a
+repeatable clean-room restore followed by a sanitized data rehearsal and
+cross-project reconciliation plan.
