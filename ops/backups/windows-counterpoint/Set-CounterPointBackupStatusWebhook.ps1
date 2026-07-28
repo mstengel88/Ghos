@@ -89,6 +89,28 @@ try {
         throw "Unable to restrict permissions on $Root."
     }
 
+    $StatusPath = Join-Path $Root "status.json"
+    if (Test-Path $StatusPath) {
+        $Status = Get-Content $StatusPath -Raw | ConvertFrom-Json
+        $Headers = @{
+            "X-GHOS-Backup-Key" = $Token
+        }
+        $Payload = [ordered]@{
+            State         = $Status.State
+            Operation     = $Status.Operation
+            Message       = $Status.Message
+            Host          = $env:COMPUTERNAME
+            OccurredAtUtc = $Status.UpdatedAtUtc
+        } | ConvertTo-Json
+        Invoke-RestMethod -Method Post `
+            -Uri $StatusWebhookUrl `
+            -Headers $Headers `
+            -ContentType "application/json" `
+            -Body $Payload `
+            -TimeoutSec 20 |
+            Out-Null
+    }
+
     Write-Host "CounterPoint backup status reporting is configured." `
         -ForegroundColor Green
 }
