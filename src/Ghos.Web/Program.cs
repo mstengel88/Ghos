@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading.RateLimiting;
 using Ghos.Web.Assets;
 using Ghos.Web.Auth;
@@ -12,6 +13,10 @@ using Ghos.Web.Shopify;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+
+var applicationCulture = CultureInfo.GetCultureInfo("en-US");
+CultureInfo.DefaultThreadCurrentCulture = applicationCulture;
+CultureInfo.DefaultThreadCurrentUICulture = applicationCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
