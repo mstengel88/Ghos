@@ -77,6 +77,24 @@ Tailscale-only access is not sufficient for the Shopify website/app-proxy
 workflow. The managed URL remains the rollback target until mobile and website
 acceptance passes.
 
+The current clients can be checked without modifying them:
+
+```bash
+tools/verify_dump_site_client_config.sh
+```
+
+During staging/cutover, require an exact candidate endpoint in both clients:
+
+```bash
+DUMP_SITE_EXPECTED_API_BASE=https://candidate.example/functions/v1/dump-site-api \
+  tools/verify_dump_site_client_config.sh
+```
+
+The check fails if iOS and Android disagree, the endpoint is not HTTPS, its
+function path is malformed, or it does not equal the explicitly expected
+candidate. With no expected value, it reports whether the synchronized clients
+remain on managed Supabase or use a custom HTTPS candidate.
+
 ## Source fingerprints
 
 | Source | SHA-256 |

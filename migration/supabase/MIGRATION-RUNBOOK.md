@@ -71,6 +71,8 @@ For each of the five production applications:
       limit, and CounterPoint queue workflow pass in disposable PostgreSQL 17
 - [x] Dump Site Edge Function method, QR-token, submission-validation, and
       bridge-secret contracts pass in the isolated local Edge Runtime
+- [x] Dump Site iOS/Android endpoint parity has a cutover-safe verification
+      command; both clients currently remain on managed Supabase
 - [x] Ticket Printer application migrations pass on disposable PostgreSQL 17
 - [x] Ticket Printer Edge Functions pass secret-free local acceptance
 - [x] Ticket Printer managed `pg_cron` task has a GHOS systemd replacement
