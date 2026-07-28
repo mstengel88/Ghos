@@ -902,11 +902,23 @@
 }
 
 .totals-panel > button.secondary-save,
-.totals-panel > button.shopify-draft {
+.totals-panel > .shopify-draft {
     margin-top: 8px;
     border: 1px solid var(--ghos-border);
+    border-radius: 7px;
     background: var(--ghos-surface-muted);
     color: var(--ghos-text);
+}
+
+.totals-panel > a.shopify-draft {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 14px;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    text-decoration: none;
+    font-weight: 900;
 }
 
 .totals-panel > button.shopify-draft:disabled {

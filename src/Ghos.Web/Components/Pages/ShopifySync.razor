@@ -4,6 +4,8 @@
 @inject ShopifySyncService SyncService
 @inject ShopifyCredentialStore CredentialStore
 @inject ShopifyAccessTokenProvider TokenProvider
+@inject ShopifyDraftOrderCredentialStore DraftOrderCredentialStore
+@inject ShopifyDraftOrderAccessTokenProvider DraftOrderTokenProvider
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILogger<ShopifySync> Logger
 
@@ -233,6 +235,108 @@ else
     }
 }
 
+<section class="panel setup-panel draft-order-setup">
+    <div class="setup-number">2</div>
+    <div>
+        <span class="panel-label">SHOPIFY DRAFT ORDERS</span>
+        <h3>@(DraftOrderConfigured
+            ? "Draft-order connection configured"
+            : "Connect Shopify draft orders")</h3>
+        <p>
+            This separate protected connection can create Shopify draft orders
+            from approved GHOS quotes. The read-only product connection above
+            remains isolated and unchanged.
+        </p>
+
+        @if (!string.IsNullOrWhiteSpace(DraftOrderErrorMessage))
+        {
+            <div class="auth-alert" role="alert">
+                @DraftOrderErrorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(DraftOrderSuccessMessage))
+        {
+            <div class="sync-success" role="status">
+                <strong>@DraftOrderSuccessMessage</strong>
+            </div>
+        }
+
+        @if (!DraftOrderConfigured || ShowDraftOrderCredentialForm)
+        {
+            <EditForm Model="@DraftOrderCredentialModel"
+                      OnValidSubmit="@SaveDraftOrderCredentialsAsync"
+                      FormName="shopify-draft-order-credentials">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="validation-summary" />
+
+                <div class="credential-grid">
+                    <label>
+                        <span>Draft-order app Client ID</span>
+                        <input @bind="DraftOrderCredentialModel.ClientId"
+                               @bind:event="oninput"
+                               autocomplete="off"
+                               placeholder="Paste the Shopify Client ID" />
+                        <ValidationMessage For="@(() =>
+                            DraftOrderCredentialModel.ClientId)" />
+                    </label>
+
+                    <label>
+                        <span>Draft-order app Client Secret</span>
+                        <input @bind="DraftOrderCredentialModel.ClientSecret"
+                               @bind:event="oninput"
+                               type="password"
+                               autocomplete="new-password"
+                               placeholder="Paste the Shopify Client Secret" />
+                        <ValidationMessage For="@(() =>
+                            DraftOrderCredentialModel.ClientSecret)" />
+                    </label>
+                </div>
+
+                <div class="credential-actions">
+                    <button class="primary-action"
+                            type="submit"
+                            disabled="@DraftOrderBusy">
+                        @(DraftOrderBusy
+                            ? "Verifying…"
+                            : "Verify and save draft-order connection")
+                    </button>
+                    @if (DraftOrderConfigured)
+                    {
+                        <button class="secondary-action"
+                                type="button"
+                                disabled="@DraftOrderBusy"
+                                @onclick="CancelDraftOrderCredentialReplacement">
+                            Cancel
+                        </button>
+                    }
+                </div>
+            </EditForm>
+        }
+        else
+        {
+            <div class="credential-actions">
+                <span class="connection-state connected">
+                    <i></i>
+                    <strong>Ready to create Shopify drafts</strong>
+                </span>
+                <button class="secondary-action"
+                        type="button"
+                        @onclick="BeginDraftOrderCredentialReplacement">
+                    Replace credentials
+                </button>
+            </div>
+        }
+
+        <div class="setup-meta">
+            <span><strong>Store</strong> @SyncService.StoreDomain</span>
+            <span><strong>Required</strong> write_draft_orders</span>
+            <span><strong>Storage</strong> Encrypted in GHOS PostgreSQL</span>
+            <span><strong>Safety</strong> Secrets are never displayed again</span>
+        </div>
+    </div>
+</section>
+
 @code {
     private ShopifySyncPreview? Preview { get; set; }
     private ShopifySyncResult? SyncResult { get; set; }
@@ -241,12 +345,21 @@ else
     private bool Configured { get; set; }
     private bool ShowCredentialForm { get; set; }
     private bool Busy { get; set; }
+    private ShopifyCredentialInput DraftOrderCredentialModel { get; set; } =
+        new();
+    private bool DraftOrderConfigured { get; set; }
+    private bool ShowDraftOrderCredentialForm { get; set; }
+    private bool DraftOrderBusy { get; set; }
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
+    private string? DraftOrderErrorMessage { get; set; }
+    private string? DraftOrderSuccessMessage { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
         Configured = await SyncService.IsConfiguredAsync();
+        DraftOrderConfigured =
+            await DraftOrderCredentialStore.HasCredentialsAsync();
         LastRun = await SyncService.GetLastRunAsync();
     }
 
@@ -304,6 +417,66 @@ else
         CredentialModel = new();
         ErrorMessage = null;
         ShowCredentialForm = false;
+    }
+
+    private async Task SaveDraftOrderCredentialsAsync()
+    {
+        DraftOrderBusy = true;
+        DraftOrderErrorMessage = null;
+        DraftOrderSuccessMessage = null;
+
+        try
+        {
+            await DraftOrderTokenProvider.ValidateCredentialsAsync(
+                DraftOrderCredentialModel.ClientId,
+                DraftOrderCredentialModel.ClientSecret);
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await DraftOrderCredentialStore.SaveAsync(
+                DraftOrderCredentialModel.ClientId,
+                DraftOrderCredentialModel.ClientSecret,
+                userId);
+            DraftOrderConfigured = true;
+            ShowDraftOrderCredentialForm = false;
+            DraftOrderCredentialModel = new();
+            DraftOrderSuccessMessage =
+                "Shopify draft orders connected securely. Saved GHOS quotes can now be sent to Shopify.";
+        }
+        catch (ShopifyConnectionException exception)
+        {
+            DraftOrderTokenProvider.Invalidate();
+            DraftOrderErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            DraftOrderTokenProvider.Invalidate();
+            Logger.LogError(
+                exception,
+                "GHOS could not save the Shopify draft-order credentials.");
+            DraftOrderErrorMessage =
+                "GHOS could not verify or save the Shopify draft-order connection. Nothing was changed.";
+        }
+        finally
+        {
+            DraftOrderBusy = false;
+        }
+    }
+
+    private void BeginDraftOrderCredentialReplacement()
+    {
+        DraftOrderCredentialModel = new();
+        DraftOrderErrorMessage = null;
+        DraftOrderSuccessMessage = null;
+        ShowDraftOrderCredentialForm = true;
+    }
+
+    private void CancelDraftOrderCredentialReplacement()
+    {
+        DraftOrderCredentialModel = new();
+        DraftOrderErrorMessage = null;
+        ShowDraftOrderCredentialForm = false;
     }
 
     private async Task PreviewAsync()

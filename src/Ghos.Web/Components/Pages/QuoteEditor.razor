@@ -8,6 +8,8 @@
 @inject QuoteDeliveryService DeliveryService
 @inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
 @inject ShopifySyncService ShopifySyncService
+@inject ShopifyDraftOrderCredentialStore ShopifyDraftOrderCredentialStore
+@inject ShopifyDraftOrderService ShopifyDraftOrderService
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
 @inject IJSRuntime JSRuntime
@@ -596,13 +598,49 @@ else
                 </button>
                 @if (!IsNew)
                 {
-                    <button type="button"
-                            class="shopify-draft"
-                            disabled
-                            title="Requires Shopify write_draft_orders permission">
-                        Send to Shopify
-                    </button>
-                    <small>Shopify conversion is ready to be enabled after the app receives <code>write_draft_orders</code>. Your current read-only product/customer connection remains unchanged.</small>
+                    @if (!string.IsNullOrWhiteSpace(
+                            Model.ShopifyDraftOrderUrl))
+                    {
+                        <a class="shopify-draft"
+                           href="@Model.ShopifyDraftOrderUrl"
+                           target="_blank"
+                           rel="noopener">
+                            Open Shopify draft
+                        </a>
+                        <small>
+                            This quote is linked to a Shopify draft order.
+                        </small>
+                    }
+                    else
+                    {
+                        <button type="button"
+                                class="shopify-draft"
+                                disabled="@(!ShopifyDraftOrdersConfigured ||
+                                    SendingToShopify ||
+                                    Saving)"
+                                @onclick="SendToShopifyAsync">
+                            @(SendingToShopify
+                                ? "Sending…"
+                                : "Save & send to Shopify")
+                        </button>
+                        @if (ShopifyDraftOrdersConfigured)
+                        {
+                            <small>
+                                Saves current changes, then creates one
+                                protected Shopify draft order.
+                            </small>
+                        }
+                        else
+                        {
+                            <small>
+                                An administrator must
+                                <a href="/products/shopify">
+                                    connect Shopify draft orders
+                                </a>
+                                with <code>write_draft_orders</code>.
+                            </small>
+                        }
+                    }
                 }
                 else
                 {
@@ -632,6 +670,8 @@ else
     private bool Loading { get; set; } = true;
     private bool NotFound { get; set; }
     private bool Saving { get; set; }
+    private bool SendingToShopify { get; set; }
+    private bool ShopifyDraftOrdersConfigured { get; set; }
     private bool CalculatingDelivery { get; set; }
     private bool PrintAfterSave { get; set; }
     private string? ErrorMessage { get; set; }
@@ -681,6 +721,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        ShopifyDraftOrdersConfigured =
+            await ShopifyDraftOrderCredentialStore.HasCredentialsAsync();
         var initialAuthenticationState =
             await AuthenticationStateProvider.GetAuthenticationStateAsync();
         try
@@ -1139,7 +1181,57 @@ else
         await SaveAsync();
     }
 
-    private async Task SaveAsync()
+    private async Task SaveAsync() =>
+        await PersistQuoteAsync(navigateAfterSave: true);
+
+    private async Task SendToShopifyAsync()
+    {
+        if (QuoteId is null)
+        {
+            ErrorMessage =
+                "Save the quote before sending it to Shopify.";
+            return;
+        }
+
+        SendingToShopify = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            if (!await PersistQuoteAsync(navigateAfterSave: false))
+            {
+                return;
+            }
+
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                System.Security.Claims.ClaimTypes.NameIdentifier);
+            var result =
+                await ShopifyDraftOrderService.CreateFromQuoteAsync(
+                    QuoteId.Value,
+                    userId);
+
+            Model.ShopifyDraftOrderId = result.Id;
+            Model.ShopifyDraftOrderUrl = result.AdminUrl;
+            Model.Status = QuoteStatus.ReadyForReview;
+            SuccessMessage = result.AlreadyCreated
+                ? $"{Model.QuoteNumber} is already linked to a Shopify draft."
+                : $"{Model.QuoteNumber} was sent to Shopify as {result.Name}.";
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage =
+                $"The quote was saved, but Shopify could not create the draft order. {exception.Message}";
+        }
+        finally
+        {
+            SendingToShopify = false;
+        }
+    }
+
+    private async Task<bool> PersistQuoteAsync(bool navigateAfterSave)
     {
         Saving = true;
         ErrorMessage = null;
@@ -1199,22 +1291,24 @@ else
             Model.QuoteNumber = quote.QuoteNumber;
             SuccessMessage = $"{quote.QuoteNumber} saved.";
 
-            if (PrintAfterSave)
+            if (navigateAfterSave && PrintAfterSave)
             {
                 Navigation.NavigateTo(
                     $"/quotes/{quote.Id}/print",
                     forceLoad: true);
             }
-            else
+            else if (navigateAfterSave)
             {
                 Navigation.NavigateTo(
                     $"/quotes/{quote.Id}",
                     forceLoad: true);
             }
+            return true;
         }
         catch (Exception exception)
         {
             ErrorMessage = $"The quote could not be saved. {exception.Message}";
+            return false;
         }
         finally
         {
@@ -1402,6 +1496,8 @@ else
     private sealed class QuoteEditModel
     {
         public string QuoteNumber { get; set; } = string.Empty;
+        public string? ShopifyDraftOrderId { get; set; }
+        public string? ShopifyDraftOrderUrl { get; set; }
         public QuoteStatus Status { get; set; } = QuoteStatus.Draft;
         public QuoteAudience Audience { get; set; } = QuoteAudience.Customer;
         public ContractorTier ContractorTier { get; set; } = ContractorTier.Tier1;
@@ -1448,6 +1544,8 @@ else
             new()
             {
                 QuoteNumber = quote.QuoteNumber,
+                ShopifyDraftOrderId = quote.ShopifyDraftOrderId,
+                ShopifyDraftOrderUrl = quote.ShopifyDraftOrderUrl,
                 Status = quote.Status,
                 Audience = quote.Audience,
                 ContractorTier = quote.ContractorTier,

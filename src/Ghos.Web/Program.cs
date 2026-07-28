@@ -29,16 +29,28 @@ builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
 builder.Services.Configure<ShopifyOptions>(
     builder.Configuration.GetSection(ShopifyOptions.SectionName));
 builder.Services.AddScoped<ShopifyCredentialStore>();
+builder.Services.AddScoped<ShopifyDraftOrderCredentialStore>();
 builder.Services.AddHttpClient<ShopifyAccessTokenProvider>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
+});
+builder.Services.AddHttpClient<ShopifyDraftOrderAccessTokenProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-Shopify-Drafts/1.0");
 });
 builder.Services.AddHttpClient<ShopifyAdminClient>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(60);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
 });
+builder.Services.AddHttpClient<ShopifyDraftOrderClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(60);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-Shopify-Drafts/1.0");
+});
+builder.Services.AddScoped<ShopifyDraftOrderService>();
 builder.Services.AddScoped<ShopifySyncService>();
 builder.Services.AddHttpClient<QuoteDeliveryService>(client =>
 {

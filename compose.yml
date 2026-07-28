@@ -55,6 +55,8 @@ services:
       Shopify__ApiVersion: ${SHOPIFY_API_VERSION:-2026-07}
       Shopify__ClientId: ${SHOPIFY_CLIENT_ID:-}
       Shopify__ClientSecret: ${SHOPIFY_CLIENT_SECRET:-}
+      Shopify__DraftOrderClientId: ${SHOPIFY_DRAFT_ORDER_CLIENT_ID:-}
+      Shopify__DraftOrderClientSecret: ${SHOPIFY_DRAFT_ORDER_CLIENT_SECRET:-}
       Shopify__StorefrontUrl: https://greenhillssupply.com
       DispatchSync__Enabled: ${DISPATCH_SYNC_ENABLED:-true}
       DispatchSync__IntervalMinutes: ${DISPATCH_SYNC_INTERVAL_MINUTES:-5}

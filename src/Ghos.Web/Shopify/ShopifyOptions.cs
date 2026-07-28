@@ -12,9 +12,17 @@ public sealed class ShopifyOptions
 
     public string? ClientSecret { get; set; }
 
+    public string? DraftOrderClientId { get; set; }
+
+    public string? DraftOrderClientSecret { get; set; }
+
     public string StorefrontUrl { get; set; } = "https://greenhillssupply.com";
 
     public bool HasEnvironmentCredentials =>
         !string.IsNullOrWhiteSpace(ClientId) &&
         !string.IsNullOrWhiteSpace(ClientSecret);
+
+    public bool HasDraftOrderEnvironmentCredentials =>
+        !string.IsNullOrWhiteSpace(DraftOrderClientId) &&
+        !string.IsNullOrWhiteSpace(DraftOrderClientSecret);
 }

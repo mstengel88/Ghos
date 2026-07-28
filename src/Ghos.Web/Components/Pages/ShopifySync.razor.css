@@ -259,6 +259,10 @@
     color: #2f3a31;
 }
 
+.draft-order-setup {
+    margin-top: 18px;
+}
+
 .loading-panel {
     min-height: 260px;
     padding: 38px;
