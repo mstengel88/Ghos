@@ -118,6 +118,12 @@ Only secret names were inventoried.
 ## Static schema findings
 
 - Ticket Printer: 39 local migrations and extensive RLS/function history.
+  Thirty-eight application migrations now pass in a disposable PostgreSQL 17
+  database, producing 12 RLS-enabled tables, 53 policies, eight functions, and
+  five triggers. Its Supabase-specific `pg_cron` migration is being replaced
+  by a GHOS systemd timer. All 17 deployed Edge Functions pass secret-free
+  local acceptance; the single deployed/local `loadrite-sync` drift is retained
+  as a tracked baseline. See `projects/ticket-printer.md`.
 - WinterWatch-Pro: 36 local migrations, Auth, Storage, Realtime, `pg_cron`, and
   `pg_net`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2

@@ -1,0 +1,94 @@
+# Ticket Printer migration
+
+Last verified: 2026-07-28
+
+Ticket Printer currently uses managed project `dlayrpnmfnbjlxgnkczv`. Its
+primary local source is `/Users/mattstengel/edit-my-ticket`.
+
+## PostgreSQL 17 rehearsal
+
+`tools/verify_ticket_printer_schema.sh` applies the historical migrations to a
+disposable PostgreSQL 17 database in the local Supabase lab. It never resets
+the Local-Delivery database and drops the disposable database on exit.
+
+The verified application contract is:
+
+- 38 application schema migrations;
+- 12 public tables, all with RLS;
+- 53 public RLS policies;
+- eight public functions; and
+- five application triggers.
+
+The 39th migration is infrastructure-specific. It installs `pg_cron` and
+`pg_net`, then schedules `loadrite-sync` against the managed Supabase URL.
+That migration is intentionally excluded from the isolated schema rehearsal
+and must not be applied to the self-hosted application database.
+
+## Historical Auth coupling
+
+Two historical migrations directly reference three managed Auth user UUIDs.
+That is valid history but is not a portable bootstrap mechanism.
+
+The disposable rehearsal creates placeholder Auth rows for those UUIDs solely
+to prove the remaining schema chain. No real email, password, identity,
+metadata, or production user row is copied into the lab.
+
+The cutover baseline must separate:
+
+1. schema creation, with no user-specific seed rows;
+2. managed Auth export and import, preserving user UUIDs;
+3. role import after the corresponding Auth users exist; and
+4. a one-time initial-administrator bootstrap for a genuinely blank install.
+
+Existing users will need to re-authenticate after the signing-key cutover.
+Passwords and identities must be migrated through the supported Auth export
+path rather than reconstructed from application tables.
+
+## Edge Functions
+
+All 17 deployed functions were compared with local source:
+
+- 16 match exactly;
+- `loadrite-sync` differs by one behavior;
+- the deployed function uses the accumulated `currentNote` for a completed
+  Loadrite group, while local source prefers `rec.UserData3` when present.
+
+The normalized deployed `loadrite-sync` source is retained under
+`baselines/ticket-printer/functions/loadrite-sync`.
+
+`tools/verify_ticket_printer_edge_functions.sh` temporarily mounts Ticket
+Printer functions in the local Edge Runtime with all external credentials
+empty. It verifies:
+
+- Google address lookup refuses to call externally without its key;
+- Loadrite and Loadrite sync refuse to call externally without credentials;
+- all three Resend functions refuse to call externally without a key;
+- protected agent and account functions reject missing authentication; and
+- no Edge Runtime worker failure occurs.
+
+The verifier always restores the Local-Delivery function mounts on exit.
+
+## Loadrite scheduling
+
+The self-hosted replacement for Supabase `pg_cron` is:
+
+- `ops/ticket-printer/ghos-ticket-printer-loadrite-sync`;
+- `ghos-ticket-printer-loadrite-sync.service`; and
+- `ghos-ticket-printer-loadrite-sync.timer`.
+
+The timer invokes only a loopback Edge Function URL every five minutes. Its API
+key lives in `/etc/ghos-ticket-printer/loadrite-sync.env`, outside Git, with
+root-only permissions. Production installation remains gated until the
+self-hosted Ticket Printer Supabase stack and secret injection are ready.
+
+## Remaining gates
+
+- Obtain an exact production database/Auth export without resetting managed
+  database passwords.
+- Reconcile the managed schema and row counts against the local contract.
+- Inventory Storage and Realtime usage.
+- Inject secret values through root-only runtime configuration.
+- Test Loadrite, Resend, Google, and agent callbacks using approved test
+  endpoints.
+- Run an Auth/session acceptance test with disposable users.
+- Perform a backup and restore drill before any production cutover.

@@ -67,6 +67,9 @@ For each of the five production applications:
       embedded database images, and unresolved photo payloads
 - [x] Dump Site eight-migration schema, RLS, generated order number, rate
       limit, and CounterPoint queue workflow pass in disposable PostgreSQL 17
+- [x] Ticket Printer application migrations pass on disposable PostgreSQL 17
+- [x] Ticket Printer Edge Functions pass secret-free local acceptance
+- [x] Ticket Printer managed `pg_cron` task has a GHOS systemd replacement
 - [ ] No production secret exists in source control or container images
 
 ## Gate 4 — GHSSERVER deployment

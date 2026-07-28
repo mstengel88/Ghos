@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Ticket Printer Loadrite synchronization every five minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=15s
+RandomizedDelaySec=15s
+Persistent=true
+Unit=ghos-ticket-printer-loadrite-sync.service
+
+[Install]
+WantedBy=timers.target

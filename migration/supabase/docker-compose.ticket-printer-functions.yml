@@ -1,0 +1,34 @@
+# Local compatibility-lab override only.
+# Mounts Ticket Printer functions with all external credentials forced empty.
+# The deployed Loadrite sync capture is mounted instead of the drifted local
+# source. Production credentials must never be added to this file.
+services:
+  functions:
+    volumes:
+      - ./volumes/functions:/home/deno/functions:z
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/_shared:/home/deno/functions/_shared:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/address-autocomplete:/home/deno/functions/address-autocomplete:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-action:/home/deno/functions/agent-action:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-container-restart:/home/deno/functions/agent-container-restart:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-containers:/home/deno/functions/agent-containers:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-logs:/home/deno/functions/agent-logs:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-logs-stream:/home/deno/functions/agent-logs-stream:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-metrics:/home/deno/functions/agent-metrics:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-proxy:/home/deno/functions/agent-proxy:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-registry:/home/deno/functions/agent-registry:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-status:/home/deno/functions/agent-status:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/agent-stream:/home/deno/functions/agent-stream:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/delete-account:/home/deno/functions/delete-account:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/loadrite:/home/deno/functions/loadrite:ro
+      - ../../baselines/ticket-printer/functions/loadrite-sync:/home/deno/functions/loadrite-sync:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/send-order-delivered-email:/home/deno/functions/send-order-delivered-email:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/send-report-email:/home/deno/functions/send-report-email:ro
+      - ${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}/supabase/functions/send-ticket-email:/home/deno/functions/send-ticket-email:ro
+    environment:
+      AGENT_SECRET: ""
+      AGENT_URL: ""
+      GOOGLE_MAPS_API_KEY: ""
+      LOADRITE_API_TOKEN: ""
+      LOADRITE_SYNC_SERVICE_ROLE_KEY: ""
+      LOADRITE_SYNC_USER_ID: ""
+      RESEND_API_KEY: ""

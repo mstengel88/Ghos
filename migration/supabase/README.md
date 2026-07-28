@@ -265,3 +265,22 @@ tools/verify_dump_site_schema.sh
 Set `DUMP_SITE_SOURCE_ROOT` if the canonical Green Hills application repository
 is stored somewhere other than its documented Mac path. Production data,
 secrets, and external callbacks are deliberately excluded from this rehearsal.
+
+## Ticket Printer compatibility rehearsal
+
+Ticket Printer uses its own disposable PostgreSQL 17 database and temporarily
+replaces only the local Edge Runtime function mounts. Both verifiers restore
+or remove their temporary state on exit:
+
+```bash
+tools/verify_ticket_printer_schema.sh
+tools/verify_ticket_printer_edge_functions.sh
+```
+
+The scripts default to `/Users/mattstengel/edit-my-ticket`. Set
+`TICKET_PRINTER_SOURCE_ROOT` when the source checkout lives elsewhere.
+
+The schema verifier intentionally excludes the managed Supabase `pg_cron`
+migration. GHOS replaces that schedule with the root-only systemd unit under
+`ops/ticket-printer`. The Edge verifier forces all third-party credentials
+empty and uses the tracked deployed `loadrite-sync` baseline.

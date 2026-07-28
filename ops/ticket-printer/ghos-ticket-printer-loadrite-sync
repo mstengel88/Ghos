@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+: "${TICKET_PRINTER_FUNCTION_URL:?Ticket Printer function URL is required}"
+: "${TICKET_PRINTER_FUNCTION_API_KEY:?Ticket Printer function API key is required}"
+
+case "$TICKET_PRINTER_FUNCTION_URL" in
+  http://127.0.0.1:*|http://localhost:*) ;;
+  *)
+    printf 'Refusing non-local Ticket Printer function URL: %s\n' \
+      "$TICKET_PRINTER_FUNCTION_URL" >&2
+    exit 1
+    ;;
+esac
+
+response_file="$(mktemp)"
+cleanup() {
+  rm -f "$response_file"
+}
+trap cleanup EXIT
+
+status="$(
+  curl \
+    --silent \
+    --show-error \
+    --output "$response_file" \
+    --write-out '%{http_code}' \
+    --connect-timeout 10 \
+    --max-time 120 \
+    --retry 2 \
+    --retry-delay 3 \
+    --request POST \
+    --header "apikey: $TICKET_PRINTER_FUNCTION_API_KEY" \
+    --header "Authorization: Bearer $TICKET_PRINTER_FUNCTION_API_KEY" \
+    --header "Content-Type: application/json" \
+    --data '{}' \
+    "$TICKET_PRINTER_FUNCTION_URL"
+)"
+
+if [[ "$status" != "200" ]]; then
+  printf 'Loadrite sync returned HTTP %s: ' "$status" >&2
+  jq -c '{error, success}' "$response_file" >&2 2>/dev/null \
+    || printf '%s\n' 'unparseable response' >&2
+  exit 1
+fi
+
+jq -e '.success == true' "$response_file" >/dev/null
+jq -c \
+  '{success, site, fromDate, toDate, records, groupedTickets, insertedCandidates}' \
+  "$response_file"

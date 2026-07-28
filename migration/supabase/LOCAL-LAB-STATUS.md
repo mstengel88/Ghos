@@ -143,6 +143,31 @@ temporary database on exit.
 Production rows, exact managed-schema comparison, secret values, and external
 callbacks remain gated. See `projects/dump-site.md`.
 
+## Ticket Printer isolated compatibility rehearsal
+
+Thirty-eight Ticket Printer application migrations apply cleanly to a
+disposable PostgreSQL 17 database. The resulting contract contains 12 public
+tables, RLS on all 12, 53 policies, eight functions, and five triggers.
+
+The historical migrations require three managed Auth UUIDs to exist before
+user-role seeds run. The verifier supplies placeholder Auth rows only inside
+the disposable database. The consolidated self-hosted baseline must separate
+schema creation from Auth and role import.
+
+The remaining migration installs `pg_cron` and schedules a managed-project
+Edge Function URL. It is intentionally excluded from the application schema
+rehearsal and has a GHOS systemd service/timer replacement.
+
+All 17 deployed Ticket Printer Edge Functions were reconciled. Sixteen match
+local source; deployed `loadrite-sync` differs in completed-group note
+selection and is retained as the migration baseline. Secret-free local
+acceptance passed for Loadrite, Google, Resend, agent, and account guards.
+The Local-Delivery Edge Function mounts were restored and reverified after the
+test.
+
+Production rows, Auth identities, secret values, and external callbacks remain
+gated. See `projects/ticket-printer.md`.
+
 ## macOS Storage compatibility
 
 Supabase Storage's file backend requires Linux extended attributes. A normal
