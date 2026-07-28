@@ -1357,6 +1357,13 @@ else
             }
 
             MapToEntity(quote, userId);
+
+            // CustomerQuoteLine uses an application-generated Guid key. When
+            // replacement lines are attached through an already tracked quote,
+            // EF can otherwise infer Modified and issue UPDATE statements for
+            // rows that have never existed. Register every replacement line as
+            // Added so SaveChanges emits INSERT statements.
+            dbContext.CustomerQuoteLines.AddRange(quote.Lines);
             await dbContext.SaveChangesAsync();
             await transaction.CommitAsync();
             QuoteId = quote.Id;
