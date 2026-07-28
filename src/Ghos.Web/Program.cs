@@ -57,6 +57,7 @@ builder.Services.AddHttpClient<QuoteDeliveryService>(client =>
     client.Timeout = TimeSpan.FromSeconds(30);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-Quote/1.0");
 });
+builder.Services.AddSingleton<QuoteTaxCalculator>();
 builder.Services.Configure<DispatchQuoteDataOptions>(
     builder.Configuration.GetSection(
         DispatchQuoteDataOptions.SectionName));

@@ -322,6 +322,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             quote.Property(item => item.ShippingQuantity).HasPrecision(18, 3);
             quote.Property(item => item.ShippingRate).HasPrecision(18, 2);
             quote.Property(item => item.TaxRate).HasPrecision(8, 6);
+            quote.Property(item => item.TaxRateLabel).HasMaxLength(80);
             quote.Property(item => item.TaxAmount).HasPrecision(18, 2);
             quote.Property(item => item.Total).HasPrecision(18, 2);
         });

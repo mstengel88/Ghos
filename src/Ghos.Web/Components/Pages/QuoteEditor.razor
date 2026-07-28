@@ -6,6 +6,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject QuoteDeliveryService DeliveryService
+@inject QuoteTaxCalculator TaxCalculator
 @inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
 @inject ShopifySyncService ShopifySyncService
 @inject ShopifyDraftOrderCredentialStore ShopifyDraftOrderCredentialStore
@@ -145,6 +146,7 @@ else
                             <span>Delivery address</span>
                             <InputText id="quote-address1"
                                        @bind-Value="Model.AddressLine1"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
                                        autocomplete="street-address"
                                        placeholder="Start typing an address…" />
                             <div id="quote-address-suggestions"
@@ -159,28 +161,33 @@ else
                         <label class="wide">
                             <span>Address line 2</span>
                             <InputText @bind-Value="Model.AddressLine2"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
                                        autocomplete="address-line2" />
                         </label>
                         <label>
                             <span>City</span>
                             <InputText id="quote-city"
                                        @bind-Value="Model.City"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
                                        autocomplete="address-level2" />
                         </label>
                         <label>
                             <span>State</span>
                             <InputText id="quote-state"
                                        @bind-Value="Model.State"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
                                        autocomplete="address-level1" />
                         </label>
                         <label>
                             <span>ZIP code</span>
                             <InputText id="quote-postal-code"
                                        @bind-Value="Model.PostalCode"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
                                        autocomplete="postal-code" />
                         </label>
                         <label class="check-field">
-                            <InputCheckbox @bind-Value="Model.IsTaxExempt" />
+                            <InputCheckbox @bind-Value="Model.IsTaxExempt"
+                                           @bind-Value:after="ApplyTaxRateForCurrentAddress" />
                             <span>Tax exempt</span>
                         </label>
                     </div>
@@ -520,8 +527,11 @@ else
                         <label>
                             <span>Tax rate (%)</span>
                             <InputNumber @bind-Value="Model.TaxRatePercent"
-                                         disabled="@Model.IsTaxExempt" />
-                            <small>Tax applies to products, not delivery.</small>
+                                         @bind-Value:after="ApplyCustomTaxLabel"
+                                         disabled="@TaxRateInputDisabled" />
+                            <small>
+                                @TaxRateDisplayLabel · Tax applies to products, not delivery.
+                            </small>
                         </label>
                     </div>
                 </section>
@@ -718,6 +728,13 @@ else
         : Math.Round(Subtotal * Math.Max(0m, Model.TaxRatePercent) / 100m, 2);
     private decimal Total =>
         Math.Round(Subtotal + EffectiveDeliveryAmount + TaxAmount, 2);
+    private bool TaxRateInputDisabled =>
+        Model.IsTaxExempt || Model.Audience != QuoteAudience.Custom;
+    private string TaxRateDisplayLabel => Model.IsTaxExempt
+        ? "Tax exempt"
+        : Model.Audience == QuoteAudience.Custom
+            ? "Custom tax"
+            : Model.TaxRateLabel ?? "Address-based tax";
 
     protected override async Task OnInitializedAsync()
     {
@@ -768,6 +785,7 @@ else
             .SingleOrDefaultAsync();
         Model.TaxRatePercent =
             (configuration?.DefaultTaxRate ?? .055m) * 100m;
+        Model.TaxRateLabel = "Default tax";
         Model.RatePerMinute =
             configuration?.DefaultRatePerMinute ?? 2.08m;
         B2BCompanies = await dbContext.QuoteB2BCompanies
@@ -856,6 +874,11 @@ else
             }
         }
 
+        if (IsNew)
+        {
+            ApplyTaxRateForCurrentAddress();
+        }
+
         Loading = false;
     }
 
@@ -917,6 +940,7 @@ else
         Model.State = Clean(selection.State) ?? "WI";
         Model.PostalCode = Clean(selection.PostalCode);
         Model.Country = Clean(selection.Country) ?? "US";
+        ApplyTaxRateForCurrentAddress();
         AddressLookupStatus =
             "Address selected from Google. Review the details before calculating delivery.";
         AddressLookupStatusClass = "selected";
@@ -958,6 +982,7 @@ else
         Model.BillingState = company.BillingState ?? "WI";
         Model.BillingPostalCode = company.BillingPostalCode;
         Model.BillingCountry = company.BillingCountry ?? "US";
+        ApplyTaxRateForCurrentAddress();
         ApplyAudiencePricing();
     }
 
@@ -986,7 +1011,42 @@ else
             Model.ShippingUnit = "miles";
         }
 
+        ApplyTaxRateForCurrentAddress();
         ApplyAudiencePricing();
+    }
+
+    private void ApplyTaxRateForCurrentAddress()
+    {
+        if (Model.IsTaxExempt)
+        {
+            Model.TaxRateLabel = "Tax exempt";
+            return;
+        }
+
+        if (Model.Audience == QuoteAudience.Custom)
+        {
+            Model.TaxRateLabel = "Custom tax";
+            return;
+        }
+
+        var match = TaxCalculator.Resolve(new QuoteTaxAddress(
+            Model.AddressLine1,
+            Model.AddressLine2,
+            Model.City,
+            Model.State,
+            Model.PostalCode,
+            Model.Country));
+        Model.TaxRatePercent = match.Rate * 100m;
+        Model.TaxRateLabel = match.Label;
+    }
+
+    private void ApplyCustomTaxLabel()
+    {
+        if (Model.Audience == QuoteAudience.Custom &&
+            !Model.IsTaxExempt)
+        {
+            Model.TaxRateLabel = "Custom tax";
+        }
     }
 
     private void ApplyAudiencePricing()
@@ -1319,6 +1379,7 @@ else
 
     private void MapToEntity(CustomerQuote quote, string? userId)
     {
+        ApplyTaxRateForCurrentAddress();
         quote.Status = Model.Status;
         quote.Audience = Model.Audience;
         quote.ContractorTier = Model.ContractorTier;
@@ -1374,6 +1435,7 @@ else
         quote.TaxRate = Model.IsTaxExempt
             ? 0m
             : Math.Max(0m, Model.TaxRatePercent) / 100m;
+        quote.TaxRateLabel = TaxRateDisplayLabel;
         quote.TaxAmount = TaxAmount;
         quote.Total = Total;
         quote.DeliveryServiceName = Clean(Model.DeliveryServiceName);
@@ -1531,6 +1593,7 @@ else
         public decimal? ShippingRate { get; set; }
         public string? ShippingUnit { get; set; } = "miles";
         public decimal TaxRatePercent { get; set; } = 5.5m;
+        public string? TaxRateLabel { get; set; } = "Default tax";
         public string? DeliveryServiceName { get; set; }
         public string? DeliveryDescription { get; set; }
         public string? DeliveryEta { get; set; }
@@ -1583,6 +1646,7 @@ else
                 ShippingRate = quote.ShippingRate,
                 ShippingUnit = quote.ShippingUnit,
                 TaxRatePercent = quote.TaxRate * 100m,
+                TaxRateLabel = quote.TaxRateLabel ?? "Saved tax rate",
                 DeliveryServiceName = quote.DeliveryServiceName,
                 DeliveryDescription = quote.DeliveryDescription,
                 DeliveryEta = quote.DeliveryEta,

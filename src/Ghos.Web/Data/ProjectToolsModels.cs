@@ -151,6 +151,9 @@ public sealed class CustomerQuote
 
     public decimal TaxRate { get; set; }
 
+    [MaxLength(80)]
+    public string? TaxRateLabel { get; set; }
+
     public decimal TaxAmount { get; set; }
 
     public decimal Total { get; set; }

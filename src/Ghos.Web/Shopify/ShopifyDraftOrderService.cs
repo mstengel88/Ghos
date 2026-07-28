@@ -217,6 +217,7 @@ public sealed class ShopifyDraftOrderService(
             ["title"] = title,
             ["quantity"] = displayedQuantity,
             ["originalUnitPrice"] = displayedUnitPrice,
+            ["taxable"] = true,
             ["customAttributes"] = customAttributes
         };
         AddIfPresent(item, "sku", line.Sku);
@@ -287,6 +288,11 @@ public sealed class ShopifyDraftOrderService(
         {
             details.Add($"Delivery: {quote.DeliverySummary.Trim()}");
         }
+        details.Add(
+            quote.IsTaxExempt
+                ? "Quoted tax: Tax exempt."
+                : $"Quoted tax: {quote.TaxRateLabel ?? "Tax"} " +
+                  $"({quote.TaxRate:P3}) = {quote.TaxAmount:C2}.");
         return string.Join(Environment.NewLine + Environment.NewLine, details);
     }
 

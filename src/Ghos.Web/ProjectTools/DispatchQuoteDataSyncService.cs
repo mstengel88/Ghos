@@ -548,6 +548,9 @@ public sealed partial class DispatchQuoteDataSyncService(
                 TaxRate = row.TaxExempt || subtotal <= 0
                     ? 0m
                     : taxAmount / subtotal,
+                TaxRateLabel = row.TaxExempt
+                    ? "Tax exempt"
+                    : "Imported from Dispatch v2",
                 TaxAmount = taxAmount,
                 Total = total,
                 DeliveryServiceName = Clean(row.ServiceName),
