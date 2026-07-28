@@ -3,6 +3,7 @@ using System;
 using Ghos.Web.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Ghos.Web.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260727210301_AddDispatchQuoteParity")]
+    partial class AddDispatchQuoteParity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1072,22 +1075,6 @@ namespace Ghos.Web.Data.Migrations
                     b.Property<string>("BestUses")
                         .HasColumnType("text");
 
-                    b.Property<string>("CalculatorOrderUnitLabel")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<decimal?>("CalculatorUnitHeightInches")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<decimal?>("CalculatorUnitLengthInches")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<decimal?>("CoveragePerOrderUnitSqFt")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -1098,9 +1085,6 @@ namespace Ghos.Web.Data.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
-                    b.Property<int?>("LayersPerPallet")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Limitations")
                         .HasColumnType("text");
 
@@ -1109,22 +1093,12 @@ namespace Ghos.Web.Data.Migrations
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
 
-                    b.Property<int?>("PalletWeightLbs")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("PiecesPerOrderUnit")
-                        .HasColumnType("integer");
-
                     b.Property<Guid>("ProductCategoryId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("ProductCode")
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
-
-                    b.Property<string>("ProjectCalculatorType")
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
 
                     b.Property<DateTime?>("ReviewedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1199,10 +1173,6 @@ namespace Ghos.Web.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(180)
                         .HasColumnType("character varying(180)");
-
-                    b.Property<decimal?>("SquareFeetPerLayer")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1376,18 +1346,6 @@ namespace Ghos.Web.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("CalculatorOrderUnitLabel")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<decimal?>("CalculatorUnitHeightInches")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<decimal?>("CalculatorUnitLengthInches")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<decimal?>("CompareAtPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1400,26 +1358,9 @@ namespace Ghos.Web.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<decimal?>("CoveragePerOrderUnitSqFt")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
-
-                    b.Property<int?>("LayersPerPallet")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("PalletWeightLbs")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PickupVendor")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<int?>("PiecesPerOrderUnit")
-                        .HasColumnType("integer");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
@@ -1440,10 +1381,6 @@ namespace Ghos.Web.Data.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
-                    b.Property<decimal?>("SquareFeetPerLayer")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(180)
@@ -1461,108 +1398,6 @@ namespace Ghos.Web.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProductVariants");
-                });
-
-            modelBuilder.Entity("Ghos.Web.Data.QuoteB2BCompany", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("BillingAddressLine1")
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)");
-
-                    b.Property<string>("BillingAddressLine2")
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)");
-
-                    b.Property<string>("BillingCity")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("BillingCountry")
-                        .HasMaxLength(8)
-                        .HasColumnType("character varying(8)");
-
-                    b.Property<string>("BillingPostalCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("BillingState")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("CatalogTitles")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CompanyName")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("ContactName")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("ContractorTier")
-                        .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)");
-
-                    b.Property<string>("Email")
-                        .HasMaxLength(240)
-                        .HasColumnType("character varying(240)");
-
-                    b.Property<string>("ExternalId")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<bool>("IsTaxExempt")
-                        .HasColumnType("boolean");
-
-                    b.Property<int?>("PaymentTermsDueInDays")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PaymentTermsName")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.Property<string>("PaymentTermsTemplateId")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("ShopifyCompanyContactId")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("ShopifyCompanyId")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<string>("ShopifyCompanyLocationId")
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CompanyName");
-
-                    b.HasIndex("ExternalId")
-                        .IsUnique();
-
-                    b.HasIndex("ShopifyCompanyId");
-
-                    b.ToTable("QuoteB2BCompanies");
                 });
 
             modelBuilder.Entity("Ghos.Web.Data.QuoteConfiguration", b =>
@@ -1588,18 +1423,6 @@ namespace Ghos.Web.Data.Migrations
                     b.Property<decimal>("DefaultTaxRate")
                         .HasPrecision(8, 6)
                         .HasColumnType("numeric(8,6)");
-
-                    b.Property<int>("DispatchDataLastCompanyCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("DispatchDataLastProductCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("DispatchDataLastQuoteCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("DispatchDataLastSyncedAtUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("EnableCalculatedRates")
                         .HasColumnType("boolean");

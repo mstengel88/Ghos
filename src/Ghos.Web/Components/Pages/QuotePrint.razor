@@ -1,0 +1,169 @@
+@page "/quotes/{QuoteId:guid}/print"
+@attribute [Authorize(Policy = GhosPolicies.Operations)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+
+<PageTitle>@(Quote?.QuoteNumber ?? "Quote") | Green Hills Supply</PageTitle>
+
+@if (Loading)
+{
+    <div class="print-loading">Preparing quote…</div>
+}
+else if (Quote is null)
+{
+    <div class="print-loading">Quote not found.</div>
+}
+else
+{
+    <div class="print-toolbar">
+        <a href="/quotes/@Quote.Id">← Back to quote</a>
+        <button type="button" onclick="window.print()">Print / Save PDF</button>
+    </div>
+
+    <article class="quote-document">
+        <header>
+            <div>
+                <div class="quote-logo">GH</div>
+                <div>
+                    <strong>GREEN HILLS SUPPLY</strong>
+                    <span>Quality landscape materials and dependable delivery</span>
+                </div>
+            </div>
+            <div class="company-contact">
+                <strong>Green Hills Supply</strong>
+                <span>W185 N7487 Narrow Ln</span>
+                <span>Menomonee Falls, WI 53051</span>
+                <span>(262) 345-4001</span>
+                <span>greenhillssupply.com</span>
+            </div>
+        </header>
+
+        <section class="quote-title">
+            <div>
+                <span>QUOTE</span>
+                <h1>@Quote.QuoteNumber</h1>
+            </div>
+            <dl>
+                <div><dt>Date</dt><dd>@Quote.CreatedAtUtc.ToLocalTime().ToString("MMMM d, yyyy")</dd></div>
+                <div><dt>Status</dt><dd>@GetStatusLabel(Quote.Status)</dd></div>
+                <div><dt>Pricing</dt><dd>@GetAudienceLabel(Quote)</dd></div>
+            </dl>
+        </section>
+
+        <section class="customer-grid">
+            <div>
+                <span class="section-label">PREPARED FOR</span>
+                <strong>@(string.IsNullOrWhiteSpace(Quote.CompanyName)
+                    ? Quote.CustomerName
+                    : Quote.CompanyName)</strong>
+                @if (!string.IsNullOrWhiteSpace(Quote.CompanyName))
+                {
+                    <span>@Quote.CustomerName</span>
+                }
+                <span>@Quote.Email</span>
+                <span>@Quote.Phone</span>
+            </div>
+            <div>
+                <span class="section-label">DELIVERY ADDRESS</span>
+                <strong>@Quote.AddressLine1</strong>
+                @if (!string.IsNullOrWhiteSpace(Quote.AddressLine2))
+                {
+                    <span>@Quote.AddressLine2</span>
+                }
+                <span>@Quote.City, @Quote.State @Quote.PostalCode</span>
+            </div>
+        </section>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Product / material</th>
+                    <th>Qty.</th>
+                    <th>Unit price</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in Quote.Lines.OrderBy(line => line.SortOrder))
+                {
+                    <tr>
+                        <td>
+                            <strong>@line.Description</strong>
+                            <span>@line.Sku · @line.PricingLabel</span>
+                        </td>
+                        <td>@line.Quantity.ToString("0.###") @line.UnitLabel</td>
+                        <td>@line.UnitPrice.ToString("C2")</td>
+                        <td>@line.LineTotal.ToString("C2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <section class="totals">
+            <dl>
+                <div><dt>Products</dt><dd>@Quote.Subtotal.ToString("C2")</dd></div>
+                <div><dt>Delivery / shipping</dt><dd>@Quote.DeliveryAmount.ToString("C2")</dd></div>
+                <div><dt>Tax</dt><dd>@Quote.TaxAmount.ToString("C2")</dd></div>
+                <div class="total"><dt>Total</dt><dd>@Quote.Total.ToString("C2")</dd></div>
+            </dl>
+        </section>
+
+        @if (!string.IsNullOrWhiteSpace(Quote.DeliveryServiceName) ||
+             !string.IsNullOrWhiteSpace(Quote.CustomerNotes))
+        {
+            <section class="quote-notes">
+                @if (!string.IsNullOrWhiteSpace(Quote.DeliveryServiceName))
+                {
+                    <div>
+                        <span class="section-label">DELIVERY</span>
+                        <strong>@Quote.DeliveryServiceName</strong>
+                        <p>@Quote.DeliveryDescription @Quote.DeliveryEta</p>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Quote.CustomerNotes))
+                {
+                    <div>
+                        <span class="section-label">NOTES & TERMS</span>
+                        <p>@Quote.CustomerNotes</p>
+                    </div>
+                }
+            </section>
+        }
+
+        <footer>
+            <strong>Thank you for choosing Green Hills Supply.</strong>
+            <span>Questions? Call (262) 345-4001.</span>
+        </footer>
+    </article>
+}
+
+@code {
+    [Parameter]
+    public Guid QuoteId { get; set; }
+
+    private CustomerQuote? Quote { get; set; }
+    private bool Loading { get; set; } = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var dbContext = await DbContextFactory.CreateDbContextAsync();
+        Quote = await dbContext.CustomerQuotes
+            .AsNoTracking()
+            .Include(quote => quote.Lines)
+            .SingleOrDefaultAsync(quote => quote.Id == QuoteId);
+        Loading = false;
+    }
+
+    private static string GetAudienceLabel(CustomerQuote quote) =>
+        quote.Audience switch
+        {
+            QuoteAudience.Contractor when quote.ContractorTier == ContractorTier.Tier2 =>
+                "Contractor Tier 2",
+            QuoteAudience.Contractor => "Contractor Tier 1",
+            QuoteAudience.Custom => "Custom",
+            _ => "Customer"
+        };
+
+    private static string GetStatusLabel(QuoteStatus status) =>
+        status == QuoteStatus.ReadyForReview ? "Ready for review" : status.ToString();
+}

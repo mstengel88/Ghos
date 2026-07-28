@@ -11,6 +11,7 @@ public sealed class ShopifySyncService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
     ILogger<ShopifySyncService> logger)
 {
+    private static readonly SemaphoreSlim AutomaticSyncGate = new(1, 1);
     private static readonly HashSet<string> GenericCollectionHandles =
     [
         "all",
@@ -49,6 +50,35 @@ public sealed class ShopifySyncService(
 
     public Task<bool> IsConfiguredAsync(CancellationToken cancellationToken = default) =>
         credentialStore.HasCredentialsAsync(cancellationToken);
+
+    public async Task<ShopifySyncResult?> SynchronizeIfStaleAsync(
+        ClaimsPrincipal user,
+        TimeSpan? maximumAge = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await IsConfiguredAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        var maxAge = maximumAge ?? TimeSpan.FromMinutes(30);
+        if (!await IsStaleAsync(maxAge, cancellationToken))
+        {
+            return null;
+        }
+
+        await AutomaticSyncGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await IsStaleAsync(maxAge, cancellationToken)
+                ? await SynchronizeAsync(user, cancellationToken)
+                : null;
+        }
+        finally
+        {
+            AutomaticSyncGate.Release();
+        }
+    }
 
     public async Task<ShopifySyncPreview> PreviewAsync(CancellationToken cancellationToken = default)
     {
@@ -252,6 +282,24 @@ public sealed class ShopifySyncService(
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    private async Task<bool> IsStaleAsync(
+        TimeSpan maximumAge,
+        CancellationToken cancellationToken)
+    {
+        await using var dbContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var lastSuccessfulSync = await dbContext.ShopifySyncRuns
+            .AsNoTracking()
+            .Where(run =>
+                run.Status == "Succeeded" &&
+                run.CompletedAtUtc != null)
+            .MaxAsync(
+                run => (DateTime?)run.CompletedAtUtc,
+                cancellationToken);
+        return lastSuccessfulSync is null ||
+            DateTime.UtcNow - lastSuccessfulSync.Value > maximumAge;
+    }
+
     private static Product CreateProduct(
         ShopifyProductSnapshot snapshot,
         ProductCategory category,
@@ -312,6 +360,24 @@ public sealed class ShopifySyncService(
         product.ShopifyFeaturedImageAlt = snapshot.FeaturedImageAlt;
         product.ShopifySeoTitle = snapshot.SeoTitle;
         product.ShopifySeoDescription = snapshot.SeoDescription;
+        product.ProjectCalculatorType =
+            snapshot.ProjectCalculator.CalculatorType?.ToLowerInvariant();
+        product.CoveragePerOrderUnitSqFt =
+            snapshot.ProjectCalculator.CoveragePerOrderUnitSqFt;
+        product.CalculatorOrderUnitLabel =
+            snapshot.ProjectCalculator.OrderUnitLabel;
+        product.PiecesPerOrderUnit =
+            snapshot.ProjectCalculator.PiecesPerOrderUnit;
+        product.CalculatorUnitLengthInches =
+            snapshot.ProjectCalculator.UnitLengthInches;
+        product.CalculatorUnitHeightInches =
+            snapshot.ProjectCalculator.UnitHeightInches;
+        product.LayersPerPallet =
+            snapshot.ProjectCalculator.LayersPerPallet;
+        product.SquareFeetPerLayer =
+            snapshot.ProjectCalculator.SquareFeetPerLayer;
+        product.PalletWeightLbs =
+            snapshot.ProjectCalculator.PalletWeightLbs;
         product.ShopifyCreatedAtUtc = ToUtc(snapshot.CreatedAtUtc);
         product.ShopifyUpdatedAtUtc = ToUtc(snapshot.UpdatedAtUtc);
         product.ShopifyPublishedAtUtc = ToUtc(snapshot.PublishedAtUtc);
@@ -354,6 +420,24 @@ public sealed class ShopifySyncService(
             variant.Barcode = incoming.Barcode;
             variant.Price = incoming.Price;
             variant.CompareAtPrice = incoming.CompareAtPrice;
+            variant.UnitLabel = snapshot.UnitLabel;
+            variant.ImageUrl = incoming.ImageUrl;
+            variant.CoveragePerOrderUnitSqFt =
+                incoming.CoveragePerOrderUnitSqFt;
+            variant.CalculatorOrderUnitLabel =
+                incoming.CalculatorOrderUnitLabel;
+            variant.PiecesPerOrderUnit =
+                incoming.PiecesPerOrderUnit;
+            variant.CalculatorUnitLengthInches =
+                incoming.UnitLengthInches;
+            variant.CalculatorUnitHeightInches =
+                incoming.UnitHeightInches;
+            variant.LayersPerPallet =
+                incoming.LayersPerPallet;
+            variant.SquareFeetPerLayer =
+                incoming.SquareFeetPerLayer;
+            variant.PalletWeightLbs =
+                incoming.PalletWeightLbs;
             variant.AvailableForSale = incoming.AvailableForSale;
             variant.SortOrder = index;
         }
@@ -415,6 +499,24 @@ public sealed class ShopifySyncService(
             product.ShopifyHandle != snapshot.Handle ||
             product.ShopifyStatus != snapshot.Status ||
             product.ShopifyUpdatedAtUtc != ToUtc(snapshot.UpdatedAtUtc) ||
+            product.ProjectCalculatorType !=
+                snapshot.ProjectCalculator.CalculatorType?.ToLowerInvariant() ||
+            product.CoveragePerOrderUnitSqFt !=
+                snapshot.ProjectCalculator.CoveragePerOrderUnitSqFt ||
+            product.CalculatorOrderUnitLabel !=
+                snapshot.ProjectCalculator.OrderUnitLabel ||
+            product.PiecesPerOrderUnit !=
+                snapshot.ProjectCalculator.PiecesPerOrderUnit ||
+            product.CalculatorUnitLengthInches !=
+                snapshot.ProjectCalculator.UnitLengthInches ||
+            product.CalculatorUnitHeightInches !=
+                snapshot.ProjectCalculator.UnitHeightInches ||
+            product.LayersPerPallet !=
+                snapshot.ProjectCalculator.LayersPerPallet ||
+            product.SquareFeetPerLayer !=
+                snapshot.ProjectCalculator.SquareFeetPerLayer ||
+            product.PalletWeightLbs !=
+                snapshot.ProjectCalculator.PalletWeightLbs ||
             product.Variants.Count != snapshot.Variants.Count)
         {
             return true;
@@ -435,7 +537,23 @@ public sealed class ShopifySyncService(
                 existing.Barcode != incoming.Barcode ||
                 existing.Price != incoming.Price ||
                 existing.CompareAtPrice != incoming.CompareAtPrice ||
-                existing.AvailableForSale != incoming.AvailableForSale)
+                existing.UnitLabel != snapshot.UnitLabel ||
+                existing.ImageUrl != incoming.ImageUrl ||
+                existing.AvailableForSale != incoming.AvailableForSale ||
+                existing.CoveragePerOrderUnitSqFt !=
+                    incoming.CoveragePerOrderUnitSqFt ||
+                existing.CalculatorOrderUnitLabel !=
+                    incoming.CalculatorOrderUnitLabel ||
+                existing.PiecesPerOrderUnit !=
+                    incoming.PiecesPerOrderUnit ||
+                existing.CalculatorUnitLengthInches !=
+                    incoming.UnitLengthInches ||
+                existing.CalculatorUnitHeightInches !=
+                    incoming.UnitHeightInches ||
+                existing.LayersPerPallet != incoming.LayersPerPallet ||
+                existing.SquareFeetPerLayer !=
+                    incoming.SquareFeetPerLayer ||
+                existing.PalletWeightLbs != incoming.PalletWeightLbs)
             {
                 return true;
             }

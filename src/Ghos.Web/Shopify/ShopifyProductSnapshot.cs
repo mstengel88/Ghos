@@ -8,6 +8,7 @@ public sealed record ShopifyProductSnapshot(
     string? DescriptionHtml,
     string? Vendor,
     string? ProductType,
+    string? UnitLabel,
     IReadOnlyList<string> Tags,
     string? SeoTitle,
     string? SeoDescription,
@@ -16,6 +17,7 @@ public sealed record ShopifyProductSnapshot(
     DateTime? CreatedAtUtc,
     DateTime? UpdatedAtUtc,
     DateTime? PublishedAtUtc,
+    ShopifyProjectCalculatorSnapshot ProjectCalculator,
     IReadOnlyList<ShopifyCollectionSnapshot> Collections,
     IReadOnlyList<ShopifyVariantSnapshot> Variants);
 
@@ -26,7 +28,27 @@ public sealed record ShopifyVariantSnapshot(
     string? Barcode,
     decimal Price,
     decimal? CompareAtPrice,
-    bool AvailableForSale);
+    string? ImageUrl,
+    bool AvailableForSale,
+    decimal? CoveragePerOrderUnitSqFt,
+    string? CalculatorOrderUnitLabel,
+    int? PiecesPerOrderUnit,
+    decimal? UnitLengthInches,
+    decimal? UnitHeightInches,
+    int? LayersPerPallet,
+    decimal? SquareFeetPerLayer,
+    int? PalletWeightLbs);
+
+public sealed record ShopifyProjectCalculatorSnapshot(
+    string? CalculatorType,
+    decimal? CoveragePerOrderUnitSqFt,
+    string? OrderUnitLabel,
+    int? PiecesPerOrderUnit,
+    decimal? UnitLengthInches,
+    decimal? UnitHeightInches,
+    int? LayersPerPallet,
+    decimal? SquareFeetPerLayer,
+    int? PalletWeightLbs);
 
 public sealed record ShopifyCollectionSnapshot(string Id, string Title, string Handle);
 

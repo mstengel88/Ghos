@@ -7,6 +7,7 @@ using Ghos.Web.Dispatch;
 using Ghos.Web.DumpSite;
 using Ghos.Web.Exports;
 using Ghos.Web.Marketing;
+using Ghos.Web.ProjectTools;
 using Ghos.Web.Shopify;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -34,6 +35,20 @@ builder.Services.AddHttpClient<ShopifyAdminClient>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS/1.0");
 });
 builder.Services.AddScoped<ShopifySyncService>();
+builder.Services.AddHttpClient<QuoteDeliveryService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-Quote/1.0");
+});
+builder.Services.Configure<DispatchQuoteDataOptions>(
+    builder.Configuration.GetSection(
+        DispatchQuoteDataOptions.SectionName));
+builder.Services.AddHttpClient<DispatchQuoteDataSyncService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "GHOS-DispatchQuoteSync/1.0");
+});
 builder.Services.AddScoped<DispatchCredentialStore>();
 builder.Services.AddHttpClient<DispatchIntegrationClient>(client =>
 {

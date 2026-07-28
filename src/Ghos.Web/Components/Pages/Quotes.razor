@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = GhosPolicies.Operations)]
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
 
 <PageTitle>Quotes | GHOS</PageTitle>
 
@@ -13,6 +14,10 @@
         <p>Create, review, and track Green Hills customer and contractor quotes.</p>
     </div>
     <div>
+        @if (!string.IsNullOrWhiteSpace(SyncMessage))
+        {
+            <span class="sync-message">@SyncMessage</span>
+        }
         <a class="secondary-action" href="/project-tools">Material calculator</a>
         <a class="primary-action" href="/quotes/new">+ New quote</a>
     </div>
@@ -120,6 +125,7 @@ else
     private bool Loading { get; set; } = true;
     private string SearchText { get; set; } = string.Empty;
     private string StatusFilter { get; set; } = string.Empty;
+    private string? SyncMessage { get; set; }
 
     private List<CustomerQuote> VisibleQuotes =>
         QuoteItems.Where(quote =>
@@ -135,6 +141,22 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var result =
+                await DispatchQuoteDataSyncService.SynchronizeIfStaleAsync();
+            if (result is not null)
+            {
+                SyncMessage =
+                    $"Dispatch v2: {result.ExistingQuotes + result.ImportedQuotes} quotes · " +
+                    $"{result.Companies} companies";
+            }
+        }
+        catch (Exception exception)
+        {
+            SyncMessage = $"Dispatch sync unavailable: {exception.Message}";
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
         QuoteItems = await dbContext.CustomerQuotes
             .AsNoTracking()

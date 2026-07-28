@@ -26,6 +26,36 @@ public sealed class ProductVariant
 
     public decimal? CompareAtPrice { get; set; }
 
+    public decimal? ContractorTier1Price { get; set; }
+
+    public decimal? ContractorTier2Price { get; set; }
+
+    [MaxLength(40)]
+    public string? UnitLabel { get; set; }
+
+    [MaxLength(2048)]
+    public string? ImageUrl { get; set; }
+
+    [MaxLength(160)]
+    public string? PickupVendor { get; set; }
+
+    public decimal? CoveragePerOrderUnitSqFt { get; set; }
+
+    [MaxLength(40)]
+    public string? CalculatorOrderUnitLabel { get; set; }
+
+    public int? PiecesPerOrderUnit { get; set; }
+
+    public decimal? CalculatorUnitLengthInches { get; set; }
+
+    public decimal? CalculatorUnitHeightInches { get; set; }
+
+    public int? LayersPerPallet { get; set; }
+
+    public decimal? SquareFeetPerLayer { get; set; }
+
+    public int? PalletWeightLbs { get; set; }
+
     public bool AvailableForSale { get; set; }
 
     public int SortOrder { get; set; }

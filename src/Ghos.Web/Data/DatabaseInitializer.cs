@@ -63,6 +63,87 @@ public static class DatabaseInitializer
 
         await SeedTomorrowMaterialMondayAsync(dbContext);
         await SeedMaterialProfilesAsync(dbContext);
+        await SeedQuoteConfigurationAsync(dbContext);
+
+        var dispatchQuoteSync =
+            scope.ServiceProvider.GetRequiredService<DispatchQuoteDataSyncService>();
+        var logger = scope.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("DispatchQuoteDataStartupSync");
+
+        try
+        {
+            await dispatchQuoteSync.SynchronizeIfStaleAsync();
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Dispatch quote data could not be synchronized during startup. GHOS will retry when the quote workspace is opened.");
+        }
+    }
+
+    private static async Task SeedQuoteConfigurationAsync(
+        ApplicationDbContext dbContext)
+    {
+        if (!await dbContext.QuoteConfigurations.AnyAsync())
+        {
+            dbContext.QuoteConfigurations.Add(new QuoteConfiguration());
+        }
+
+        var existingPrefixes = await dbContext.QuoteMaterialRules
+            .Select(rule => rule.SkuPrefix)
+            .ToListAsync();
+        var rules = new[]
+        {
+            new QuoteMaterialRule
+            {
+                SkuPrefix = "100",
+                MaterialName = "Aggregate",
+                TruckCapacity = 22m,
+                VendorSource = "Aggregate",
+                SortOrder = 100
+            },
+            new QuoteMaterialRule
+            {
+                SkuPrefix = "300",
+                MaterialName = "Mulch",
+                TruckCapacity = 25m,
+                VendorSource = "Mulch",
+                SortOrder = 300
+            },
+            new QuoteMaterialRule
+            {
+                SkuPrefix = "400",
+                MaterialName = "Soil",
+                TruckCapacity = 25m,
+                VendorSource = "Soil",
+                SortOrder = 400
+            },
+            new QuoteMaterialRule
+            {
+                SkuPrefix = "499",
+                MaterialName = "Field Run",
+                TruckCapacity = 20m,
+                VendorSource = "Field Run",
+                SortOrder = 499
+            }
+        };
+        dbContext.QuoteMaterialRules.AddRange(
+            rules.Where(rule => !existingPrefixes.Contains(rule.SkuPrefix)));
+
+        if (!await dbContext.QuoteOriginAddresses.AnyAsync())
+        {
+            dbContext.QuoteOriginAddresses.Add(new QuoteOriginAddress
+            {
+                Label = "Menomonee Falls",
+                Address =
+                    "W185 N7487 Narrow Ln, Menomonee Falls, WI 53051",
+                IsDefault = true
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
     }
 
     private static ProductCategory CreateCategory(string name, string slug, int sortOrder) =>

@@ -5,6 +5,9 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject QuoteDeliveryService DeliveryService
+@inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
+@inject ShopifySyncService ShopifySyncService
 @inject NavigationManager Navigation
 
 <PageTitle>@(IsNew ? "New quote" : Model.QuoteNumber) | GHOS</PageTitle>
@@ -12,19 +15,26 @@
 <div class="quote-heading">
     <div>
         <a href="/quotes">← Quote history</a>
-        <span class="panel-label">QUOTE WORKSPACE</span>
-        <h2>@(IsNew ? "Create a quote" : Model.QuoteNumber)</h2>
-        <p>Build a customer-ready estimate from verified Shopify products while retaining the exact price used at the time of quoting.</p>
+        <span class="panel-label">QUOTE TOOL</span>
+        <h2>@(IsNew ? "Build a delivery quote" : $"Edit {Model.QuoteNumber}")</h2>
+        <p>Integrated V2 quoting using synced Shopify products, shared project calculators, and Dispatch route timing.</p>
     </div>
-    @if (!IsNew)
-    {
-        <span class="quote-number">@Model.Status</span>
-    }
+    <div class="heading-actions">
+        @if (!string.IsNullOrWhiteSpace(DispatchSyncMessage))
+        {
+            <span class="sync-note">@DispatchSyncMessage</span>
+        }
+        @if (!IsNew)
+        {
+            <a class="secondary-action" href="/quotes/@QuoteId/print" target="_blank">Print quote</a>
+            <span class="quote-number">@Model.Status</span>
+        }
+    </div>
 </div>
 
 @if (Loading)
 {
-    <section class="panel loading-panel">Preparing quote workspace…</section>
+    <section class="panel loading-panel">Preparing Shopify products and quote history…</section>
 }
 else if (NotFound)
 {
@@ -43,20 +53,75 @@ else
         {
             <div class="auth-alert" role="alert">@ErrorMessage</div>
         }
+        @if (!string.IsNullOrWhiteSpace(SuccessMessage))
+        {
+            <div class="quote-success" role="status">@SuccessMessage</div>
+        }
 
         <div class="quote-layout">
-            <div class="quote-sections">
-                <section class="panel form-section">
+            <div class="quote-form-panel">
+                <div class="audience-picker" role="tablist" aria-label="Pricing type">
+                    @foreach (var audience in Enum.GetValues<QuoteAudience>())
+                    {
+                        <button type="button"
+                                role="tab"
+                                aria-selected="@(Model.Audience == audience)"
+                                class="@(Model.Audience == audience ? "active" : null)"
+                                @onclick="() => ChangeAudience(audience)">
+                            <strong>@GetAudienceTitle(audience)</strong>
+                            <span>@GetAudienceDescription(audience)</span>
+                        </button>
+                    }
+                </div>
+
+                <div class="quote-sections">
+                <section class="form-section">
                     <div class="section-heading">
                         <span>01</span>
                         <div>
-                            <h3>Customer</h3>
-                            <p>Who the quote is for and where the material is going.</p>
+                            <h3>@(Model.Audience == QuoteAudience.Contractor
+                                ? "Company & contact"
+                                : "Customer")</h3>
+                            <p>Who the quote is for and where the materials are going.</p>
                         </div>
                     </div>
+
+                    @if (Model.Audience == QuoteAudience.Contractor)
+                    {
+                        <div class="contractor-strip">
+                            <label>
+                                <span>Shopify B2B company</span>
+                                <select value="@SelectedCompanyExternalId"
+                                        @onchange="CompanyChanged">
+                                    <option value="">Choose a company…</option>
+                                    @foreach (var company in B2BCompanies)
+                                    {
+                                        <option value="@company.ExternalId">
+                                            @company.CompanyName
+                                        </option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                <span>Contractor price level</span>
+                                <InputSelect @bind-Value="Model.ContractorTier"
+                                             @bind-Value:after="ApplyAudiencePricing">
+                                    <option value="@ContractorTier.Tier1">Contractor Tier 1</option>
+                                    <option value="@ContractorTier.Tier2">Contractor Tier 2</option>
+                                </InputSelect>
+                            </label>
+                            <div>
+                                <span>Shopify B2B</span>
+                                <strong>@(string.IsNullOrWhiteSpace(Model.ShopifyCompanyId)
+                                    ? "Company can be entered now"
+                                    : "Company linked")</strong>
+                            </div>
+                        </div>
+                    }
+
                     <div class="form-grid">
                         <label>
-                            <span>Customer name</span>
+                            <span>Customer / contact name</span>
                             <InputText @bind-Value="Model.CustomerName" />
                         </label>
                         <label>
@@ -72,8 +137,12 @@ else
                             <InputText @bind-Value="Model.Phone" type="tel" />
                         </label>
                         <label class="wide">
-                            <span>Project / delivery address</span>
+                            <span>Delivery address</span>
                             <InputText @bind-Value="Model.AddressLine1" />
+                        </label>
+                        <label class="wide">
+                            <span>Address line 2</span>
+                            <InputText @bind-Value="Model.AddressLine2" />
                         </label>
                         <label>
                             <span>City</span>
@@ -88,39 +157,75 @@ else
                             <InputText @bind-Value="Model.PostalCode" />
                         </label>
                         <label class="check-field">
-                            <InputCheckbox @bind-Value="Model.IsContractor" />
-                            <span>Contractor quote</span>
-                        </label>
-                        <label class="check-field">
                             <InputCheckbox @bind-Value="Model.IsTaxExempt" />
                             <span>Tax exempt</span>
                         </label>
                     </div>
+
+                    @if (Model.Audience == QuoteAudience.Contractor)
+                    {
+                        <details class="billing-details">
+                            <summary>Billing address and payment terms</summary>
+                            <div class="form-grid">
+                                <label class="wide">
+                                    <span>Billing address</span>
+                                    <InputText @bind-Value="Model.BillingAddressLine1" />
+                                </label>
+                                <label class="wide">
+                                    <span>Billing address line 2</span>
+                                    <InputText @bind-Value="Model.BillingAddressLine2" />
+                                </label>
+                                <label>
+                                    <span>Billing city</span>
+                                    <InputText @bind-Value="Model.BillingCity" />
+                                </label>
+                                <label>
+                                    <span>Billing state</span>
+                                    <InputText @bind-Value="Model.BillingState" />
+                                </label>
+                                <label>
+                                    <span>Billing ZIP</span>
+                                    <InputText @bind-Value="Model.BillingPostalCode" />
+                                </label>
+                                <label>
+                                    <span>Payment terms</span>
+                                    <InputText @bind-Value="Model.PaymentTermsName"
+                                               placeholder="Due on receipt, Net 30…" />
+                                </label>
+                            </div>
+                        </details>
+                    }
                 </section>
 
-                <section class="panel form-section">
+                <section class="form-section">
                     <div class="section-heading">
                         <span>02</span>
                         <div>
                             <h3>Products & materials</h3>
-                            <p>Add a synced Shopify product, then adjust the quantity or quoted price when needed.</p>
+                            <p>Search Shopify products and variants. Each line preserves its quoted price and pricing source.</p>
                         </div>
                     </div>
 
-                    <div class="add-line">
+                    <div class="product-search">
+                        <label>
+                            <span>Search by product, SKU, or vendor</span>
+                            <input @bind="ProductSearch"
+                                   @bind:event="oninput"
+                                   placeholder="Start typing…" />
+                        </label>
                         <select @bind="SelectedOptionKey">
-                            <option value="">Choose a product or variant…</option>
-                            @foreach (var option in ProductOptions)
+                            <option value="">Choose a matching product…</option>
+                            @foreach (var option in FilteredProductOptions)
                             {
                                 <option value="@option.Key">
-                                    @option.Label · @option.Price.ToString("C2")
+                                    @option.Label · @GetOptionPrice(option).ToString("C2")
                                 </option>
                             }
                         </select>
                         <button type="button"
                                 disabled="@string.IsNullOrWhiteSpace(SelectedOptionKey)"
                                 @onclick="AddSelectedLine">
-                            + Add line
+                            + Add product
                         </button>
                     </div>
 
@@ -128,46 +233,225 @@ else
                     {
                         <div class="line-empty">
                             <strong>No products added</strong>
-                            <span>Use the product selector or begin from a material calculation.</span>
+                            <span>Add a Shopify item or use the material calculator.</span>
                         </div>
                     }
                     else
                     {
                         <div class="quote-lines">
-                            <div class="line-row line-head">
-                                <span>Description</span>
-                                <span>Qty.</span>
-                                <span>Unit</span>
-                                <span>Price</span>
-                                <span>Total</span>
-                                <span></span>
-                            </div>
                             @foreach (var line in Model.Lines)
                             {
-                                <div class="line-row">
-                                    <label>
+                                <article class="quote-line">
+                                    @if (!string.IsNullOrWhiteSpace(line.ImageUrl))
+                                    {
+                                        <img src="@line.ImageUrl" alt="" />
+                                    }
+                                    else
+                                    {
+                                        <div class="line-image-placeholder">GH</div>
+                                    }
+                                    <div class="line-main">
                                         <InputText @bind-Value="line.Description" />
-                                        <small>@line.Sku</small>
+                                        <span>@line.Sku · @line.Vendor · @line.PricingLabel</span>
+                                        <div class="line-actions">
+                                            <button type="button"
+                                                    @onclick="() => ToggleCalculator(line)">
+                                                @GetCalculatorLabel(line)
+                                            </button>
+                                            @if (!string.IsNullOrWhiteSpace(line.ProductHandle))
+                                            {
+                                                <a href="https://www.greenhillssupply.com/products/@line.ProductHandle"
+                                                   target="_blank"
+                                                   rel="noopener">Product page</a>
+                                            }
+                                        </div>
+                                    </div>
+                                    <label>
+                                        <span>Quantity</span>
+                                        <InputNumber @bind-Value="line.Quantity" />
                                     </label>
-                                    <InputNumber @bind-Value="line.Quantity" />
-                                    <InputText @bind-Value="line.UnitLabel" />
-                                    <InputNumber @bind-Value="line.UnitPrice" />
-                                    <strong>@GetLineTotal(line).ToString("C2")</strong>
+                                    <label>
+                                        <span>Unit</span>
+                                        <InputText @bind-Value="line.UnitLabel" />
+                                    </label>
+                                    <label>
+                                        <span>Unit price</span>
+                                        <InputNumber @bind-Value="line.UnitPrice"
+                                                     disabled="@(Model.Audience != QuoteAudience.Custom)" />
+                                    </label>
+                                    <strong class="line-total">@GetLineTotal(line).ToString("C2")</strong>
                                     <button type="button"
                                             class="remove-line"
                                             title="Remove line"
-                                            @onclick="() => RemoveLine(line)">
-                                        ×
-                                    </button>
-                                </div>
+                                            @onclick="() => RemoveLine(line)">×</button>
+
+                                    @if (ActiveCalculatorLineKey == line.Key)
+                                    {
+                                        var material = FindLineMaterial(line);
+                                        var projectConfiguration =
+                                            FindLineProjectConfiguration(line);
+                                        <div class="line-calculator">
+                                            <div class="calculator-topline">
+                                                <strong>@(projectConfiguration?.Kind switch
+                                                    {
+                                                        ProjectCalculatorKind.Paver => "Paver calculator",
+                                                        ProjectCalculatorKind.Wall => "Wall calculator",
+                                                        _ => "Material calculator"
+                                                    })</strong>
+                                                <button type="button"
+                                                        @onclick="() => ActiveCalculatorLineKey = null">Close</button>
+                                            </div>
+                                            <div class="shape-mini">
+                                                @if (projectConfiguration?.Kind != ProjectCalculatorKind.Wall)
+                                                {
+                                                    <button type="button"
+                                                            class="@(line.CalculatorShape == ProjectShape.Rectangle ? "active" : null)"
+                                                            @onclick="() => line.CalculatorShape = ProjectShape.Rectangle">Rectangle</button>
+                                                    <button type="button"
+                                                            class="@(line.CalculatorShape == ProjectShape.Circle ? "active" : null)"
+                                                            @onclick="() => line.CalculatorShape = ProjectShape.Circle">Circle</button>
+                                                }
+                                            </div>
+                                            <div class="calculator-fields">
+                                                @if (projectConfiguration?.Kind == ProjectCalculatorKind.Wall)
+                                                {
+                                                    <label><span>Wall length ft.</span><InputNumber @bind-Value="line.LengthFeet" /></label>
+                                                    <label><span>Average height ft.</span><InputNumber @bind-Value="line.WallHeightFeet" /></label>
+                                                    <label><span>Openings sq. ft.</span><InputNumber @bind-Value="line.OpeningsSqFt" /></label>
+                                                }
+                                                else if (line.CalculatorShape == ProjectShape.Rectangle)
+                                                {
+                                                    <label><span>Length ft.</span><InputNumber @bind-Value="line.LengthFeet" /></label>
+                                                    <label><span>Width ft.</span><InputNumber @bind-Value="line.WidthFeet" /></label>
+                                                }
+                                                else
+                                                {
+                                                    <label><span>Diameter ft.</span><InputNumber @bind-Value="line.DiameterFeet" /></label>
+                                                }
+                                                @if (projectConfiguration is null)
+                                                {
+                                                    <label><span>Depth in.</span><InputNumber @bind-Value="line.DepthInches" /></label>
+                                                    <label><span>Known yd³</span><InputNumber @bind-Value="line.ManualCubicYards" /></label>
+                                                }
+                                                <label>
+                                                    <span>Extra</span>
+                                                    <select @bind="line.ExtraPercent">
+                                                        @foreach (var value in ExtraOptions)
+                                                        {
+                                                            <option value="@value">@value%</option>
+                                                        }
+                                                    </select>
+                                                </label>
+                                            </div>
+                                            @if (projectConfiguration is null)
+                                            {
+                                                var calculation =
+                                                    CalculateLine(line, material);
+                                                <div class="calculator-result">
+                                                    <span>@calculation.RecommendedCubicYards.ToString("0.00") yd³</span>
+                                                    <strong>@calculation.OrderQuantity.ToString("0") @calculation.UnitLabel</strong>
+                                                    <button type="button"
+                                                            disabled="@(calculation.OrderQuantity <= 0)"
+                                                            @onclick="() => ApplyCalculation(line, calculation)">
+                                                        Use this quantity
+                                                    </button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                var calculation =
+                                                    CalculateProjectLine(
+                                                        line,
+                                                        projectConfiguration);
+                                                <div class="calculator-result">
+                                                    <span>@calculation.RequiredAreaSqFt.ToString("0.00") sq. ft.</span>
+                                                    <strong>@calculation.OrderQuantity.ToString("0") @calculation.OrderUnitLabel</strong>
+                                                    @if (projectConfiguration.IsStandardDiscover &&
+                                                         calculation.RecommendedTotalLayers > 0)
+                                                    {
+                                                        <small>@calculation.RecommendedPurchase · @calculation.RecommendedTotalLayers total layers</small>
+                                                    }
+                                                    @if (projectConfiguration.Kind == ProjectCalculatorKind.Wall &&
+                                                         calculation.EstimatedFullBlocks > 0)
+                                                    {
+                                                        <small>@calculation.EstimatedFullBlocks full blocks · @calculation.EstimatedCourses courses; corners and caps separate</small>
+                                                    }
+                                                    <button type="button"
+                                                            disabled="@(calculation.OrderQuantity <= 0)"
+                                                            @onclick="() => ApplyProjectCalculation(line, calculation)">
+                                                        Use this quantity
+                                                    </button>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </article>
                             }
                         </div>
                     }
                 </section>
 
-                <section class="panel form-section">
+                <section class="form-section">
                     <div class="section-heading">
                         <span>03</span>
+                        <div>
+                            <h3>Delivery & adjustments</h3>
+                            <p>Use Dispatch v2’s round-trip material routing or override the charge for a custom quote.</p>
+                        </div>
+                    </div>
+
+                    <div class="delivery-actions">
+                        <button type="button"
+                                disabled="@CalculatingDelivery"
+                                @onclick="CalculateDeliveryAsync">
+                            @(CalculatingDelivery ? "Calculating route…" : "Calculate delivery")
+                        </button>
+                        @if (!string.IsNullOrWhiteSpace(Model.DeliverySummary))
+                        {
+                            <div>
+                                <strong>@Model.DeliveryServiceName</strong>
+                                <span>@Model.DeliverySummary · @Model.DeliveryEta</span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="form-grid adjustments">
+                        <label>
+                            <span>Delivery amount override</span>
+                            <InputNumber @bind-Value="Model.CustomDeliveryAmount" />
+                            <small>Leave blank to use the calculated amount.</small>
+                        </label>
+                        <label>
+                            <span>Minute charge</span>
+                            <InputNumber @bind-Value="Model.RatePerMinute" />
+                            <small>Dispatch v2 default: $2.08/minute.</small>
+                        </label>
+                        <label>
+                            <span>Custom shipping quantity</span>
+                            <InputNumber @bind-Value="Model.ShippingQuantity" />
+                        </label>
+                        <label>
+                            <span>Shipping unit</span>
+                            <InputText @bind-Value="Model.ShippingUnit"
+                                       placeholder="miles, hours…" />
+                        </label>
+                        <label>
+                            <span>Price per shipping unit</span>
+                            <InputNumber @bind-Value="Model.ShippingRate" />
+                            <small>Quantity × rate replaces delivery when both are entered.</small>
+                        </label>
+                        <label>
+                            <span>Tax rate (%)</span>
+                            <InputNumber @bind-Value="Model.TaxRatePercent"
+                                         disabled="@Model.IsTaxExempt" />
+                            <small>Tax applies to products, not delivery.</small>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <div class="section-heading">
+                        <span>04</span>
                         <div>
                             <h3>Quote notes</h3>
                             <p>Separate customer-facing terms from internal Green Hills notes.</p>
@@ -184,37 +468,33 @@ else
                         </label>
                     </div>
                 </section>
+                </div>
             </div>
 
             <aside class="panel totals-panel">
-                <span class="panel-label">QUOTE TOTAL</span>
+                <span class="panel-label">FULL QUOTE RESULT</span>
+                <h3>Quote summary</h3>
                 <label>
                     <span>Status</span>
                     <InputSelect @bind-Value="Model.Status">
                         @foreach (var status in Enum.GetValues<QuoteStatus>())
                         {
-                            <option value="@status">@status</option>
+                            <option value="@status">@GetStatusLabel(status)</option>
                         }
                     </InputSelect>
                 </label>
-                <label>
-                    <span>Delivery / shipping</span>
-                    <InputNumber @bind-Value="Model.DeliveryAmount" />
-                </label>
-                <label>
-                    <span>Tax rate (%)</span>
-                    <InputNumber @bind-Value="Model.TaxRatePercent"
-                                 disabled="@Model.IsTaxExempt" />
-                </label>
-
+                <div class="price-source">
+                    <span>Pricing</span>
+                    <strong>@QuotePricing.GetPricingLabel(Model.Audience, Model.ContractorTier)</strong>
+                </div>
                 <dl>
                     <div>
                         <dt>Products</dt>
                         <dd>@Subtotal.ToString("C2")</dd>
                     </div>
                     <div>
-                        <dt>Delivery</dt>
-                        <dd>@Model.DeliveryAmount.ToString("C2")</dd>
+                        <dt>@(HasCustomShippingCalculation ? "Shipping" : "Delivery")</dt>
+                        <dd>@EffectiveDeliveryAmount.ToString("C2")</dd>
                     </div>
                     <div>
                         <dt>Tax</dt>
@@ -225,22 +505,50 @@ else
                         <dd>@Total.ToString("C2")</dd>
                     </div>
                 </dl>
+                @if (HasCustomShippingCalculation)
+                {
+                    <p class="shipping-math">@Model.ShippingQuantity × @Model.ShippingRate?.ToString("C2") per @Model.ShippingUnit</p>
+                }
 
                 <button type="submit" disabled="@Saving">
                     @(Saving ? "Saving…" : IsNew ? "Save quote" : "Save changes")
                 </button>
-                <small>Saving stores a price snapshot; future Shopify price changes will not alter this quote.</small>
+                <button type="button"
+                        class="secondary-save"
+                        disabled="@Saving"
+                        @onclick="SaveAndPrintAsync">
+                    Save & print
+                </button>
+                @if (!IsNew)
+                {
+                    <button type="button"
+                            class="shopify-draft"
+                            disabled
+                            title="Requires Shopify write_draft_orders permission">
+                        Send to Shopify
+                    </button>
+                    <small>Shopify conversion is ready to be enabled after the app receives <code>write_draft_orders</code>. Your current read-only product/customer connection remains unchanged.</small>
+                }
+                else
+                {
+                    <small>Saving stores exact product, pricing, delivery, and calculator snapshots.</small>
+                }
             </aside>
         </div>
     </EditForm>
 }
 
 @code {
+    private static readonly int[] ExtraOptions = [0, 5, 10, 15, 20];
+
     [Parameter]
     public Guid? QuoteId { get; set; }
 
     [SupplyParameterFromQuery(Name = "productId")]
     public Guid? InitialProductId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "variantId")]
+    public Guid? InitialVariantId { get; set; }
 
     [SupplyParameterFromQuery(Name = "quantity")]
     public decimal? InitialQuantity { get; set; }
@@ -249,20 +557,75 @@ else
     private bool Loading { get; set; } = true;
     private bool NotFound { get; set; }
     private bool Saving { get; set; }
+    private bool CalculatingDelivery { get; set; }
+    private bool PrintAfterSave { get; set; }
     private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+    private string? DispatchSyncMessage { get; set; }
     private string SelectedOptionKey { get; set; } = string.Empty;
+    private string SelectedCompanyExternalId { get; set; } = string.Empty;
+    private string ProductSearch { get; set; } = string.Empty;
+    private Guid? ActiveCalculatorLineKey { get; set; }
     private QuoteEditModel Model { get; set; } = new();
     private List<ProductOption> ProductOptions { get; set; } = [];
+    private List<QuoteB2BCompany> B2BCompanies { get; set; } = [];
 
+    private IEnumerable<ProductOption> FilteredProductOptions =>
+        ProductOptions.Where(option =>
+                string.IsNullOrWhiteSpace(ProductSearch) ||
+                option.Label.Contains(ProductSearch, StringComparison.OrdinalIgnoreCase) ||
+                (option.Sku?.Contains(ProductSearch, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (option.Vendor?.Contains(ProductSearch, StringComparison.OrdinalIgnoreCase) ?? false))
+            .Take(100);
     private decimal Subtotal => Model.Lines.Sum(GetLineTotal);
+    private bool HasCustomShippingCalculation =>
+        Model.ShippingQuantity.GetValueOrDefault() > 0 &&
+        Model.ShippingRate.GetValueOrDefault() > 0;
+    private decimal EffectiveDeliveryAmount => HasCustomShippingCalculation
+        ? Math.Round(
+            Model.ShippingQuantity!.Value * Model.ShippingRate!.Value,
+            2)
+        : Model.CustomDeliveryAmount is not null
+            ? Math.Max(0m, Model.CustomDeliveryAmount.Value)
+            : Math.Max(0m, Model.CalculatedDeliveryAmount.GetValueOrDefault());
     private decimal TaxAmount => Model.IsTaxExempt
         ? 0m
         : Math.Round(Subtotal * Math.Max(0m, Model.TaxRatePercent) / 100m, 2);
     private decimal Total =>
-        Math.Round(Subtotal + Math.Max(0m, Model.DeliveryAmount) + TaxAmount, 2);
+        Math.Round(Subtotal + EffectiveDeliveryAmount + TaxAmount, 2);
 
     protected override async Task OnInitializedAsync()
     {
+        var initialAuthenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        try
+        {
+            await ShopifySyncService.SynchronizeIfStaleAsync(
+                initialAuthenticationState.User);
+        }
+        catch
+        {
+            // Existing quotes remain usable when Shopify is temporarily unavailable.
+        }
+
+        try
+        {
+            var syncResult =
+                await DispatchQuoteDataSyncService.SynchronizeIfStaleAsync();
+            if (syncResult is not null)
+            {
+                DispatchSyncMessage =
+                    $"{syncResult.Products} products · " +
+                    $"{syncResult.Companies} companies · " +
+                    $"{syncResult.ExistingQuotes + syncResult.ImportedQuotes} saved quotes";
+            }
+        }
+        catch (Exception exception)
+        {
+            DispatchSyncMessage =
+                $"Dispatch data unavailable: {exception.Message}";
+        }
+
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
         var products = await dbContext.Products
             .AsNoTracking()
@@ -270,6 +633,17 @@ else
             .Include(product => product.MaterialProfile)
             .Where(product => product.Status == ProductStatus.Active)
             .OrderBy(product => product.Name)
+            .ToListAsync();
+        var configuration = await dbContext.QuoteConfigurations
+            .AsNoTracking()
+            .SingleOrDefaultAsync();
+        Model.TaxRatePercent =
+            (configuration?.DefaultTaxRate ?? .055m) * 100m;
+        Model.RatePerMinute =
+            configuration?.DefaultRatePerMinute ?? 2.08m;
+        B2BCompanies = await dbContext.QuoteB2BCompanies
+            .AsNoTracking()
+            .OrderBy(company => company.CompanyName)
             .ToListAsync();
 
         ProductOptions = products
@@ -282,8 +656,15 @@ else
                         product.Name,
                         product.Name,
                         product.ProductCode,
+                        product.ShopifyVendor,
+                        product.ShopifyHandle,
+                        product.ShopifyFeaturedImageUrl,
+                        string.Empty,
                         0m,
-                        GetDefaultUnit(product))]
+                        null,
+                        null,
+                        GetDefaultUnit(product),
+                        PaverWallCalculator.Resolve(product))]
                     : product.Variants
                         .OrderBy(variant => variant.SortOrder)
                         .Select(variant => new ProductOption(
@@ -297,8 +678,15 @@ else
                                 : $"{product.Name} — {variant.Title}",
                             product.Name,
                             variant.Sku ?? product.ProductCode,
+                            variant.PickupVendor ?? product.ShopifyVendor,
+                            product.ShopifyHandle,
+                            variant.ImageUrl ?? product.ShopifyFeaturedImageUrl,
+                            variant.ShopifyVariantId,
                             variant.Price,
-                            GetDefaultUnit(product))))
+                            variant.ContractorTier1Price,
+                            variant.ContractorTier2Price,
+                            variant.UnitLabel ?? GetDefaultUnit(product),
+                            PaverWallCalculator.Resolve(product, variant))))
             .ToList();
 
         if (QuoteId is not null)
@@ -307,7 +695,6 @@ else
                 .AsNoTracking()
                 .Include(item => item.Lines.OrderBy(line => line.SortOrder))
                 .SingleOrDefaultAsync(item => item.Id == QuoteId);
-
             if (quote is null)
             {
                 NotFound = true;
@@ -316,11 +703,24 @@ else
             }
 
             Model = QuoteEditModel.FromEntity(quote);
+            SelectedCompanyExternalId = B2BCompanies
+                .FirstOrDefault(company =>
+                    company.ShopifyCompanyId == Model.ShopifyCompanyId &&
+                    (!string.IsNullOrWhiteSpace(
+                        Model.ShopifyCompanyLocationId)
+                        ? company.ShopifyCompanyLocationId ==
+                          Model.ShopifyCompanyLocationId
+                        : true))
+                ?.ExternalId ?? string.Empty;
         }
         else if (InitialProductId is not null)
         {
             var option = ProductOptions.FirstOrDefault(item =>
-                item.ProductId == InitialProductId);
+                item.ProductId == InitialProductId &&
+                (InitialVariantId is null ||
+                 item.ProductVariantId == InitialVariantId)) ??
+                ProductOptions.FirstOrDefault(item =>
+                    item.ProductId == InitialProductId);
             if (option is not null)
             {
                 AddLine(option, InitialQuantity.GetValueOrDefault(1m));
@@ -329,6 +729,80 @@ else
 
         Loading = false;
     }
+
+    private void CompanyChanged(ChangeEventArgs args)
+    {
+        SelectedCompanyExternalId =
+            args.Value?.ToString() ?? string.Empty;
+        var company = B2BCompanies.FirstOrDefault(candidate =>
+            candidate.ExternalId == SelectedCompanyExternalId);
+        if (company is null)
+        {
+            return;
+        }
+
+        Model.CompanyName = company.CompanyName;
+        Model.CustomerName = company.ContactName ?? Model.CustomerName;
+        Model.Email = company.Email ?? Model.Email;
+        Model.Phone = company.Phone ?? Model.Phone;
+        Model.ContractorTier = company.ContractorTier;
+        Model.IsTaxExempt = company.IsTaxExempt;
+        Model.ShopifyCompanyId = company.ShopifyCompanyId;
+        Model.ShopifyCompanyContactId =
+            company.ShopifyCompanyContactId;
+        Model.ShopifyCompanyLocationId =
+            company.ShopifyCompanyLocationId;
+        Model.PaymentTermsName = company.PaymentTermsName;
+        Model.PaymentTermsTemplateId =
+            company.PaymentTermsTemplateId;
+        Model.PaymentTermsDueInDays =
+            company.PaymentTermsDueInDays;
+        Model.BillingAddressLine1 =
+            company.BillingAddressLine1;
+        Model.BillingAddressLine2 =
+            company.BillingAddressLine2;
+        Model.BillingCity = company.BillingCity;
+        Model.BillingState = company.BillingState ?? "WI";
+        Model.BillingPostalCode = company.BillingPostalCode;
+        Model.BillingCountry = company.BillingCountry ?? "US";
+        ApplyAudiencePricing();
+    }
+
+    private void ChangeAudience(QuoteAudience audience)
+    {
+        Model.Audience = audience;
+        ApplyAudiencePricing();
+    }
+
+    private void ApplyAudiencePricing()
+    {
+        foreach (var line in Model.Lines)
+        {
+            var option = ProductOptions.FirstOrDefault(candidate =>
+                candidate.ProductVariantId == line.ProductVariantId ||
+                candidate.ProductId == line.ProductId);
+            if (option is null || Model.Audience == QuoteAudience.Custom)
+            {
+                line.PricingLabel = QuotePricing.GetPricingLabel(
+                    Model.Audience,
+                    Model.ContractorTier);
+                continue;
+            }
+
+            line.UnitPrice = GetOptionPrice(option);
+            line.PricingLabel = QuotePricing.GetPricingLabel(
+                Model.Audience,
+                Model.ContractorTier);
+        }
+    }
+
+    private decimal GetOptionPrice(ProductOption option) =>
+        QuotePricing.GetUnitPrice(
+            option.RetailPrice,
+            option.ContractorTier1Price,
+            option.ContractorTier2Price,
+            Model.Audience,
+            Model.ContractorTier);
 
     private void AddSelectedLine()
     {
@@ -349,23 +823,175 @@ else
         {
             ProductId = option.ProductId,
             ProductVariantId = option.ProductVariantId,
+            ShopifyVariantIdSnapshot = option.ShopifyVariantId,
             Description = option.Description,
+            ProductName = option.ProductName,
             Sku = option.Sku,
+            Vendor = option.Vendor,
+            ProductHandle = option.ProductHandle,
+            ImageUrl = option.ImageUrl,
             UnitLabel = option.UnitLabel,
+            ProjectConfiguration = option.ProjectConfiguration,
+            PricingLabel = QuotePricing.GetPricingLabel(
+                Model.Audience,
+                Model.ContractorTier),
             Quantity = Math.Max(quantity, 0m),
-            UnitPrice = option.Price
+            UnitPrice = GetOptionPrice(option)
         });
     }
 
     private void RemoveLine(QuoteLineEditModel line) => Model.Lines.Remove(line);
 
+    private void ToggleCalculator(QuoteLineEditModel line) =>
+        ActiveCalculatorLineKey =
+            ActiveCalculatorLineKey == line.Key ? null : line.Key;
+
+    private string GetCalculatorLabel(QuoteLineEditModel line) =>
+        FindLineProjectConfiguration(line)?.Kind switch
+        {
+            ProjectCalculatorKind.Paver => "Paver calculator",
+            ProjectCalculatorKind.Wall => "Wall calculator",
+            _ => "Material calculator"
+        };
+
+    private static MaterialConversion? FindLineMaterial(
+        QuoteLineEditModel line) =>
+        MaterialCalculator.Find(
+            line.ProductName,
+            line.ProductHandle,
+            line.Description);
+
+    private ProjectProductConfiguration? FindLineProjectConfiguration(
+        QuoteLineEditModel line) =>
+        line.ProjectConfiguration ??
+        ProductOptions.FirstOrDefault(option =>
+            (line.ProductVariantId is not null &&
+             option.ProductVariantId == line.ProductVariantId) ||
+            (line.ProductVariantId is null &&
+             option.ProductId == line.ProductId))
+            ?.ProjectConfiguration;
+
+    private static MaterialCalculation CalculateLine(
+        QuoteLineEditModel line,
+        MaterialConversion? material) =>
+        MaterialCalculator.Calculate(
+            line.CalculatorShape,
+            line.LengthFeet,
+            line.WidthFeet,
+            line.DiameterFeet,
+            line.DepthInches,
+            line.ManualCubicYards,
+            line.ExtraPercent,
+            material);
+
+    private static void ApplyCalculation(
+        QuoteLineEditModel line,
+        MaterialCalculation calculation) =>
+        line.Quantity = calculation.OrderQuantity;
+
+    private static PaverWallCalculation CalculateProjectLine(
+        QuoteLineEditModel line,
+        ProjectProductConfiguration configuration) =>
+        PaverWallCalculator.Calculate(
+            configuration,
+            line.CalculatorShape,
+            line.LengthFeet,
+            line.WidthFeet,
+            line.DiameterFeet,
+            line.WallHeightFeet,
+            line.OpeningsSqFt,
+            line.ExtraPercent);
+
+    private static void ApplyProjectCalculation(
+        QuoteLineEditModel line,
+        PaverWallCalculation calculation) =>
+        line.Quantity = calculation.OrderQuantity;
+
+    private async Task CalculateDeliveryAsync()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        if (string.IsNullOrWhiteSpace(Model.AddressLine1) ||
+            string.IsNullOrWhiteSpace(Model.City) ||
+            string.IsNullOrWhiteSpace(Model.State) ||
+            string.IsNullOrWhiteSpace(Model.PostalCode))
+        {
+            ErrorMessage =
+                "Enter the complete delivery address before calculating delivery.";
+            return;
+        }
+
+        CalculatingDelivery = true;
+        try
+        {
+            var result = await DeliveryService.CalculateAsync(
+                new QuoteDeliveryRequest(
+                    Model.AddressLine1,
+                    Model.AddressLine2,
+                    Model.City,
+                    Model.State,
+                    Model.PostalCode,
+                    Model.Country,
+                    Model.RatePerMinute,
+                    Model.Lines.Select(line => new QuoteDeliveryItem(
+                        line.Sku,
+                        line.Quantity,
+                        line.Vendor)).ToList()));
+            Model.CalculatedDeliveryAmount = result.Amount;
+            Model.DeliveryServiceName = result.ServiceName;
+            Model.DeliveryDescription = result.Description;
+            Model.DeliveryEta = result.Eta;
+            Model.DeliverySummary = result.Summary;
+            Model.SourceBreakdownJson = result.SourceBreakdownJson;
+            SuccessMessage = result.IsOutsideDeliveryArea
+                ? $"{result.Summary}. This destination is {result.OutsideDeliveryMiles:0.0} miles away."
+                : $"{result.ServiceName}: {result.Amount:C2}";
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage =
+                $"Delivery could not be calculated. {exception.Message}";
+        }
+        finally
+        {
+            CalculatingDelivery = false;
+        }
+    }
+
+    private async Task SaveAndPrintAsync()
+    {
+        PrintAfterSave = true;
+        await SaveAsync();
+    }
+
     private async Task SaveAsync()
     {
         Saving = true;
         ErrorMessage = null;
-
+        SuccessMessage = null;
         try
         {
+            if (Model.Audience == QuoteAudience.Contractor &&
+                string.IsNullOrWhiteSpace(Model.CompanyName))
+            {
+                throw new InvalidOperationException(
+                    "A company name is required for contractor pricing.");
+            }
+            if (Model.Lines.Count == 0 ||
+                Model.Lines.All(line => line.Quantity <= 0))
+            {
+                throw new InvalidOperationException(
+                    "Add at least one product with a quantity greater than zero.");
+            }
+            if (string.IsNullOrWhiteSpace(Model.AddressLine1) ||
+                string.IsNullOrWhiteSpace(Model.City) ||
+                string.IsNullOrWhiteSpace(Model.State) ||
+                string.IsNullOrWhiteSpace(Model.PostalCode))
+            {
+                throw new InvalidOperationException(
+                    "A complete delivery address is required.");
+            }
+
             var authenticationState =
                 await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var userId = authenticationState.User.FindFirstValue(
@@ -373,7 +999,6 @@ else
             await using var dbContext =
                 await DbContextFactory.CreateDbContextAsync();
             CustomerQuote quote;
-
             if (QuoteId is null)
             {
                 quote = new CustomerQuote
@@ -393,44 +1018,24 @@ else
                 dbContext.CustomerQuoteLines.RemoveRange(quote.Lines);
             }
 
-            quote.Status = Model.Status;
-            quote.CustomerName = Model.CustomerName.Trim();
-            quote.CompanyName = Clean(Model.CompanyName);
-            quote.Email = Clean(Model.Email);
-            quote.Phone = Clean(Model.Phone);
-            quote.AddressLine1 = Clean(Model.AddressLine1);
-            quote.City = Clean(Model.City);
-            quote.State = Clean(Model.State);
-            quote.PostalCode = Clean(Model.PostalCode);
-            quote.IsContractor = Model.IsContractor;
-            quote.IsTaxExempt = Model.IsTaxExempt;
-            quote.Subtotal = Subtotal;
-            quote.DeliveryAmount = Math.Max(0m, Model.DeliveryAmount);
-            quote.TaxRate = Model.IsTaxExempt
-                ? 0m
-                : Math.Max(0m, Model.TaxRatePercent) / 100m;
-            quote.TaxAmount = TaxAmount;
-            quote.Total = Total;
-            quote.CustomerNotes = Clean(Model.CustomerNotes);
-            quote.InternalNotes = Clean(Model.InternalNotes);
-            quote.UpdatedAtUtc = DateTime.UtcNow;
-            quote.UpdatedByUserId = userId;
-            quote.Lines = Model.Lines.Select((line, index) =>
-                new CustomerQuoteLine
-                {
-                    ProductId = line.ProductId,
-                    ProductVariantId = line.ProductVariantId,
-                    Description = line.Description.Trim(),
-                    Sku = Clean(line.Sku),
-                    UnitLabel = line.UnitLabel.Trim(),
-                    Quantity = Math.Max(0m, line.Quantity),
-                    UnitPrice = Math.Max(0m, line.UnitPrice),
-                    LineTotal = GetLineTotal(line),
-                    SortOrder = index
-                }).ToList();
-
+            MapToEntity(quote, userId);
             await dbContext.SaveChangesAsync();
-            Navigation.NavigateTo($"/quotes/{quote.Id}", forceLoad: true);
+            QuoteId = quote.Id;
+            Model.QuoteNumber = quote.QuoteNumber;
+            SuccessMessage = $"{quote.QuoteNumber} saved.";
+
+            if (PrintAfterSave)
+            {
+                Navigation.NavigateTo(
+                    $"/quotes/{quote.Id}/print",
+                    forceLoad: true);
+            }
+            else
+            {
+                Navigation.NavigateTo(
+                    $"/quotes/{quote.Id}",
+                    forceLoad: true);
+            }
         }
         catch (Exception exception)
         {
@@ -439,7 +1044,87 @@ else
         finally
         {
             Saving = false;
+            PrintAfterSave = false;
         }
+    }
+
+    private void MapToEntity(CustomerQuote quote, string? userId)
+    {
+        quote.Status = Model.Status;
+        quote.Audience = Model.Audience;
+        quote.ContractorTier = Model.ContractorTier;
+        quote.CustomerName = Model.CustomerName.Trim();
+        quote.CompanyName = Clean(Model.CompanyName);
+        quote.Email = Clean(Model.Email);
+        quote.Phone = Clean(Model.Phone);
+        quote.AddressLine1 = Clean(Model.AddressLine1);
+        quote.AddressLine2 = Clean(Model.AddressLine2);
+        quote.City = Clean(Model.City);
+        quote.State = Clean(Model.State);
+        quote.PostalCode = Clean(Model.PostalCode);
+        quote.IsContractor = Model.Audience == QuoteAudience.Contractor;
+        quote.IsTaxExempt = Model.IsTaxExempt;
+        quote.ShopifyCompanyId = Clean(Model.ShopifyCompanyId);
+        quote.ShopifyCompanyContactId =
+            Clean(Model.ShopifyCompanyContactId);
+        quote.ShopifyCompanyLocationId =
+            Clean(Model.ShopifyCompanyLocationId);
+        quote.PaymentTermsName = Clean(Model.PaymentTermsName);
+        quote.PaymentTermsTemplateId =
+            Clean(Model.PaymentTermsTemplateId);
+        quote.PaymentTermsDueInDays = Model.PaymentTermsDueInDays;
+        quote.BillingAddressLine1 = Clean(Model.BillingAddressLine1);
+        quote.BillingAddressLine2 = Clean(Model.BillingAddressLine2);
+        quote.BillingCity = Clean(Model.BillingCity);
+        quote.BillingState = Clean(Model.BillingState);
+        quote.BillingPostalCode = Clean(Model.BillingPostalCode);
+        quote.BillingCountry = Clean(Model.BillingCountry);
+        quote.Subtotal = Subtotal;
+        quote.CalculatedDeliveryAmount =
+            Model.CalculatedDeliveryAmount;
+        quote.CustomDeliveryAmount = Model.CustomDeliveryAmount;
+        quote.RatePerMinute = Model.RatePerMinute;
+        quote.ShippingQuantity = Model.ShippingQuantity;
+        quote.ShippingRate = Model.ShippingRate;
+        quote.ShippingUnit = Clean(Model.ShippingUnit);
+        quote.DeliveryAmount = EffectiveDeliveryAmount;
+        quote.TaxRate = Model.IsTaxExempt
+            ? 0m
+            : Math.Max(0m, Model.TaxRatePercent) / 100m;
+        quote.TaxAmount = TaxAmount;
+        quote.Total = Total;
+        quote.DeliveryServiceName = Clean(Model.DeliveryServiceName);
+        quote.DeliveryDescription = Clean(Model.DeliveryDescription);
+        quote.DeliveryEta = Clean(Model.DeliveryEta);
+        quote.DeliverySummary = Clean(Model.DeliverySummary);
+        quote.SourceBreakdownJson = Clean(Model.SourceBreakdownJson);
+        quote.CustomerNotes = Clean(Model.CustomerNotes);
+        quote.InternalNotes = Clean(Model.InternalNotes);
+        quote.UpdatedAtUtc = DateTime.UtcNow;
+        quote.UpdatedByUserId = userId;
+        quote.Lines = Model.Lines.Select((line, index) =>
+            new CustomerQuoteLine
+            {
+                ProductId = line.ProductId,
+                ProductVariantId = line.ProductVariantId,
+                Description = line.Description.Trim(),
+                Sku = Clean(line.Sku),
+                Vendor = Clean(line.Vendor),
+                ProductHandle = Clean(line.ProductHandle),
+                ImageUrl = Clean(line.ImageUrl),
+                ShopifyVariantIdSnapshot =
+                    Clean(line.ShopifyVariantIdSnapshot),
+                UnitLabel = line.UnitLabel.Trim(),
+                PricingLabel = line.PricingLabel,
+                Audience = Model.Audience,
+                ContractorTier = Model.Audience == QuoteAudience.Contractor
+                    ? Model.ContractorTier
+                    : null,
+                Quantity = Math.Max(0m, line.Quantity),
+                UnitPrice = Math.Max(0m, line.UnitPrice),
+                LineTotal = GetLineTotal(line),
+                SortOrder = index
+            }).ToList();
     }
 
     private static decimal GetLineTotal(QuoteLineEditModel line) =>
@@ -447,13 +1132,32 @@ else
             Math.Max(0m, line.Quantity) * Math.Max(0m, line.UnitPrice),
             2);
 
-    private string GetDefaultUnit(Product product) =>
+    private static string GetDefaultUnit(Product product) =>
         product.MaterialProfile?.SoldBy switch
         {
             MaterialSoldBy.CubicYard => "yard",
             MaterialSoldBy.Ton => "ton",
             _ => "unit"
         };
+
+    private static string GetAudienceTitle(QuoteAudience audience) =>
+        audience switch
+        {
+            QuoteAudience.Contractor => "Contractor",
+            QuoteAudience.Custom => "Custom",
+            _ => "Customer"
+        };
+
+    private static string GetAudienceDescription(QuoteAudience audience) =>
+        audience switch
+        {
+            QuoteAudience.Contractor => "Tier pricing and B2B terms",
+            QuoteAudience.Custom => "Editable titles and prices",
+            _ => "Retail Shopify pricing"
+        };
+
+    private static string GetStatusLabel(QuoteStatus status) =>
+        status == QuoteStatus.ReadyForReview ? "Ready for review" : status.ToString();
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -463,27 +1167,62 @@ else
         Guid ProductId,
         Guid? ProductVariantId,
         string Label,
-        string Description,
+        string ProductName,
         string? Sku,
-        decimal Price,
-        string UnitLabel);
+        string? Vendor,
+        string? ProductHandle,
+        string? ImageUrl,
+        string ShopifyVariantId,
+        decimal RetailPrice,
+        decimal? ContractorTier1Price,
+        decimal? ContractorTier2Price,
+        string UnitLabel,
+        ProjectProductConfiguration? ProjectConfiguration)
+    {
+        public string Description => Label;
+    }
 
     private sealed class QuoteEditModel
     {
         public string QuoteNumber { get; set; } = string.Empty;
         public QuoteStatus Status { get; set; } = QuoteStatus.Draft;
+        public QuoteAudience Audience { get; set; } = QuoteAudience.Customer;
+        public ContractorTier ContractorTier { get; set; } = ContractorTier.Tier1;
         public string CustomerName { get; set; } = string.Empty;
         public string? CompanyName { get; set; }
         public string? Email { get; set; }
         public string? Phone { get; set; }
         public string? AddressLine1 { get; set; }
+        public string? AddressLine2 { get; set; }
         public string? City { get; set; }
         public string? State { get; set; } = "WI";
         public string? PostalCode { get; set; }
-        public bool IsContractor { get; set; }
+        public string Country { get; set; } = "US";
         public bool IsTaxExempt { get; set; }
-        public decimal DeliveryAmount { get; set; }
+        public string? ShopifyCompanyId { get; set; }
+        public string? ShopifyCompanyContactId { get; set; }
+        public string? ShopifyCompanyLocationId { get; set; }
+        public string? PaymentTermsName { get; set; }
+        public string? PaymentTermsTemplateId { get; set; }
+        public int? PaymentTermsDueInDays { get; set; }
+        public string? BillingAddressLine1 { get; set; }
+        public string? BillingAddressLine2 { get; set; }
+        public string? BillingCity { get; set; }
+        public string? BillingState { get; set; } = "WI";
+        public string? BillingPostalCode { get; set; }
+        public string? BillingCountry { get; set; } = "US";
+        public decimal? CalculatedDeliveryAmount { get; set; }
+        public decimal? CustomDeliveryAmount { get; set; }
+        public decimal? RatePerMinute { get; set; } = 2.08m;
+        public decimal? ShippingQuantity { get; set; }
+        public decimal? ShippingRate { get; set; }
+        public string? ShippingUnit { get; set; } = "miles";
         public decimal TaxRatePercent { get; set; } = 5.5m;
+        public string? DeliveryServiceName { get; set; }
+        public string? DeliveryDescription { get; set; }
+        public string? DeliveryEta { get; set; }
+        public string? DeliverySummary { get; set; }
+        public string? SourceBreakdownJson { get; set; }
         public string? CustomerNotes { get; set; }
         public string? InternalNotes { get; set; }
         public List<QuoteLineEditModel> Lines { get; set; } = [];
@@ -493,41 +1232,96 @@ else
             {
                 QuoteNumber = quote.QuoteNumber,
                 Status = quote.Status,
+                Audience = quote.Audience,
+                ContractorTier = quote.ContractorTier,
                 CustomerName = quote.CustomerName,
                 CompanyName = quote.CompanyName,
                 Email = quote.Email,
                 Phone = quote.Phone,
                 AddressLine1 = quote.AddressLine1,
+                AddressLine2 = quote.AddressLine2,
                 City = quote.City,
                 State = quote.State,
                 PostalCode = quote.PostalCode,
-                IsContractor = quote.IsContractor,
                 IsTaxExempt = quote.IsTaxExempt,
-                DeliveryAmount = quote.DeliveryAmount,
+                ShopifyCompanyId = quote.ShopifyCompanyId,
+                ShopifyCompanyContactId =
+                    quote.ShopifyCompanyContactId,
+                ShopifyCompanyLocationId =
+                    quote.ShopifyCompanyLocationId,
+                PaymentTermsName = quote.PaymentTermsName,
+                PaymentTermsTemplateId =
+                    quote.PaymentTermsTemplateId,
+                PaymentTermsDueInDays =
+                    quote.PaymentTermsDueInDays,
+                BillingAddressLine1 = quote.BillingAddressLine1,
+                BillingAddressLine2 = quote.BillingAddressLine2,
+                BillingCity = quote.BillingCity,
+                BillingState = quote.BillingState,
+                BillingPostalCode = quote.BillingPostalCode,
+                BillingCountry = quote.BillingCountry,
+                CalculatedDeliveryAmount =
+                    quote.CalculatedDeliveryAmount,
+                CustomDeliveryAmount = quote.CustomDeliveryAmount,
+                RatePerMinute = quote.RatePerMinute ?? 2.08m,
+                ShippingQuantity = quote.ShippingQuantity,
+                ShippingRate = quote.ShippingRate,
+                ShippingUnit = quote.ShippingUnit,
                 TaxRatePercent = quote.TaxRate * 100m,
+                DeliveryServiceName = quote.DeliveryServiceName,
+                DeliveryDescription = quote.DeliveryDescription,
+                DeliveryEta = quote.DeliveryEta,
+                DeliverySummary = quote.DeliverySummary,
+                SourceBreakdownJson = quote.SourceBreakdownJson,
                 CustomerNotes = quote.CustomerNotes,
                 InternalNotes = quote.InternalNotes,
-                Lines = quote.Lines.Select(line => new QuoteLineEditModel
-                {
-                    ProductId = line.ProductId,
-                    ProductVariantId = line.ProductVariantId,
-                    Description = line.Description,
-                    Sku = line.Sku,
-                    UnitLabel = line.UnitLabel,
-                    Quantity = line.Quantity,
-                    UnitPrice = line.UnitPrice
-                }).ToList()
+                Lines = quote.Lines.Select(line =>
+                    new QuoteLineEditModel
+                    {
+                        ProductId = line.ProductId,
+                        ProductVariantId = line.ProductVariantId,
+                        ShopifyVariantIdSnapshot =
+                            line.ShopifyVariantIdSnapshot,
+                        Description = line.Description,
+                        ProductName = line.Description,
+                        Sku = line.Sku,
+                        Vendor = line.Vendor,
+                        ProductHandle = line.ProductHandle,
+                        ImageUrl = line.ImageUrl,
+                        UnitLabel = line.UnitLabel,
+                        PricingLabel = line.PricingLabel,
+                        Quantity = line.Quantity,
+                        UnitPrice = line.UnitPrice
+                    }).ToList()
             };
     }
 
     private sealed class QuoteLineEditModel
     {
+        public Guid Key { get; } = Guid.NewGuid();
         public Guid? ProductId { get; set; }
         public Guid? ProductVariantId { get; set; }
+        public string? ShopifyVariantIdSnapshot { get; set; }
         public string Description { get; set; } = string.Empty;
+        public string ProductName { get; set; } = string.Empty;
         public string? Sku { get; set; }
+        public string? Vendor { get; set; }
+        public string? ProductHandle { get; set; }
+        public string? ImageUrl { get; set; }
         public string UnitLabel { get; set; } = "unit";
-        public decimal Quantity { get; set; }
+        public string PricingLabel { get; set; } = "Customer";
+        public decimal Quantity { get; set; } = 1m;
         public decimal UnitPrice { get; set; }
+        public ProjectShape CalculatorShape { get; set; } =
+            ProjectShape.Rectangle;
+        public decimal LengthFeet { get; set; }
+        public decimal WidthFeet { get; set; }
+        public decimal DiameterFeet { get; set; }
+        public decimal DepthInches { get; set; } = 3m;
+        public decimal ManualCubicYards { get; set; }
+        public int ExtraPercent { get; set; } = 10;
+        public decimal WallHeightFeet { get; set; }
+        public decimal OpeningsSqFt { get; set; }
+        public ProjectProductConfiguration? ProjectConfiguration { get; set; }
     }
 }
