@@ -123,6 +123,9 @@ Only secret names were inventoried.
   Sandbox is the canonical dispatch application and must own the final dispatch
   migration baseline. Shared dispatch tables in GreenHills Quote Live are a
   one-time reconciliation source, not a second continuing implementation.
+  Read-only MCP inventory confirmed 22 public tables, 13 Auth users, 964
+  dispatch orders, 586 stop-metric records, and 469 Storage objects. See
+  `projects/local-delivery.md`.
 - GreenHills Quote Live: 22 public tables, 11 Auth users, 89 quotes, 457
   dispatch orders, 20 visible public RLS policies, and a public but empty
   `dispatch-photos` bucket. See
@@ -149,3 +152,6 @@ Only secret names were inventoried.
    Local-Delivery/Dispatch V2 model before the old dispatch runtime is disabled.
    No legacy dispatch table or data should be deleted until row counts,
    relationships, history, photos, and active work have been validated.
+8. Local-Delivery contains about 610.7 MiB across 469 dispatch photos. Storage
+   must be migrated with object metadata and order references, not treated as a
+   disposable cache.

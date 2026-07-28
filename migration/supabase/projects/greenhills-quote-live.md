@@ -117,11 +117,10 @@ dispatch tables:
 - `set_dispatch_trucks_updated_at`
 - `set_dispatch_user_roles_updated_at`
 
-No public views, materialized views, or sequences were returned. The read-only
-metadata query did not expose any installed triggers even though the trigger
-functions exist. This must be verified against the canonical local schema
-before restore; the functions may currently be orphaned or trigger metadata
-may be hidden from the MCP read-only role.
+No public views, materialized views, or sequences were returned. The
+information-schema trigger view did not expose triggers to the MCP role, but a
+direct read-only `pg_trigger` query confirmed that all eight `updated_at`
+functions have active `BEFORE UPDATE` row triggers.
 
 ## Source binding and drift
 
@@ -144,6 +143,15 @@ The shared tables require a deliberate schema-and-data reconciliation. Unique
 legacy rows and history must be transferred or archived, while overlapping
 records must be matched without creating duplicate orders, routes, employees,
 trucks, notifications, or audit events.
+
+A read-only comparison with Local-Delivery confirmed that both projects expose
+the same 22 public table names. Nineteen table shapes match exactly.
+Local-Delivery has newer shapes for `custom_delivery_quotes`,
+`dispatch_b2b_companies`, and `dispatch_employees`, as well as substantially
+more orders, quotes, timing metrics, roles, audit history, and Storage objects.
+Quote Live nevertheless has more notification rows and a different order-state
+distribution, so it is not safe to assume that every legacy row already exists
+in Local-Delivery.
 
 Local SQL contains newer B2B quote fields and reliability/index work that are
 not all visible in the live table shape. Those files must not be applied

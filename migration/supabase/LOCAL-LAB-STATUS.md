@@ -97,3 +97,9 @@ legacy dispatch schema in Quote Live, establish Dispatch V2 Sandbox as the
 canonical migration baseline, and restore a non-production schema copy before
 transferring any production rows. The quote tool remains a continuing
 application even though its older dispatch implementation will be retired.
+
+The read-only comparison is complete and documented in
+`projects/local-delivery.md`. The next lab action is to generate a from-zero
+Local-Delivery baseline, restore it without production rows, and verify all 22
+tables, 26 policies, eight functions/triggers, 106 indexes, Auth dependencies,
+Realtime behavior, and the `dispatch-photos` bucket contract.
