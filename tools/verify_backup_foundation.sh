@@ -27,6 +27,14 @@ done
 grep -q '^/opt/ghos/postgres/\*\*$' "$backup_root/config/excludes.txt"
 grep -q '^ghos|' "$backup_root/config/databases.conf.example"
 grep -q '^offsite|' "$backup_root/config/repositories.conf.example"
+test -s "$backup_root/windows-counterpoint/Install-CounterPointCloudBackup.ps1"
+test -s "$backup_root/windows-counterpoint/Invoke-CounterPointCloudBackup.ps1"
+grep -q 'da948ad707ed690426473aaba2046cd61f8f90f6f0e7dab6be0d5796531de67d' \
+  "$backup_root/windows-counterpoint/Install-CounterPointCloudBackup.ps1"
+grep -q 'D:\\Acronis Backups' \
+  "$backup_root/windows-counterpoint/Install-CounterPointCloudBackup.ps1"
+grep -q 'D:\\SQLBackups' \
+  "$backup_root/windows-counterpoint/Install-CounterPointCloudBackup.ps1"
 
 if grep -R -E \
   '(POSTGRES_PASSWORD|RESTIC_PASSWORD|AWS_SECRET_ACCESS_KEY)=[^$[:space:]#]+' \

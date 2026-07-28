@@ -177,6 +177,12 @@ handling, encryption, retention, failed-job alerts, and quarterly bare-metal or
 alternate-host restore testing. Do not count an attached USB disk as the only
 off-host copy.
 
+If the installed Acronis edition cannot write to S3-compatible storage, use the
+Windows package in
+[`windows-counterpoint/`](windows-counterpoint/README.md). It copies the
+completed `D:\Acronis Backups` and `D:\SQLBackups` artifacts into a separate
+encrypted B2 repository without modifying the external drive.
+
 ## Quarterly recovery test
 
 Quarterly, perform a documented recovery into isolated infrastructure:
