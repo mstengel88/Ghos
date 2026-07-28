@@ -1,0 +1,13 @@
+[Unit]
+Description=Check WinterWatch overtime thresholds every five minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=15s
+RandomizedDelaySec=15s
+Persistent=true
+Unit=ghos-winterwatch-check-overtime.service
+
+[Install]
+WantedBy=timers.target

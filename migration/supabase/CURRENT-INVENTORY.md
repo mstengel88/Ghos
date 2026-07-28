@@ -89,7 +89,8 @@ The currently deployed function bundles were downloaded through the read-only
 Management API and compared with the local repositories:
 
 - Ticket Printer: deployed `loadrite-sync` differs from local source.
-- WinterWatch-Pro: deployed `home-assistant` differs from local source.
+- WinterWatch-Pro: deployed `home-assistant` differs only in TypeScript result
+  typing/casts; its queries and response behavior match the typed local source.
 - Local-Delivery: deployed source matches; local `carrier-service` additionally
   contains a test file.
 - Dump Site: deployed source matches local source.
@@ -124,8 +125,13 @@ Only secret names were inventoried.
   by a GHOS systemd timer. All 17 deployed Edge Functions pass secret-free
   local acceptance; the single deployed/local `loadrite-sync` drift is retained
   as a tracked baseline. See `projects/ticket-printer.md`.
-- WinterWatch-Pro: 36 local migrations, Auth, Storage, Realtime, `pg_cron`, and
-  `pg_net`.
+- WinterWatch-Pro: 36 local migrations. Thirty-four portable application
+  migrations now pass in disposable PostgreSQL 17, producing 19 RLS-enabled
+  tables, 70 policies, 47 functions, and 18 triggers. Its two managed
+  `pg_cron`/`pg_net` migrations are replaced by a GHOS systemd timer.
+  Auth, private Storage, Realtime, seven Edge Functions, and external services
+  remain separate migration gates. All seven Edge Functions pass secret-free
+  local acceptance. See `projects/winterwatch-pro.md`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
   Sandbox is the canonical dispatch application and must own the final dispatch
   migration baseline. Shared dispatch tables in GreenHills Quote Live are a

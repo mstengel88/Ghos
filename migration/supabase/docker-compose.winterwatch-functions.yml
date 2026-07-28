@@ -1,0 +1,18 @@
+# Local compatibility-lab override only.
+# Mounts WinterWatch functions with external credentials forced empty.
+# Production credentials must never be added to this file.
+services:
+  functions:
+    volumes:
+      - ./volumes/functions:/home/deno/functions:z
+      - ${WINTERWATCH_SOURCE_ROOT:-/Users/mattstengel/winterwatch}/supabase/functions/check-overtime:/home/deno/functions/check-overtime:ro
+      - ${WINTERWATCH_SOURCE_ROOT:-/Users/mattstengel/winterwatch}/supabase/functions/export-to-drive:/home/deno/functions/export-to-drive:ro
+      - ${WINTERWATCH_SOURCE_ROOT:-/Users/mattstengel/winterwatch}/supabase/functions/get-weather:/home/deno/functions/get-weather:ro
+      - ${WINTERWATCH_SOURCE_ROOT:-/Users/mattstengel/winterwatch}/supabase/functions/home-assistant:/home/deno/functions/home-assistant:ro
+      - ${WINTERWATCH_SOURCE_ROOT:-/Users/mattstengel/winterwatch}/supabase/functions/notify-maintenance-request:/home/deno/functions/notify-maintenance-request:ro
+      - ${WINTERWATCH_SOURCE_ROOT:-/Users/mattstengel/winterwatch}/supabase/functions/overtime-action:/home/deno/functions/overtime-action:ro
+      - ${WINTERWATCH_SOURCE_ROOT:-/Users/mattstengel/winterwatch}/supabase/functions/send-notification:/home/deno/functions/send-notification:ro
+    environment:
+      LOVABLE_API_KEY: ""
+      ONESIGNAL_APP_ID: ""
+      ONESIGNAL_REST_API_KEY: ""
