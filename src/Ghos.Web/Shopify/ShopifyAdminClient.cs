@@ -13,7 +13,7 @@ public sealed class ShopifyAdminClient(
 {
     private const string ProductsQuery = """
         query GhosProducts($after: String) {
-          products(first: 100, after: $after, sortKey: ID) {
+          products(first: 75, after: $after, sortKey: ID) {
             edges {
               cursor
               node {
@@ -144,6 +144,9 @@ public sealed class ShopifyAdminClient(
                 var errorMessage = string.Join(
                     "; ",
                     graphQlResponse.Errors.Select(error => error.Message));
+                logger.LogWarning(
+                    "Shopify GraphQL rejected the product query: {ErrorMessage}",
+                    errorMessage);
                 throw new ShopifyConnectionException($"Shopify could not return products: {errorMessage}");
             }
 
