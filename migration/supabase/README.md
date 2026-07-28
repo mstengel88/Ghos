@@ -82,6 +82,19 @@ The output is ignored because object paths, metadata, and bytes may contain
 sensitive production data. Encrypt it and retain an off-Mac copy before
 considering the Storage backup gate complete.
 
+Restore and byte-verify that private export only into the localhost compatibility
+lab:
+
+```bash
+python3 tools/restore_supabase_storage.py \
+  --env-file migration/supabase/runtime/stack/.env \
+  --export migration/supabase/exports/storage/local-delivery/initial
+```
+
+The restore tool refuses non-localhost destinations, requires the bucket to
+exist, verifies the private source manifest before uploading, resumes matching
+objects, and downloads every restored object again for SHA-256 comparison.
+
 ## Prepare the self-hosted compatibility lab
 
 ```bash

@@ -33,8 +33,9 @@ For each of the five production applications:
 - [ ] Managed database password reset impact gate passes for each project
 - [ ] Auth schema recovery approach tested
 - [x] Local-Delivery Storage objects and metadata exported and SHA-256 verified
+- [x] Local-Delivery Storage restored to the isolated lab with byte-for-byte verification
 - [ ] Edge Function source and secret-name manifest captured
-- [ ] Restore completed into an isolated local environment
+- [ ] Full database, Auth, and Storage restore completed in an isolated environment
 - [ ] Restore validation report retained
 - [ ] Off-host backup copy created
 

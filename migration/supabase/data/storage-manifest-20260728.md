@@ -4,8 +4,9 @@ Run date: 2026-07-28
 
 Source: managed Local-Delivery project
 
-Status: initial object-byte export complete and locally verified. Encryption,
-off-Mac backup, isolated restore, and final-delta export remain pending.
+Status: initial object-byte export and isolated localhost restore complete and
+verified. Encryption, off-Mac backup, database-linked metadata rehearsal, and
+final-delta export remain pending.
 
 ## Supabase Storage
 
@@ -49,6 +50,28 @@ The private manifest, object names, metadata, and image bytes remain under the
 ignored migration export directory and are not committed. This is a verified
 local copy, not yet a complete backup: it still needs encryption and an
 off-Mac copy.
+
+## Isolated restore acceptance
+
+The private export was restored through the Storage API into the localhost
+Supabase compatibility lab:
+
+- 470 objects uploaded;
+- 640,756,931 bytes represented;
+- every restored object downloaded back from the lab;
+- zero SHA-256 mismatches.
+
+A second run reused and reverified all 470 matching objects without overwriting
+them. The current private restore report SHA-256 is:
+
+```text
+61cfdb997c8f9b5b5c70859a23a19bc1ce0e32165d4f32d1e678c976cadfaf79
+```
+
+The restore report and all object-level evidence remain ignored. This validates
+object-byte portability. Exact `storage.objects` IDs, timestamps, owner fields,
+and database relationships still depend on the database export and must be
+checked during the full rehearsal.
 
 ## Database photo references
 
