@@ -187,5 +187,16 @@ Google. External callback acceptance remains blocked until test credentials or
 mock endpoints are configured and the carrier-service rate-scope defect in the
 captured production source is fixed in a reviewed migration candidate.
 
+The reviewed candidate and its deterministic carrier test are documented in
+`candidates/local-delivery/README.md`. With the candidate Compose override
+mounted, run:
+
+```bash
+tools/verify_local_delivery_edge_candidate.sh
+```
+
+The test uses a temporary localhost-only Google route mock and no production
+credentials.
+
 The staging rows are sensitive temporary data. They must never be committed,
 included in a routine schema dump, or copied into application fixtures.

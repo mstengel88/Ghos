@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-28 at 7:53 AM CT
+Last verified: 2026-07-28 at 8:06 AM CT
 
 ## Baseline
 
@@ -55,6 +55,20 @@ references `RATE_PER_MINUTE`, but that value is currently declared only inside
 the request handler. The deployed source remains unchanged as evidence. A
 reviewed candidate and mocked Google/Shopify acceptance are required before
 external callback cutover.
+
+A separate reviewed candidate now corrects that scope defect without changing
+the captured evidence. Its unit and callback acceptance tests passed against a
+temporary localhost-only route mock:
+
+- 15 minutes and 10 miles one way;
+- 30 calculated round-trip minutes;
+- `$2.08` per minute;
+- `$62.40` returned as the Shopify carrier rate;
+- negative inputs clamped to zero.
+
+The candidate retains Google's official endpoint as the default; only the
+local Compose override supplies the mock URL. Vendor-origin, distance-limit,
+multi-load, and Shopify API branches remain required before callback cutover.
 
 ## Verification
 

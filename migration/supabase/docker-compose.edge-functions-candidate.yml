@@ -1,0 +1,16 @@
+# Local compatibility-lab override only.
+# Mounts the reviewed Local-Delivery migration candidate. Production external
+# credentials remain deliberately blank.
+services:
+  functions:
+    volumes:
+      - ./volumes/functions:/home/deno/functions:z
+      - ../../candidates/local-delivery/functions/carrier-service:/home/deno/functions/carrier-service:ro
+      - ../../candidates/local-delivery/functions/shopify-api:/home/deno/functions/shopify-api:ro
+    environment:
+      ADMIN_PASSWORD: ""
+      GOOGLE_MAPS_API_KEY: local-compatibility-test-key
+      GOOGLE_DISTANCE_MATRIX_URL: http://host.docker.internal:18765/maps
+      SHOPIFY_CLIENT_ID: ""
+      SHOPIFY_CLIENT_SECRET: ""
+      SHOPIFY_STORE_DOMAIN: ""

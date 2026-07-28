@@ -47,7 +47,9 @@ For each of the five production applications:
 - [x] Storage upload, download, integrity, signed URL, public URL, and TUS
   resumable behavior works
 - [x] Captured Edge Function source hashes and secret-free HTTP contracts pass
-- [ ] Edge Functions pass mocked Shopify/Google and callback functional tests
+- [x] Carrier callback rate calculation passes a mocked Google route test
+- [ ] Carrier vendor, distance-limit, and multi-load branches pass mocked tests
+- [ ] Shopify API success and error branches pass mocked tests
 - [ ] App configuration supports environment-specific Supabase URLs and keys
 - [ ] No production secret exists in source control or container images
 
