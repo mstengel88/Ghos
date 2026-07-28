@@ -79,6 +79,8 @@ For each of the five production applications:
 - [x] Ticket Printer application migrations pass on disposable PostgreSQL 17
 - [x] Ticket Printer Edge Functions pass secret-free local acceptance
 - [x] Ticket Printer managed `pg_cron` task has a GHOS systemd replacement
+- [x] Ticket Printer browser and Loadrite migration candidates require
+      environment-specific Supabase configuration and pass build/tests
 - [x] WinterWatch-Pro application migrations pass on disposable PostgreSQL 17
 - [x] WinterWatch-Pro managed overtime scheduler has a GHOS systemd replacement
 - [x] WinterWatch-Pro Edge Functions pass secret-free local acceptance

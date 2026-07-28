@@ -124,7 +124,10 @@ Only secret names were inventoried.
   five triggers. Its Supabase-specific `pg_cron` migration is being replaced
   by a GHOS systemd timer. All 17 deployed Edge Functions pass secret-free
   local acceptance; the single deployed/local `loadrite-sync` drift is retained
-  as a tracked baseline. See `projects/ticket-printer.md`.
+  as a tracked baseline. Its browser and local `loadrite-sync` candidates are
+  environment-switchable on migration branch
+  `codex/self-hosted-supabase-config`; the production build and four tests
+  pass. See `projects/ticket-printer.md`.
 - WinterWatch-Pro: 36 local migrations. Thirty-four portable application
   migrations now pass in disposable PostgreSQL 17, producing 19 RLS-enabled
   tables, 70 policies, 47 functions, and 18 triggers. Its two managed

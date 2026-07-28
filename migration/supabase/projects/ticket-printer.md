@@ -81,6 +81,31 @@ key lives in `/etc/ghos-ticket-printer/loadrite-sync.env`, outside Git, with
 root-only permissions. Production installation remains gated until the
 self-hosted Ticket Printer Supabase stack and secret injection are ready.
 
+## Client cutover configuration
+
+Migration branch `codex/self-hosted-supabase-config` in
+`/Users/mattstengel/edit-my-ticket` removes the managed project URL and
+publishable key from browser source. The browser now requires
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` at build time. The
+local `loadrite-sync` candidate also requires `SUPABASE_URL` instead of falling
+back to the managed project.
+
+The branch includes a tracked, placeholder-only `.env.example`; real
+environment files remain ignored. A production build and all four existing
+tests pass with deterministic local test configuration. The pre-existing
+`Reports.tsx` working-tree change was preserved and was not included in the
+migration commit.
+
+Run:
+
+```bash
+tools/verify_ticket_printer_client_config.sh
+```
+
+The verifier rejects managed project URLs in tracked browser or Edge Function
+runtime source. The historical cron migration still contains the managed URL
+as immutable history and remains excluded from self-hosted deployment.
+
 ## Remaining gates
 
 - Obtain an exact production database/Auth export without resetting managed
