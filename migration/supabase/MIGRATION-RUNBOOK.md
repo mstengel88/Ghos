@@ -52,6 +52,8 @@ For each of the five production applications:
 - [x] Shopify API success and error branches pass mocked tests
 - [x] Local-Delivery app candidates support environment-specific Supabase URLs
       and keys (Dispatch V2 directly; ShipCalc migration branch)
+- [x] Sanitized Local-Delivery/Quote Live key and row reconciliation completed
+      without exporting customer data or secrets
 - [ ] No production secret exists in source control or container images
 
 ## Gate 4 — GHSSERVER deployment

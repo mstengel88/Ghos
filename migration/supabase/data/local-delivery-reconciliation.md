@@ -1,6 +1,7 @@
 # Local-Delivery data reconciliation plan
 
-Status: design complete; production export not started
+Status: design and sanitized MCP comparison complete; production export not
+started
 
 Canonical target: Local-Delivery / Dispatch V2 Sandbox
 
@@ -109,6 +110,12 @@ Bulk production transfer requires encrypted logical exports or a direct
 read-only database connection. MCP is appropriate for inventory and aggregate
 verification, but not for a complete 38,000-row audit history, Auth migration,
 or 610.7 MiB Storage transfer.
+
+The first privacy-preserving key/row fingerprint comparison is recorded in
+`sanitized-reconciliation-20260728.md`. It confirmed that Quote Live has no
+legacy-only orders, routes, trucks, or stop metrics. It identified 40
+legacy-only read notifications with valid canonical order/route references and
+three legacy-only quotes requiring creator-identity review.
 
 When database access is available:
 

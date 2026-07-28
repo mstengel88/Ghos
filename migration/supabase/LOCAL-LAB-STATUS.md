@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-28 at 8:42 AM CT
+Last verified: 2026-07-28
 
 ## Baseline
 
@@ -295,3 +295,26 @@ classification logic has passed a transaction-only synthetic test. It:
 The staging schema is empty. No production rows or credentials have been loaded.
 Bulk rehearsal remains blocked on encrypted database exports or direct
 read-only database connections; MCP remains the read-only inventory channel.
+
+## Sanitized cross-project reconciliation
+
+A read-only, privacy-preserving comparison of Local-Delivery and GreenHills
+Quote Live completed through their project-scoped MCP connections. Keys and row
+projections were SHA-256 hashed inside each managed database; only aggregate
+classifications and field-difference counts were retained.
+
+The pass confirmed:
+
+- all 457 Quote Live dispatch orders already exist in Local-Delivery;
+- no legacy-only routes, trucks, employees, or stop metrics exist;
+- 40 legacy-only notifications are already read and retain valid canonical
+  order and route references;
+- three legacy-only quotes require an explicit creator-identity/archive
+  decision;
+- 17 overlapping quotes and two app profiles require review;
+- configuration tables match, while product-source drift must be resolved by
+  the canonical Shopify refresh.
+
+No managed project was modified and no customer data or secret value was
+exported. See
+`data/sanitized-reconciliation-20260728.md`.
