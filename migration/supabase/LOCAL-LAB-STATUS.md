@@ -169,8 +169,15 @@ Storage buckets retained: dispatch-photos
 ```
 
 The complete Local-Delivery schema, RLS, and reconciliation suite passed again
-after the service lifecycle test. Password recovery, invitations, and actual
-application-specific Edge Functions remain separate acceptance gates.
+after the service lifecycle test.
+
+`tools/verify_local_delivery_auth_sessions.sh` then passed a guarded,
+localhost-only Auth session acceptance flow covering administrator creation,
+password sign-in, authenticated profile access, password replacement,
+old-password rejection, logout, refresh-token rejection, administrator
+deletion, and cleanup verification. Password recovery, invitations, and actual
+application-specific Edge Functions remain separate acceptance gates because
+the local stack does not yet include an email-capture service.
 
 ## Reconciliation staging
 

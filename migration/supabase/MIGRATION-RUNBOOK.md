@@ -41,7 +41,9 @@ For each of the five production applications:
   (35/35 most recently on 2026-07-28)
 - [x] Local-Delivery database migrations apply cleanly from an empty lab
 - [x] Local-Delivery RLS role behavior passes transaction-only acceptance tests
-- [ ] Auth login, logout, password reset, invitations, and roles work
+- [x] Auth create, password login/change, profile, logout, refresh revocation,
+  deletion, and role behavior work
+- [ ] Auth password recovery and invitations pass through a local email catcher
 - [x] Storage upload, download, integrity, signed URL, public URL, and TUS
   resumable behavior works
 - [ ] Edge Functions pass functional tests

@@ -133,5 +133,16 @@ administrator, and service-role visibility, and tests all four reconciliation
 classifications plus reviewed merge decisions. Every synthetic fixture is
 rolled back, and reconciliation staging must remain empty.
 
+Run the disposable Auth session acceptance test separately:
+
+```bash
+tools/verify_local_delivery_auth_sessions.sh
+```
+
+It is guarded to the localhost lab and verifies password sign-in, profile
+access, password replacement, old-password rejection, logout, refresh-token
+revocation, administrator cleanup, and the absence of a retained test user.
+It does not test recovery or invitation email delivery.
+
 The staging rows are sensitive temporary data. They must never be committed,
 included in a routine schema dump, or copied into application fixtures.
