@@ -50,7 +50,8 @@ For each of the five production applications:
 - [x] Carrier callback rate calculation passes a mocked Google route test
 - [x] Carrier vendor, distance-limit, and multi-load branches pass mocked tests
 - [x] Shopify API success and error branches pass mocked tests
-- [ ] App configuration supports environment-specific Supabase URLs and keys
+- [x] Local-Delivery app candidates support environment-specific Supabase URLs
+      and keys (Dispatch V2 directly; ShipCalc migration branch)
 - [ ] No production secret exists in source control or container images
 
 ## Gate 4 — GHSSERVER deployment

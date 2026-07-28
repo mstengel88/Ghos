@@ -84,6 +84,21 @@ Edge Functions container was returned to the captured secret-free baseline.
 Callback authentication, credential injection, public HTTPS, and registration
 remain required before callback cutover.
 
+## Application endpoint configuration
+
+Dispatch V2 already reads its Supabase URL, anonymous key, and service-role key
+from server runtime variables. No managed project URL or JWT-shaped key was
+found in its tracked application source outside ignored environment files.
+
+ShipCalc's `codex/self-hosted-supabase-config` branch now reads its Supabase base
+URL and publishable key from Vite environment variables for both the browser
+client and every Edge Function request. Its test and production build passed.
+The branch also stops tracking `.env` while preserving the local file.
+
+See `APPLICATION-CONFIGURATION.md`. Repository-history review and rotation of
+any previously committed restricted credential remain required; no database
+password was reset.
+
 ## Verification
 
 The official self-hosted smoke test passed 35 of 35 checks:
