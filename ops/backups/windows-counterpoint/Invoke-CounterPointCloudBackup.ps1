@@ -22,6 +22,7 @@ $LogDirectory = Join-Path $Root "logs"
 $StatusPath = Join-Path $Root "status.json"
 $LastBackupSuccessPath = Join-Path $Root "last-backup-success.json"
 $EventSource = "GHOS CounterPoint Backup"
+$Script:BackupFileListPath = $null
 
 function Unprotect-MachineValue {
     param([Parameter(Mandatory = $true)][string]$CipherText)
@@ -144,23 +145,55 @@ try {
 
         "Backup" {
             $Cutoff = (Get-Date).AddMinutes(-[int]$Config.MinimumFileAgeMinutes)
+            $StableFiles = New-Object Collections.Generic.List[string]
+            $SkippedFiles = New-Object Collections.Generic.List[object]
 
             foreach ($SourcePath in $Config.SourcePaths) {
                 if (-not (Test-Path $SourcePath -PathType Container)) {
                     throw "Required backup source is unavailable: $SourcePath"
                 }
 
-                $RecentFile = Get-ChildItem $SourcePath -File -Recurse `
-                    -ErrorAction Stop |
-                    Where-Object LastWriteTime -GT $Cutoff |
-                    Select-Object -First 1
-
-                if ($null -ne $RecentFile) {
-                    throw (
-                        "Source is still changing: {0}. The scheduled task will retry." -f
-                        $RecentFile.FullName
-                    )
+                foreach ($File in Get-ChildItem $SourcePath -File -Recurse `
+                    -ErrorAction Stop) {
+                    if ($File.LastWriteTime -le $Cutoff) {
+                        $StableFiles.Add($File.FullName)
+                    }
+                    else {
+                        $SkippedFiles.Add($File)
+                    }
                 }
+            }
+
+            if ($StableFiles.Count -eq 0) {
+                throw (
+                    "No completed backup files are old enough to upload. " +
+                    "The scheduled task will retry."
+                )
+            }
+
+            $StableFiles.Add([string]$Config.ProbePath)
+            $Script:BackupFileListPath = Join-Path $Root (
+                "backup-files-" + [Guid]::NewGuid().ToString("N") + ".txt"
+            )
+            $Utf8WithoutBom = New-Object Text.UTF8Encoding($false)
+            [IO.File]::WriteAllLines(
+                $Script:BackupFileListPath,
+                $StableFiles,
+                $Utf8WithoutBom
+            )
+
+            if ($SkippedFiles.Count -gt 0) {
+                (
+                    "Skipping {0} file(s) modified after {1:u}; they will be " +
+                    "included after they are no longer changing." -f
+                    $SkippedFiles.Count, $Cutoff
+                ) | Tee-Object -FilePath $Script:LogPath -Append
+
+                $SkippedFiles |
+                    Select-Object FullName, LastWriteTime, Length |
+                    Format-Table -AutoSize |
+                    Out-String |
+                    Tee-Object -FilePath $Script:LogPath -Append
             }
 
             $Arguments = @(
@@ -168,13 +201,12 @@ try {
                 "--host", $Config.HostTag,
                 "--tag", "counterpoint-offsite",
                 "--tag", (Get-Date -Format "yyyyMMdd"),
+                "--files-from-verbatim", $Script:BackupFileListPath,
                 "--exclude", "*.tmp",
                 "--exclude", "*.temp",
                 "--exclude", "*.lock",
                 "--exclude", "~*"
             )
-            $Arguments += [string[]]$Config.SourcePaths
-            $Arguments += [string]$Config.ProbePath
             Invoke-Restic $Arguments
             Invoke-Restic @(
                 "snapshots",
@@ -183,7 +215,11 @@ try {
                 "--tag", "counterpoint-offsite",
                 "--compact"
             )
-            Write-BackupStatus "Success" $Mode "CounterPoint and SQL backup files uploaded."
+            Write-BackupStatus "Success" $Mode (
+                "{0} completed CounterPoint and SQL backup files uploaded; " +
+                "{1} active file(s) safely deferred." -f
+                ($StableFiles.Count - 1), $SkippedFiles.Count
+            )
         }
 
         "Maintenance" {
@@ -284,6 +320,10 @@ catch {
     exit 1
 }
 finally {
+    if ($null -ne $Script:BackupFileListPath) {
+        Remove-Item $Script:BackupFileListPath -Force `
+            -ErrorAction SilentlyContinue
+    }
     if ($HasMutex) {
         $Mutex.ReleaseMutex()
     }

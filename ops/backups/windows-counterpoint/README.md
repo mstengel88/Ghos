@@ -12,8 +12,9 @@ It does not modify, delete, reformat, or mount the external drive.
   `LocalMachine` scope and the installation directory is restricted to SYSTEM
   and local Administrators.
 - The scheduled task runs as SYSTEM at 1:30 AM.
-- If any source file was modified during the preceding 60 minutes, the run
-  fails safely and Windows retries hourly, up to three times.
+- Files modified during the preceding 60 minutes are safely deferred while
+  every completed file is uploaded. A continuously updated SQL log cannot
+  block the rest of the backup set.
 - A named mutex prevents overlapping backup and maintenance operations.
 - Retention keeps 14 daily, 8 weekly, and 12 monthly snapshots.
 - Weekly maintenance prunes expired data and reads/checks a repository subset.
