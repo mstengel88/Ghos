@@ -221,6 +221,17 @@ else
                 </label>
             </div>
 
+            @if (options.Count == 0)
+            {
+                <div class="calculator-warning">
+                    No active Shopify products are configured for this calculator.
+                    Set <strong>Project calculator type</strong> to
+                    <strong>@(projectKind == ProjectCalculatorKind.Paver ? "paver" : "wall")</strong>
+                    on the intended Shopify products, add their coverage and
+                    packaging metafields, then refresh products in GHOS.
+                </div>
+            }
+
             @if (SelectedProjectOption is not null &&
                  SelectedProjectConfiguration is not null &&
                  result is not null)

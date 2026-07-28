@@ -88,75 +88,202 @@ globalThis.ghos = {
 
                 const addressInput =
                     document.getElementById(options.address1Id);
+                const suggestions =
+                    document.getElementById(options.suggestionsId);
                 if (!addressInput) {
                     throw new Error("The delivery address input was not found.");
+                }
+                if (!suggestions) {
+                    throw new Error(
+                        "The address suggestion container was not found.");
                 }
 
                 const existing = instances.get(options.address1Id);
                 if (existing) {
-                    globalThis.google.maps.event.removeListener(
-                        existing.listener);
+                    existing.dispose();
                 }
 
-                const autocomplete =
-                    new globalThis.google.maps.places.Autocomplete(
-                        addressInput,
+                const autocompleteService =
+                    new globalThis.google.maps.places.AutocompleteService();
+                const placesService =
+                    new globalThis.google.maps.places.PlacesService(
+                        document.createElement("div"));
+                let sessionToken =
+                    new globalThis.google.maps.places.AutocompleteSessionToken();
+                let debounceTimer = 0;
+                let requestNumber = 0;
+
+                const hideSuggestions = () => {
+                    suggestions.replaceChildren();
+                    suggestions.hidden = true;
+                };
+
+                const selectPrediction = (prediction) => {
+                    placesService.getDetails(
                         {
-                            types: ["address"],
-                            componentRestrictions: { country: ["us"] },
+                            placeId: prediction.place_id,
                             fields: [
                                 "address_components",
                                 "formatted_address"
-                            ]
-                        });
-                const listener = autocomplete.addListener(
-                    "place_changed",
-                    async () => {
-                        const place = autocomplete.getPlace();
-                        const components = place?.address_components || [];
-                        const streetNumber =
-                            componentValue(
-                                components,
-                                "street_number");
-                        const route =
-                            componentValue(components, "route");
-                        const city =
-                            componentValue(components, "locality") ||
-                            componentValue(
-                                components,
-                                "postal_town") ||
-                            componentValue(
-                                components,
-                                "sublocality_level_1");
-                        const selection = {
-                            addressLine1:
-                                [streetNumber, route]
-                                    .filter(Boolean)
-                                    .join(" ")
-                                    .trim(),
-                            city,
-                            state: componentValue(
-                                components,
-                                "administrative_area_level_1",
-                                true),
-                            postalCode: componentValue(
-                                components,
-                                "postal_code"),
-                            country:
+                            ],
+                            sessionToken
+                        },
+                        async (place, status) => {
+                            if (status !==
+                                    globalThis.google.maps.places
+                                        .PlacesServiceStatus.OK ||
+                                !place) {
+                                return;
+                            }
+
+                            const components =
+                                place?.address_components || [];
+                            const streetNumber =
                                 componentValue(
                                     components,
-                                    "country",
-                                    true) || "US"
-                        };
+                                    "street_number");
+                            const route =
+                                componentValue(components, "route");
+                            const city =
+                                componentValue(components, "locality") ||
+                                componentValue(
+                                    components,
+                                    "postal_town") ||
+                                componentValue(
+                                    components,
+                                    "sublocality_level_1");
+                            const selection = {
+                                addressLine1:
+                                    [streetNumber, route]
+                                        .filter(Boolean)
+                                        .join(" ")
+                                        .trim(),
+                                city,
+                                state: componentValue(
+                                    components,
+                                    "administrative_area_level_1",
+                                    true),
+                                postalCode: componentValue(
+                                    components,
+                                    "postal_code"),
+                                country:
+                                    componentValue(
+                                        components,
+                                        "country",
+                                        true) || "US"
+                            };
 
-                        await dotNetReference.invokeMethodAsync(
-                            "ApplyGoogleAddressAsync",
-                            selection);
-                    });
+                            addressInput.value =
+                                selection.addressLine1 ||
+                                place.formatted_address ||
+                                prediction.description;
+                            hideSuggestions();
+                            sessionToken =
+                                new globalThis.google.maps.places
+                                    .AutocompleteSessionToken();
+                            await dotNetReference.invokeMethodAsync(
+                                "ApplyGoogleAddressAsync",
+                                selection);
+                        });
+                };
+
+                const renderPredictions = (predictions) => {
+                    suggestions.replaceChildren();
+                    if (!predictions?.length) {
+                        suggestions.hidden = true;
+                        return;
+                    }
+
+                    for (const prediction of predictions) {
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.className = "address-suggestion";
+                        button.setAttribute("role", "option");
+
+                        const main = document.createElement("strong");
+                        main.textContent =
+                            prediction.structured_formatting?.main_text ||
+                            prediction.description;
+                        const secondary = document.createElement("span");
+                        secondary.textContent =
+                            prediction.structured_formatting?.secondary_text ||
+                            "";
+                        button.append(main, secondary);
+                        button.addEventListener(
+                            "pointerdown",
+                            (event) => event.preventDefault());
+                        button.addEventListener(
+                            "click",
+                            () => selectPrediction(prediction));
+                        suggestions.append(button);
+                    }
+
+                    suggestions.hidden = false;
+                };
+
+                const requestPredictions = () => {
+                    globalThis.clearTimeout(debounceTimer);
+                    const query = addressInput.value.trim();
+                    if (query.length < 3) {
+                        requestNumber += 1;
+                        hideSuggestions();
+                        return;
+                    }
+
+                    debounceTimer = globalThis.setTimeout(() => {
+                        const currentRequest = ++requestNumber;
+                        autocompleteService.getPlacePredictions(
+                            {
+                                input: query,
+                                componentRestrictions: { country: "us" },
+                                types: ["address"],
+                                sessionToken
+                            },
+                            (predictions, status) => {
+                                if (currentRequest !== requestNumber) {
+                                    return;
+                                }
+
+                                if (status !==
+                                    globalThis.google.maps.places
+                                        .PlacesServiceStatus.OK) {
+                                    hideSuggestions();
+                                    return;
+                                }
+
+                                renderPredictions(predictions);
+                            });
+                    }, 225);
+                };
+
+                const handleBlur = () => {
+                    globalThis.setTimeout(hideSuggestions, 150);
+                };
+                const handleKeydown = (event) => {
+                    if (event.key === "Escape") {
+                        hideSuggestions();
+                    }
+                };
+
+                addressInput.addEventListener("input", requestPredictions);
+                addressInput.addEventListener("blur", handleBlur);
+                addressInput.addEventListener("keydown", handleKeydown);
+
+                const dispose = () => {
+                    globalThis.clearTimeout(debounceTimer);
+                    addressInput.removeEventListener(
+                        "input",
+                        requestPredictions);
+                    addressInput.removeEventListener("blur", handleBlur);
+                    addressInput.removeEventListener(
+                        "keydown",
+                        handleKeydown);
+                    hideSuggestions();
+                };
 
                 instances.set(
                     options.address1Id,
-                    { autocomplete, listener, dotNetReference });
+                    { dispose, dotNetReference });
             },
             detach: (address1Id) => {
                 const existing = instances.get(address1Id);
@@ -164,8 +291,7 @@ globalThis.ghos = {
                     return;
                 }
 
-                globalThis.google?.maps?.event?.removeListener(
-                    existing.listener);
+                existing.dispose();
                 instances.delete(address1Id);
             }
         };

@@ -19,6 +19,12 @@ Variant values override product values. GHOS imports these fields during its
 Shopify product synchronization and refreshes stale Shopify data when either
 Project Calculators or the quote editor opens.
 
+GHOS only includes a product in the paver or wall selector when
+`custom.project_calculator_type` is explicitly set. It does not infer the
+calculator from words such as `paver` or `wall` in a title, type, or tag because
+that would incorrectly include base sand, joint material, decorative paver
+chips, fabric, and other installation accessories.
+
 The shared server-side calculation rules live in:
 
 - `ProjectTools/MaterialCalculator.cs` for bulk materials.

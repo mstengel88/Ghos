@@ -145,6 +145,11 @@ else
                                        @bind-Value="Model.AddressLine1"
                                        autocomplete="street-address"
                                        placeholder="Start typing an address…" />
+                            <div id="quote-address-suggestions"
+                                 class="address-suggestions"
+                                 role="listbox"
+                                 aria-label="Address suggestions"
+                                 hidden></div>
                             <small class="address-lookup-status @AddressLookupStatusClass">
                                 @AddressLookupStatus
                             </small>
@@ -822,11 +827,6 @@ else
         AddressLookupInitialized = true;
         var browserApiKey =
             Configuration["Quote:GoogleMapsBrowserApiKey"];
-        if (string.IsNullOrWhiteSpace(browserApiKey))
-        {
-            browserApiKey =
-                Configuration["Quote:GoogleMapsApiKey"];
-        }
 
         if (string.IsNullOrWhiteSpace(browserApiKey))
         {
@@ -847,6 +847,7 @@ else
                 {
                     apiKey = browserApiKey,
                     address1Id = "quote-address1",
+                    suggestionsId = "quote-address-suggestions",
                     cityId = "quote-city",
                     stateId = "quote-state",
                     postalCodeId = "quote-postal-code"

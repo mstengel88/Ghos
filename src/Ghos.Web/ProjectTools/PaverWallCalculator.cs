@@ -61,12 +61,6 @@ public static class PaverWallCalculator
         {
             "paver" => ProjectCalculatorKind.Paver,
             "wall" => ProjectCalculatorKind.Wall,
-            _ when searchText.Contains("wall", StringComparison.Ordinal) ||
-                   searchText.Contains("tribute", StringComparison.Ordinal) =>
-                ProjectCalculatorKind.Wall,
-            _ when searchText.Contains("paver", StringComparison.Ordinal) ||
-                   searchText.Contains("discover", StringComparison.Ordinal) =>
-                ProjectCalculatorKind.Paver,
             _ => (ProjectCalculatorKind?)null
         };
         if (kind is null)
