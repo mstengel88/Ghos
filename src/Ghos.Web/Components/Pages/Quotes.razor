@@ -154,24 +154,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            var authenticationState =
-                await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            await ShopifySyncService.SynchronizeIfStaleAsync(
-                authenticationState.User);
-            var result =
-                await DispatchQuoteDataSyncService.SynchronizeIfStaleAsync();
-            if (result is not null)
-            {
-                SyncMessage = BuildSyncMessage(result);
-            }
-        }
-        catch (Exception exception)
-        {
-            SyncMessage = $"Dispatch sync unavailable: {exception.Message}";
-        }
-
         await LoadQuotesAsync();
         Loading = false;
     }

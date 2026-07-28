@@ -52,6 +52,7 @@ builder.Services.AddHttpClient<ShopifyDraftOrderClient>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-Shopify-Drafts/1.0");
 });
 builder.Services.AddScoped<ShopifyDraftOrderService>();
+builder.Services.AddSingleton<CatalogSyncCoordinator>();
 builder.Services.AddScoped<ShopifySyncService>();
 builder.Services.Configure<BackupStatusOptions>(
     builder.Configuration.GetSection(BackupStatusOptions.SectionName));
@@ -76,6 +77,7 @@ builder.Services.AddHttpClient<DispatchQuoteDataSyncService>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
         "GHOS-DispatchQuoteSync/1.0");
 });
+builder.Services.AddHostedService<CatalogAutomaticSyncService>();
 builder.Services.AddScoped<DispatchCredentialStore>();
 builder.Services.AddHttpClient<DispatchIntegrationClient>(client =>
 {

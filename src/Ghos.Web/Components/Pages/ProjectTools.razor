@@ -4,8 +4,6 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject NavigationManager Navigation
-@inject ShopifySyncService ShopifySyncService
-@inject AuthenticationStateProvider AuthenticationStateProvider
 
 <PageTitle>Project Calculators | GHOS</PageTitle>
 
@@ -354,18 +352,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var authenticationState =
-            await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        try
-        {
-            await ShopifySyncService.SynchronizeIfStaleAsync(
-                authenticationState.User);
-        }
-        catch
-        {
-            // Use the last successful product snapshot when Shopify is unavailable.
-        }
-
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
         var products = await dbContext.Products
             .AsNoTracking()

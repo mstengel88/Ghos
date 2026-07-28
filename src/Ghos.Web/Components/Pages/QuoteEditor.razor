@@ -7,8 +7,6 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject QuoteDeliveryService DeliveryService
 @inject ShopifyQuoteTaxService TaxService
-@inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
-@inject ShopifySyncService ShopifySyncService
 @inject ShopifyDraftOrderCredentialStore ShopifyDraftOrderCredentialStore
 @inject ShopifyDraftOrderService ShopifyDraftOrderService
 @inject NavigationManager Navigation
@@ -26,10 +24,6 @@
         <p>Integrated V2 quoting using synced Shopify products, shared project calculators, and Dispatch route timing.</p>
     </div>
     <div class="heading-actions">
-        @if (!string.IsNullOrWhiteSpace(DispatchSyncMessage))
-        {
-            <span class="sync-note">@DispatchSyncMessage</span>
-        }
         @if (!IsNew)
         {
             <a class="secondary-action" href="/quotes/@QuoteId/print" target="_blank">Print quote</a>
@@ -686,7 +680,6 @@ else
     private bool PrintAfterSave { get; set; }
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
-    private string? DispatchSyncMessage { get; set; }
     private string SelectedCompanyExternalId { get; set; } = string.Empty;
     private string ProductSearch { get; set; } = string.Empty;
     private string AddressLookupStatus { get; set; } =
@@ -740,37 +733,6 @@ else
     {
         ShopifyDraftOrdersConfigured =
             await ShopifyDraftOrderCredentialStore.HasCredentialsAsync();
-        var initialAuthenticationState =
-            await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        try
-        {
-            await ShopifySyncService.SynchronizeIfStaleAsync(
-                initialAuthenticationState.User);
-        }
-        catch
-        {
-            // Existing quotes remain usable when Shopify is temporarily unavailable.
-        }
-
-        try
-        {
-            var syncResult =
-                await DispatchQuoteDataSyncService.SynchronizeIfStaleAsync();
-            if (syncResult is not null)
-            {
-                DispatchSyncMessage =
-                    $"{syncResult.Products} products · " +
-                    $"{syncResult.Companies} companies · " +
-                    $"{syncResult.ExistingQuotes + syncResult.ImportedQuotes} saved quotes · " +
-                    $"{syncResult.MaterialRules} delivery rules · " +
-                    $"{syncResult.OriginAddresses} origins";
-            }
-        }
-        catch (Exception exception)
-        {
-            DispatchSyncMessage =
-                $"Dispatch data unavailable: {exception.Message}";
-        }
 
         await using var dbContext = await DbContextFactory.CreateDbContextAsync();
         var products = await dbContext.Products

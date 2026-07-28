@@ -64,23 +64,6 @@ public static class DatabaseInitializer
         await SeedTomorrowMaterialMondayAsync(dbContext);
         await SeedMaterialProfilesAsync(dbContext);
         await SeedQuoteConfigurationAsync(dbContext);
-
-        var dispatchQuoteSync =
-            scope.ServiceProvider.GetRequiredService<DispatchQuoteDataSyncService>();
-        var logger = scope.ServiceProvider
-            .GetRequiredService<ILoggerFactory>()
-            .CreateLogger("DispatchQuoteDataStartupSync");
-
-        try
-        {
-            await dispatchQuoteSync.SynchronizeIfStaleAsync();
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(
-                exception,
-                "Dispatch quote data could not be synchronized during startup. GHOS will retry when the quote workspace is opened.");
-        }
     }
 
     private static async Task SeedQuoteConfigurationAsync(

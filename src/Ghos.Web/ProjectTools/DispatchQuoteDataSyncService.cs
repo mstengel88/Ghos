@@ -23,6 +23,7 @@ public sealed partial class DispatchQuoteDataSyncService(
     HttpClient httpClient,
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
     IOptions<DispatchQuoteDataOptions> options,
+    CatalogSyncCoordinator syncCoordinator,
     ILogger<DispatchQuoteDataSyncService> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions =
@@ -44,9 +45,26 @@ public sealed partial class DispatchQuoteDataSyncService(
             return null;
         }
 
+        return await syncCoordinator.RunAsync(
+            SynchronizeIfStaleCoreAsync,
+            cancellationToken);
+    }
+
+    public async Task<DispatchQuoteDataSyncResult> SynchronizeAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await syncCoordinator.RunAsync(
+            SynchronizeCoreAsync,
+            cancellationToken);
+    }
+
+    private async Task<DispatchQuoteDataSyncResult?>
+        SynchronizeIfStaleCoreAsync(CancellationToken cancellationToken)
+    {
         await using var dbContext =
             await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var configuration = await dbContext.QuoteConfigurations
+            .AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken);
         var refreshWindow = TimeSpan.FromMinutes(
             Math.Clamp(_options.RefreshMinutes, 5, 1440));
@@ -69,11 +87,11 @@ public sealed partial class DispatchQuoteDataSyncService(
                 1);
         }
 
-        return await SynchronizeAsync(cancellationToken);
+        return await SynchronizeCoreAsync(cancellationToken);
     }
 
-    public async Task<DispatchQuoteDataSyncResult> SynchronizeAsync(
-        CancellationToken cancellationToken = default)
+    private async Task<DispatchQuoteDataSyncResult> SynchronizeCoreAsync(
+        CancellationToken cancellationToken)
     {
         ValidateConfiguration();
         var productRows = await GetAsync<ProductSourceRow>(
@@ -197,7 +215,6 @@ public sealed partial class DispatchQuoteDataSyncService(
         CancellationToken cancellationToken)
     {
         var variants = await dbContext.ProductVariants
-            .Include(variant => variant.Product)
             .ToListAsync(cancellationToken);
         var byVariantId = variants
             .Where(variant => !string.IsNullOrWhiteSpace(
@@ -231,63 +248,8 @@ public sealed partial class DispatchQuoteDataSyncService(
                 row.ContractorTier1Price ?? row.Tier1Price;
             variant.ContractorTier2Price =
                 row.ContractorTier2Price ?? row.Tier2Price;
-            variant.UnitLabel =
-                Clean(row.UnitLabel) ??
-                Clean(row.PriceUnitLabel) ??
-                variant.UnitLabel;
-            variant.ImageUrl = Clean(row.ImageUrl) ?? variant.ImageUrl;
             variant.PickupVendor =
                 Clean(row.PickupVendor) ?? variant.PickupVendor;
-            if (row.Price is not null)
-            {
-                variant.Price = Math.Max(0m, row.Price.Value);
-            }
-
-            variant.CoveragePerOrderUnitSqFt =
-                row.CoveragePerOrderUnitSqFt ??
-                variant.CoveragePerOrderUnitSqFt;
-            variant.CalculatorOrderUnitLabel =
-                Clean(row.CalculatorOrderUnitLabel) ??
-                variant.CalculatorOrderUnitLabel;
-            variant.PiecesPerOrderUnit =
-                row.PiecesPerOrderUnit ?? variant.PiecesPerOrderUnit;
-            variant.CalculatorUnitLengthInches =
-                row.UnitLengthInches ??
-                variant.CalculatorUnitLengthInches;
-            variant.CalculatorUnitHeightInches =
-                row.UnitHeightInches ??
-                variant.CalculatorUnitHeightInches;
-            variant.LayersPerPallet =
-                row.LayersPerPallet ?? variant.LayersPerPallet;
-            variant.SquareFeetPerLayer =
-                row.SquareFeetPerLayer ?? variant.SquareFeetPerLayer;
-            variant.PalletWeightLbs =
-                row.PalletWeightLbs ?? variant.PalletWeightLbs;
-
-            var product = variant.Product;
-            product.ProjectCalculatorType =
-                Clean(row.ProjectCalculatorType)?.ToLowerInvariant() ??
-                product.ProjectCalculatorType;
-            product.CoveragePerOrderUnitSqFt =
-                row.CoveragePerOrderUnitSqFt ??
-                product.CoveragePerOrderUnitSqFt;
-            product.CalculatorOrderUnitLabel =
-                Clean(row.CalculatorOrderUnitLabel) ??
-                product.CalculatorOrderUnitLabel;
-            product.PiecesPerOrderUnit =
-                row.PiecesPerOrderUnit ?? product.PiecesPerOrderUnit;
-            product.CalculatorUnitLengthInches =
-                row.UnitLengthInches ??
-                product.CalculatorUnitLengthInches;
-            product.CalculatorUnitHeightInches =
-                row.UnitHeightInches ??
-                product.CalculatorUnitHeightInches;
-            product.LayersPerPallet =
-                row.LayersPerPallet ?? product.LayersPerPallet;
-            product.SquareFeetPerLayer =
-                row.SquareFeetPerLayer ?? product.SquareFeetPerLayer;
-            product.PalletWeightLbs =
-                row.PalletWeightLbs ?? product.PalletWeightLbs;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

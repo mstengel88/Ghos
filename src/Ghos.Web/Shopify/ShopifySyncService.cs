@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Ghos.Web.Data;
 using Ghos.Web.Products;
+using Ghos.Web.ProjectTools;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ghos.Web.Shopify;
@@ -9,9 +10,9 @@ public sealed class ShopifySyncService(
     ShopifyAdminClient shopifyClient,
     ShopifyCredentialStore credentialStore,
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
+    CatalogSyncCoordinator syncCoordinator,
     ILogger<ShopifySyncService> logger)
 {
-    private static readonly SemaphoreSlim AutomaticSyncGate = new(1, 1);
     private static readonly HashSet<string> GenericCollectionHandles =
     [
         "all",
@@ -62,22 +63,14 @@ public sealed class ShopifySyncService(
         }
 
         var maxAge = maximumAge ?? TimeSpan.FromMinutes(30);
-        if (!await IsStaleAsync(maxAge, cancellationToken))
-        {
-            return null;
-        }
-
-        await AutomaticSyncGate.WaitAsync(cancellationToken);
-        try
-        {
-            return await IsStaleAsync(maxAge, cancellationToken)
-                ? await SynchronizeAsync(user, cancellationToken)
-                : null;
-        }
-        finally
-        {
-            AutomaticSyncGate.Release();
-        }
+        return await syncCoordinator.RunAsync(
+            async operationCancellationToken =>
+                await IsStaleAsync(maxAge, operationCancellationToken)
+                    ? await SynchronizeCoreAsync(
+                        user,
+                        operationCancellationToken)
+                    : null,
+            cancellationToken);
     }
 
     public async Task<ShopifySyncPreview> PreviewAsync(CancellationToken cancellationToken = default)
@@ -86,6 +79,7 @@ public sealed class ShopifySyncService(
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var existingProducts = await dbContext.Products
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(product => product.Variants)
             .Include(product => product.ShopifyCollectionLinks)
                 .ThenInclude(link => link.ShopifyCollection)
@@ -136,6 +130,18 @@ public sealed class ShopifySyncService(
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default)
     {
+        return await syncCoordinator.RunAsync(
+            operationCancellationToken => SynchronizeCoreAsync(
+                user,
+                operationCancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<ShopifySyncResult> SynchronizeCoreAsync(
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken,
+        int concurrencyAttempt = 0)
+    {
         var snapshots = await shopifyClient.GetProductsAsync(cancellationToken);
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
         var syncRun = new ShopifySyncRun
@@ -151,6 +157,7 @@ public sealed class ShopifySyncService(
         try
         {
             var products = await dbContext.Products
+                .AsSplitQuery()
                 .Include(product => product.Variants)
                 .Include(product => product.ShopifyCollectionLinks)
                     .ThenInclude(link => link.ShopifyCollection)
@@ -257,20 +264,50 @@ public sealed class ShopifySyncService(
                 unchanged,
                 now);
         }
+        catch (DbUpdateConcurrencyException exception)
+            when (concurrencyAttempt == 0)
+        {
+            logger.LogWarning(
+                exception,
+                "The Shopify catalog changed during synchronization. GHOS will retry once with a fresh database snapshot.");
+            await UpdateRunStatusAsync(
+                syncRun.Id,
+                "Retried",
+                "A concurrent catalog update was detected; GHOS retried automatically.",
+                cancellationToken);
+            return await SynchronizeCoreAsync(
+                user,
+                cancellationToken,
+                concurrencyAttempt + 1);
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Shopify product synchronization failed.");
-            dbContext.ChangeTracker.Clear();
-            var persistedRun = await dbContext.ShopifySyncRuns
-                .SingleAsync(run => run.Id == syncRun.Id, cancellationToken);
-            persistedRun.Status = "Failed";
-            persistedRun.CompletedAtUtc = DateTime.UtcNow;
-            persistedRun.ErrorMessage = exception.Message.Length <= 2000
-                ? exception.Message
-                : exception.Message[..2000];
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await UpdateRunStatusAsync(
+                syncRun.Id,
+                "Failed",
+                exception.Message,
+                cancellationToken);
             throw;
         }
+    }
+
+    private async Task UpdateRunStatusAsync(
+        Guid syncRunId,
+        string status,
+        string errorMessage,
+        CancellationToken cancellationToken)
+    {
+        await using var statusContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var persistedRun = await statusContext.ShopifySyncRuns
+            .SingleAsync(run => run.Id == syncRunId, cancellationToken);
+        persistedRun.Status = status;
+        persistedRun.CompletedAtUtc = DateTime.UtcNow;
+        persistedRun.ErrorMessage = errorMessage.Length <= 2000
+            ? errorMessage
+            : errorMessage[..2000];
+        await statusContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<ShopifySyncRun?> GetLastRunAsync(CancellationToken cancellationToken = default)
