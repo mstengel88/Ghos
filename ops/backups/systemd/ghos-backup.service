@@ -13,5 +13,7 @@ IOSchedulingPriority=7
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/ghos-backup /mnt/ghos-backup /var/run/docker.sock
+# The leading "-" keeps cloud-only installations working when no independent
+# local backup mount has been provisioned yet.
+ReadWritePaths=/var/lib/ghos-backup -/mnt/ghos-backup /var/run/docker.sock
 ReadOnlyPaths=/opt/ghos /etc/ghos-backup

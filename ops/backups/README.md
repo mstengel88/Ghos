@@ -33,6 +33,9 @@ Required and recommended targets:
   `/mnt/ghos-backup/restic`. Never reuse or reformat a disk that protects
   another production system.
 
+The systemd sandbox treats `/mnt/ghos-backup` as optional, so a cloud-only
+installation runs normally before independent local backup storage is added.
+
 The repository password must be unique, stored in a password manager, printed
 into the sealed recovery envelope, and copied to neither Git nor the repository
 it protects. Losing it makes the encrypted backup unrecoverable.

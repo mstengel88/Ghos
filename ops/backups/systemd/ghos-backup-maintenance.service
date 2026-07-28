@@ -12,5 +12,7 @@ IOSchedulingClass=idle
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/ghos-backup /mnt/ghos-backup
+# The leading "-" keeps cloud-only installations working when no independent
+# local backup mount has been provisioned yet.
+ReadWritePaths=/var/lib/ghos-backup -/mnt/ghos-backup
 ReadOnlyPaths=/etc/ghos-backup
