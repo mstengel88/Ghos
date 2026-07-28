@@ -87,12 +87,17 @@ docker compose \
   -f docker-compose.yml \
   -f docker-compose.pg17.yml \
   -f ../../docker-compose.macos-storage.yml \
+  -f ../../docker-compose.mailpit.yml \
   up -d
 ```
 
 The override is for the Mac compatibility lab only. The future Ubuntu VM uses
 normal Linux storage and should not include it unless its backing filesystem
 also lacks extended-attribute support.
+
+The Mailpit override is also local-lab-only. It directs Supabase Auth email to
+an internal SMTP catcher and exposes its review/API interface solely at
+`http://127.0.0.1:8025`; no SMTP port is published to the host or LAN.
 
 ## Migration phases
 
@@ -142,7 +147,16 @@ tools/verify_local_delivery_auth_sessions.sh
 It is guarded to the localhost lab and verifies password sign-in, profile
 access, password replacement, old-password rejection, logout, refresh-token
 revocation, administrator cleanup, and the absence of a retained test user.
-It does not test recovery or invitation email delivery.
+
+With the local Mailpit override running, verify invitation and password-recovery
+email end to end:
+
+```bash
+tools/verify_local_delivery_auth_email.sh
+```
+
+This test verifies capture, link redemption, session issuance, invited-user
+profile access, recovered-password replacement, sign-in, and complete cleanup.
 
 The staging rows are sensitive temporary data. They must never be committed,
 included in a routine schema dump, or copied into application fixtures.

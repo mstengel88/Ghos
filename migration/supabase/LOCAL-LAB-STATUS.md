@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-28 at 7:03 AM CT
+Last verified: 2026-07-28 at 7:38 AM CT
 
 ## Baseline
 
@@ -15,13 +15,14 @@ Last verified: 2026-07-28 at 7:03 AM CT
 
 ## Running services
 
-All 11 application services are running and healthy:
+All 12 application services are running and healthy:
 
 - Auth
 - PostgreSQL
 - Edge Functions
 - imgproxy
 - Kong
+- Mailpit
 - postgres-meta
 - Realtime
 - PostgREST
@@ -73,6 +74,7 @@ docker compose \
   -f docker-compose.yml \
   -f docker-compose.pg17.yml \
   -f ../../docker-compose.macos-storage.yml \
+  -f ../../docker-compose.mailpit.yml \
   up -d
 ```
 
@@ -84,10 +86,38 @@ docker compose \
   -f docker-compose.yml \
   -f docker-compose.pg17.yml \
   -f ../../docker-compose.macos-storage.yml \
+  -f ../../docker-compose.mailpit.yml \
   stop
 ```
 
 Do not use `down --volumes` after migration data has been loaded.
+
+## Local Auth email compatibility
+
+`docker-compose.mailpit.yml` adds the pinned Mailpit `v1.30.6` image and
+redirects only the local Auth container's SMTP traffic to it. The review/API
+interface binds to `127.0.0.1:8025`; SMTP remains internal to the Compose
+network and no message is relayed externally.
+
+Before enabling the override, a fresh schema-only backup was created:
+
+```text
+/tmp/ghos-local-delivery-before-mailpit-20260728-072935.sql
+SHA-256: 18608413340742bb0d20a9a9f2b1ccf61282c1024164dfaa21dc64ec53512ea1
+```
+
+`tools/verify_local_delivery_auth_email.sh` passed invitation and
+password-recovery acceptance end to end:
+
+- invitation delivery, verification redirect, session issuance, and profile
+  access;
+- recovery delivery, verification redirect, session issuance, password
+  replacement, and sign-in with the recovered password;
+- deletion of both disposable users and captured messages.
+
+Final cleanup showed zero `ghos-*@example.invalid` users, zero Storage objects,
+and an empty Mailpit inbox. The Local-Delivery contract, RLS, and
+reconciliation suite passed again afterward.
 
 ## Local-Delivery schema rehearsal
 

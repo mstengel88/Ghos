@@ -43,7 +43,7 @@ For each of the five production applications:
 - [x] Local-Delivery RLS role behavior passes transaction-only acceptance tests
 - [x] Auth create, password login/change, profile, logout, refresh revocation,
   deletion, and role behavior work
-- [ ] Auth password recovery and invitations pass through a local email catcher
+- [x] Auth password recovery and invitations pass through a local email catcher
 - [x] Storage upload, download, integrity, signed URL, public URL, and TUS
   resumable behavior works
 - [ ] Edge Functions pass functional tests
