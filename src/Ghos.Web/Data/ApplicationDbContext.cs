@@ -66,6 +66,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<QuoteB2BCompany> QuoteB2BCompanies =>
         Set<QuoteB2BCompany>();
 
+    public DbSet<BackupStatusRecord> BackupStatuses =>
+        Set<BackupStatusRecord>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -108,6 +111,12 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(product => product.AlternateNames)
                 .HasForeignKey(item => item.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<BackupStatusRecord>(backupStatus =>
+        {
+            backupStatus.HasIndex(item => item.UpdatedAtUtc);
+            backupStatus.Property(item => item.Source).ValueGeneratedNever();
         });
 
         builder.Entity<ProductVariant>(variant =>

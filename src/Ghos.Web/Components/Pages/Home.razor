@@ -131,6 +131,43 @@
         </div>
     </section>
 
+    <section class="panel large-panel backup-panel">
+        <div class="panel-header">
+            <div>
+                <span class="panel-label">DATA PROTECTION</span>
+                <h3>Off-site backups</h3>
+            </div>
+            <span class="backup-summary">@BackupSummary</span>
+        </div>
+
+        <div class="backup-grid">
+            @foreach (var source in BackupSources)
+            {
+                var status = GetBackupStatus(source.Key);
+                <article class="backup-card @GetBackupCardClass(status)">
+                    <div class="backup-card-heading">
+                        <div>
+                            <span class="backup-state-dot"></span>
+                            <strong>@source.Value</strong>
+                        </div>
+                        <span class="backup-state">@GetBackupState(status)</span>
+                    </div>
+                    <dl>
+                        <div>
+                            <dt>Last successful backup</dt>
+                            <dd>@FormatBackupTime(status?.LastSuccessfulBackupAtUtc)</dd>
+                        </div>
+                        <div>
+                            <dt>Last report</dt>
+                            <dd>@FormatBackupTime(status?.UpdatedAtUtc)</dd>
+                        </div>
+                    </dl>
+                    <p>@GetBackupMessage(status)</p>
+                </article>
+            }
+        </div>
+    </section>
+
     <section class="panel large-panel attention-panel">
         <div class="panel-header">
             <div>
@@ -173,6 +210,8 @@
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private List<Delivery> UpcomingDeliveries { get; set; } = [];
+    private Dictionary<string, BackupStatusRecord> BackupStatuses { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
     private int UserCount { get; set; }
     private int ProductCount { get; set; }
     private int TodayDeliveryCount { get; set; }
@@ -183,6 +222,13 @@
     private string DispatchSyncStatus { get; set; } = "Not configured";
     private DateTime? LastDispatchSyncUtc { get; set; }
     private string DisplayName { get; set; } = "team member";
+
+    private static readonly IReadOnlyDictionary<string, string> BackupSources =
+        new Dictionary<string, string>
+        {
+            ["ghos"] = "GHOS application",
+            ["counterpoint"] = "CounterPoint"
+        };
 
     private static DateTime BusinessNow =>
         TimeZoneInfo.ConvertTimeFromUtc(
@@ -221,6 +267,11 @@
             UserCount = await dbContext.Users.CountAsync();
             ProductCount =
                 await dbContext.Products.CountAsync();
+            BackupStatuses = await dbContext.BackupStatuses
+                .AsNoTracking()
+                .ToDictionaryAsync(
+                    item => item.Source,
+                    StringComparer.OrdinalIgnoreCase);
 
             var deliveries = await dbContext.Deliveries
                 .AsNoTracking()
@@ -319,4 +370,75 @@
             StringComparison.OrdinalIgnoreCase)
             ? "warning"
             : string.Empty;
+
+    private BackupStatusRecord? GetBackupStatus(string source) =>
+        BackupStatuses.GetValueOrDefault(source);
+
+    private string BackupSummary
+    {
+        get
+        {
+            var healthyCount = BackupSources.Keys.Count(source =>
+                BackupStatuses.TryGetValue(source, out var status) &&
+                status.State != "Failure" &&
+                status.LastSuccessfulBackupAtUtc is { } lastSuccess &&
+                DateTime.UtcNow - lastSuccess < TimeSpan.FromHours(36));
+            return $"{healthyCount} of {BackupSources.Count} current";
+        }
+    }
+
+    private static string GetBackupState(BackupStatusRecord? status)
+    {
+        if (status is null)
+        {
+            return "Awaiting report";
+        }
+
+        return status.State == "Success" &&
+            (status.LastSuccessfulBackupAtUtc is null ||
+             DateTime.UtcNow - status.LastSuccessfulBackupAtUtc >=
+                TimeSpan.FromHours(36))
+            ? "Stale"
+            : status.State;
+    }
+
+    private static string GetBackupCardClass(BackupStatusRecord? status)
+    {
+        if (status is null)
+        {
+            return "backup-pending";
+        }
+
+        if (status.State == "Failure")
+        {
+            return "backup-failed";
+        }
+
+        if (status.State == "Running")
+        {
+            return "backup-running";
+        }
+
+        return status.LastSuccessfulBackupAtUtc is { } lastSuccess &&
+            DateTime.UtcNow - lastSuccess < TimeSpan.FromHours(36)
+                ? "backup-healthy"
+                : "backup-stale";
+    }
+
+    private static string GetBackupMessage(BackupStatusRecord? status) =>
+        status?.Message ??
+        "The backup agent has not sent its first authenticated status report.";
+
+    private static string FormatBackupTime(DateTime? utc)
+    {
+        if (utc is null)
+        {
+            return "Not reported";
+        }
+
+        var local = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc),
+            TimeZoneInfo.FindSystemTimeZoneById("America/Chicago"));
+        return local.ToString("MMM d · h:mm tt");
+    }
 }

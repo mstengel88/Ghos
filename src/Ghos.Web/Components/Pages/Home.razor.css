@@ -86,6 +86,134 @@
     padding: 22px;
 }
 
+.backup-panel {
+    padding: 22px;
+}
+
+.backup-summary {
+    color: #718072;
+    font-size: .62rem;
+    font-weight: 800;
+}
+
+.backup-grid {
+    margin-top: 17px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.backup-card {
+    padding: 16px;
+    border: 1px solid #dfe6dc;
+    border-left: 4px solid #9aa49b;
+    border-radius: 11px;
+    background: rgba(250, 251, 249, .72);
+    color: inherit;
+}
+
+.backup-card.backup-healthy {
+    border-left-color: #7da713;
+}
+
+.backup-card.backup-running {
+    border-left-color: #3e91b8;
+}
+
+.backup-card.backup-stale,
+.backup-card.backup-pending {
+    border-left-color: #c58a2d;
+}
+
+.backup-card.backup-failed {
+    border-left-color: #c8564f;
+}
+
+.backup-card-heading,
+.backup-card-heading > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 9px;
+}
+
+.backup-card-heading strong {
+    font-size: .73rem;
+}
+
+.backup-state-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #9aa49b;
+}
+
+.backup-healthy .backup-state-dot {
+    background: #7da713;
+}
+
+.backup-running .backup-state-dot {
+    background: #3e91b8;
+}
+
+.backup-stale .backup-state-dot,
+.backup-pending .backup-state-dot {
+    background: #c58a2d;
+}
+
+.backup-failed .backup-state-dot {
+    background: #c8564f;
+}
+
+.backup-state {
+    padding: 4px 7px;
+    border-radius: 999px;
+    background: rgba(125, 167, 19, .12);
+    color: #5d7b13;
+    font-size: .52rem;
+    font-weight: 850;
+}
+
+.backup-failed .backup-state {
+    background: rgba(200, 86, 79, .12);
+    color: #a83f39;
+}
+
+.backup-running .backup-state {
+    background: rgba(62, 145, 184, .12);
+    color: #2d7698;
+}
+
+.backup-card dl {
+    margin: 14px 0 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.backup-card dl > div {
+    min-width: 0;
+}
+
+.backup-card dt {
+    color: #7d887f;
+    font-size: .5rem;
+    font-weight: 750;
+}
+
+.backup-card dd {
+    margin: 4px 0 0;
+    font-size: .62rem;
+    font-weight: 800;
+}
+
+.backup-card p {
+    margin: 13px 0 0;
+    color: #6f7a71;
+    font-size: .56rem;
+    line-height: 1.45;
+}
+
 .attention-grid {
     margin-top: 17px;
     display: grid;
@@ -140,6 +268,7 @@
 }
 
 @media (max-width: 950px) {
+    .backup-grid,
     .attention-grid {
         grid-template-columns: 1fr;
     }

@@ -26,6 +26,14 @@ It does not modify, delete, reformat, or mount the external drive.
 This is an off-site copy of backup artifacts. The existing Acronis and SQL
 backup jobs remain responsible for creating application-consistent backups.
 
+## GHOS dashboard status
+
+After GHOS has a `GHOS_BACKUP_STATUS_INTEGRATION_SECRET`, copy the current
+runner and `Set-CounterPointBackupStatusWebhook.ps1` to the Windows server.
+Run the setup script in an elevated Windows PowerShell window and enter the
+same integration secret when prompted. The secret is protected with
+machine-scoped DPAPI and is never stored as plain text.
+
 ## Install
 
 Create a separate private B2 bucket and a Read/Write application key restricted

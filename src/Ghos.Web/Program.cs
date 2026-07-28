@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 using Ghos.Web.Assets;
 using Ghos.Web.Auth;
+using Ghos.Web.Backups;
 using Ghos.Web.Components;
 using Ghos.Web.Data;
 using Ghos.Web.Dispatch;
@@ -52,6 +53,8 @@ builder.Services.AddHttpClient<ShopifyDraftOrderClient>(client =>
 });
 builder.Services.AddScoped<ShopifyDraftOrderService>();
 builder.Services.AddScoped<ShopifySyncService>();
+builder.Services.Configure<BackupStatusOptions>(
+    builder.Configuration.GetSection(BackupStatusOptions.SectionName));
 builder.Services.AddHttpClient<QuoteDeliveryService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);
@@ -193,6 +196,15 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+    options.AddPolicy("integrations", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 });
 
 builder.Services.AddRazorComponents()
@@ -215,6 +227,7 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapAccountEndpoints();
 app.MapAssetEndpoints();
+app.MapBackupStatusEndpoints();
 app.MapCsvExportEndpoints();
 app.MapMarketingCreativeEndpoints();
 app.MapMarketingPublicationPackageEndpoints();

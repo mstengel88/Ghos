@@ -49,6 +49,7 @@ services:
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Redis__ConnectionString: redis:6379
       Bootstrap__Token: ${GHOS_BOOTSTRAP_TOKEN}
+      BackupStatus__IntegrationSecret: ${GHOS_BACKUP_STATUS_INTEGRATION_SECRET:-}
       DataProtection__KeyPath: /var/lib/ghos/data-protection
       AssetStorage__RootPath: /var/lib/ghos/assets
       Shopify__StoreDomain: ${SHOPIFY_STORE_DOMAIN:-darfaz-2e.myshopify.com}

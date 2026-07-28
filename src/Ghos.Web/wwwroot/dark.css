@@ -55,6 +55,7 @@
 
 :root[data-theme="dark"] .roadmap-item,
 :root[data-theme="dark"] .attention-grid > a,
+:root[data-theme="dark"] .backup-card,
 :root[data-theme="dark"] .security-notes span,
 :root[data-theme="dark"] .sync-counts span,
 :root[data-theme="dark"] .ownership-flow article,
@@ -71,6 +72,23 @@
     background: var(--ghos-surface-muted) !important;
     border-color: var(--ghos-border) !important;
     color: var(--ghos-text-secondary) !important;
+}
+
+:root[data-theme="dark"] .backup-card.backup-healthy {
+    border-left-color: #9BC623 !important;
+}
+
+:root[data-theme="dark"] .backup-card.backup-running {
+    border-left-color: #4da7cf !important;
+}
+
+:root[data-theme="dark"] .backup-card.backup-stale,
+:root[data-theme="dark"] .backup-card.backup-pending {
+    border-left-color: #d49a3c !important;
+}
+
+:root[data-theme="dark"] .backup-card.backup-failed {
+    border-left-color: #df6b63 !important;
 }
 
 :root[data-theme="dark"] input,

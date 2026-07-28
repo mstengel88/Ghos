@@ -113,7 +113,7 @@ write_status() {
   printf '%s\t%s\t%s\t%s\n' "$now" "$state" "$phase" "$message" >"$STATUS_DIR/last-run"
   if [[ "$state" == "success" ]]; then
     cp "$STATUS_DIR/last-run" "$STATUS_DIR/last-success"
-  else
+  elif [[ "$state" == "failure" ]]; then
     cp "$STATUS_DIR/last-run" "$STATUS_DIR/last-failure"
   fi
 }
@@ -125,6 +125,8 @@ notify_status() {
   logger -t ghos-backup -- "$state [$phase] $message"
 
   [[ -n "${BACKUP_WEBHOOK_URL:-}" ]] || return 0
+  [[ -n "${BACKUP_WEBHOOK_TOKEN:-}" ]] ||
+    die "BACKUP_WEBHOOK_TOKEN is required when BACKUP_WEBHOOK_URL is configured."
   require_command curl
   local payload
   payload="$(
@@ -141,6 +143,7 @@ PY
   )"
   curl --fail --silent --show-error --max-time 20 \
     -H 'Content-Type: application/json' \
+    -H "X-GHOS-Backup-Key: $BACKUP_WEBHOOK_TOKEN" \
     --data "$payload" \
     "$BACKUP_WEBHOOK_URL" >/dev/null
 }

@@ -63,6 +63,41 @@ function Write-BackupStatus {
     }
 
     try {
+        if (
+            -not [string]::IsNullOrWhiteSpace($Config.StatusWebhookUrl) -and
+            -not [string]::IsNullOrWhiteSpace($Secrets.StatusWebhookToken)
+        ) {
+            $WebhookToken = Unprotect-MachineValue `
+                $Secrets.StatusWebhookToken
+            try {
+                $Headers = @{
+                    "X-GHOS-Backup-Key" = $WebhookToken
+                }
+                $Payload = [ordered]@{
+                    State     = $State
+                    Operation = $Operation
+                    Message   = $Message
+                    Host      = $env:COMPUTERNAME
+                } | ConvertTo-Json
+                Invoke-RestMethod -Method Post `
+                    -Uri $Config.StatusWebhookUrl `
+                    -Headers $Headers `
+                    -ContentType "application/json" `
+                    -Body $Payload `
+                    -TimeoutSec 20 |
+                    Out-Null
+            }
+            finally {
+                $WebhookToken = $null
+            }
+        }
+    }
+    catch {
+        # Local status and backup completion remain authoritative. A later
+        # run will retry dashboard reporting without failing the backup.
+    }
+
+    try {
         if ([Diagnostics.EventLog]::SourceExists($EventSource)) {
             $EntryType = if ($State -eq "Success") {
                 "Information"
@@ -144,6 +179,9 @@ try {
         }
 
         "Backup" {
+            Write-BackupStatus "Running" $Mode (
+                "CounterPoint cloud backup is running."
+            )
             $Cutoff = (Get-Date).AddMinutes(-[int]$Config.MinimumFileAgeMinutes)
             $StableFiles = New-Object Collections.Generic.List[string]
             $SkippedFiles = New-Object Collections.Generic.List[object]

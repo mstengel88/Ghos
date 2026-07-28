@@ -523,7 +523,6 @@ else
                 product = await dbContext.Products
                     .Include(item => item.AlternateNames)
                     .SingleAsync(item => item.Id == ProductId);
-                product.AlternateNames.Clear();
             }
 
             var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -554,14 +553,16 @@ else
                 product.CreatedByUserId = userId;
             }
 
-            foreach (var alternateName in ParseAlternateNames(Model.AlternateNames, product.Name))
-            {
-                product.AlternateNames.Add(new ProductAlternateName
-                {
-                    Name = alternateName,
-                    NormalizedName = alternateName.ToUpperInvariant()
-                });
-            }
+            var alternateNames = ParseAlternateNames(
+                    Model.AlternateNames,
+                    product.Name)
+                .ToList();
+            await ValidateAlternateNamesAsync(
+                dbContext,
+                product.Id,
+                product.Name,
+                alternateNames);
+            ReconcileAlternateNames(product, alternateNames);
 
             await dbContext.SaveChangesAsync();
 
@@ -590,6 +591,10 @@ else
                     ? "/products?review=needed&saved=1"
                     : "/products?saved=1",
                 forceLoad: true);
+        }
+        catch (DuplicateProductNameException exception)
+        {
+            SaveError = exception.Message;
         }
         catch (DbUpdateException)
         {
@@ -628,6 +633,92 @@ else
             .Split([',', ';', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(name => !name.Equals(officialName, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private static async Task ValidateAlternateNamesAsync(
+        ApplicationDbContext dbContext,
+        Guid productId,
+        string officialName,
+        IReadOnlyCollection<string> alternateNames)
+    {
+        var normalizedOfficialName = NormalizeProductName(officialName);
+        var normalizedAlternateNames = alternateNames
+            .Select(NormalizeProductName)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var conflictingOfficialName = await dbContext.Products
+            .AsNoTracking()
+            .Where(item => item.Id != productId)
+            .Select(item => item.Name)
+            .FirstOrDefaultAsync(name =>
+                name.ToUpper() == normalizedOfficialName ||
+                normalizedAlternateNames.Contains(name.ToUpper()));
+        if (conflictingOfficialName is not null)
+        {
+            throw new DuplicateProductNameException(
+                $"“{conflictingOfficialName}” is already an official product name.");
+        }
+
+        var conflictingAlternateName = await dbContext.ProductAlternateNames
+            .AsNoTracking()
+            .Where(item =>
+                item.ProductId != productId &&
+                (item.NormalizedName == normalizedOfficialName ||
+                 normalizedAlternateNames.Contains(item.NormalizedName)))
+            .Select(item => item.Name)
+            .FirstOrDefaultAsync();
+        if (conflictingAlternateName is not null)
+        {
+            throw new DuplicateProductNameException(
+                $"“{conflictingAlternateName}” is already assigned to another product.");
+        }
+    }
+
+    private static void ReconcileAlternateNames(
+        Product product,
+        IReadOnlyCollection<string> desiredNames)
+    {
+        var desiredByNormalizedName = desiredNames.ToDictionary(
+            NormalizeProductName,
+            StringComparer.Ordinal);
+        var removedNames = product.AlternateNames
+            .Where(existing =>
+                !desiredByNormalizedName.ContainsKey(existing.NormalizedName))
+            .ToList();
+
+        foreach (var removedName in removedNames)
+        {
+            product.AlternateNames.Remove(removedName);
+        }
+
+        foreach (var existingName in product.AlternateNames)
+        {
+            existingName.Name =
+                desiredByNormalizedName[existingName.NormalizedName];
+        }
+
+        var existingNormalizedNames = product.AlternateNames
+            .Select(item => item.NormalizedName)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var (normalizedName, alternateName) in desiredByNormalizedName)
+        {
+            if (existingNormalizedNames.Contains(normalizedName))
+            {
+                continue;
+            }
+
+            product.AlternateNames.Add(new ProductAlternateName
+            {
+                Name = alternateName,
+                NormalizedName = normalizedName
+            });
+        }
+    }
+
+    private static string NormalizeProductName(string name) =>
+        name.Trim().ToUpperInvariant();
+
+    private sealed class DuplicateProductNameException(string message)
+        : Exception(message);
 
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
