@@ -78,6 +78,7 @@ function Write-BackupStatus {
                     Operation = $Operation
                     Message   = $Message
                     Host      = $env:COMPUTERNAME
+                    OccurredAtUtc = $Status.UpdatedAtUtc
                 } | ConvertTo-Json
                 Invoke-RestMethod -Method Post `
                     -Uri $Config.StatusWebhookUrl `

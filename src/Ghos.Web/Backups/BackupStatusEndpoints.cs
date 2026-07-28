@@ -61,6 +61,12 @@ public static class BackupStatusEndpoints
         var operation = FirstNotBlank(request.Operation, request.Phase, "Backup");
         var message = FirstNotBlank(request.Message, $"{displayName} reported {state}.");
         var now = DateTime.UtcNow;
+        var occurredAtUtc = request.OccurredAtUtc?.ToUniversalTime();
+        var reportTime = occurredAtUtc is not null &&
+            occurredAtUtc <= now.AddMinutes(5) &&
+            occurredAtUtc >= now.AddYears(-1)
+                ? occurredAtUtc.Value
+                : now;
 
         await using var dbContext =
             await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -87,15 +93,15 @@ public static class BackupStatusEndpoints
         record.Host = string.IsNullOrWhiteSpace(request.Host)
             ? null
             : request.Host.Trim()[..Math.Min(request.Host.Trim().Length, 160)];
-        record.UpdatedAtUtc = now;
+        record.UpdatedAtUtc = reportTime;
 
         if (state == "Success" && IsBackupCompletion(operation))
         {
-            record.LastSuccessfulBackupAtUtc = now;
+            record.LastSuccessfulBackupAtUtc = reportTime;
         }
         else if (state == "Failure")
         {
-            record.LastFailureAtUtc = now;
+            record.LastFailureAtUtc = reportTime;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -151,5 +157,6 @@ public static class BackupStatusEndpoints
         string? Operation,
         string? Phase,
         string? Message,
-        string? Host);
+        string? Host,
+        DateTime? OccurredAtUtc);
 }

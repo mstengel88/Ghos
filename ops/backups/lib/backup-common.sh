@@ -133,11 +133,13 @@ notify_status() {
     python3 - "$state" "$phase" "$message" "$BACKUP_HOST_TAG" <<'PY'
 import json
 import sys
+from datetime import datetime, timezone
 print(json.dumps({
     "status": sys.argv[1],
     "phase": sys.argv[2],
     "message": sys.argv[3],
     "host": sys.argv[4],
+    "occurredAtUtc": datetime.now(timezone.utc).isoformat(),
 }))
 PY
   )"
