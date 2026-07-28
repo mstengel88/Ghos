@@ -4,7 +4,7 @@
 
 - [ ] Dell diagnostics complete without memory errors
 - [ ] Replacement RAM installed
-- [ ] Extended memory test passes
+- [x] Extended memory test passes (reported 2026-07-27)
 - [ ] RAID and storage health verified
 - [ ] UPS shutdown behavior verified
 
