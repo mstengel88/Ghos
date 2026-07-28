@@ -166,8 +166,27 @@ tools/verify_local_delivery_clean_room.sh
 The suite verifies the live schema contract, prepares the isolated
 reconciliation schema, exercises anonymous, authenticated, active, inactive,
 administrator, and service-role visibility, and tests all four reconciliation
-classifications plus reviewed merge decisions. Every synthetic fixture is
-rolled back, and reconciliation staging must remain empty.
+classifications plus reviewed merge decisions. It also verifies deterministic
+quote creator remapping and the fail-closed quarantine for an unmapped creator.
+Every synthetic fixture is rolled back, and reconciliation staging must remain
+empty.
+
+After exact encrypted exports are loaded and the private identity map is
+approved, inspect quote readiness without exposing quote payloads:
+
+```sql
+select
+  record_key,
+  classification,
+  decision,
+  creator_resolution,
+  ready_for_import
+from migration_reconcile.quote_import_candidates
+order by record_key;
+```
+
+Do not commit the contents of `migration_reconcile.identity_map` or any staged
+row payload.
 
 Run the disposable Auth session acceptance test separately:
 

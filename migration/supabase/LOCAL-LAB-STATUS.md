@@ -324,6 +324,13 @@ recorded in `data/auth-identity-reconciliation-20260728.md`. Local-Delivery
 identities are canonical; 16 Quote Live quote creator references require a
 rehearsed UUID rewrite during import.
 
+The clean-room reconciliation suite now exercises that rewrite path. A private
+`migration_reconcile.identity_map` supplies reviewed legacy-to-canonical UUID
+mappings. The `quote_import_candidates` view rewrites mapped owners, accepts
+quotes that intentionally have no owner, and marks any unmapped owner as not
+ready for import. The synthetic suite passed on 2026-07-28 and rolled back all
+fixtures.
+
 ## Photo migration inventory
 
 A read-only Storage/reference inventory found 470 current objects totaling

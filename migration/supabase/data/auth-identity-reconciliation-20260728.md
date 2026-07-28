@@ -6,8 +6,8 @@ Canonical project: Local-Delivery / Dispatch V2 Sandbox
 
 Legacy comparison project: GreenHills Quote Live
 
-Status: read-only identity classification complete; exact Auth export and
-identity rewrite are not started.
+Status: read-only identity classification and synthetic rewrite rehearsal
+complete; exact Auth export and production identity rewrite are not started.
 
 ## Privacy-preserving method
 
@@ -73,7 +73,21 @@ as `created_by_user_id` drift.
 
 - Acquire exact encrypted Auth/database exports.
 - Generate the private email-to-canonical-UUID map from those exports.
-- Rehearse the 16 quote reference rewrites in isolated staging.
+- Load the approved private map and rehearse the 16 real quote reference
+  rewrites in isolated staging.
 - Decide how the three credential and three metadata differences are handled.
 - Verify login, recovery, profile, role, and quote ownership after restore.
 - Re-run the sanitized comparison against the final production delta.
+
+## Rehearsal safeguard
+
+The local-only reconciliation schema now contains:
+
+- `migration_reconcile.identity_map`, which holds the private reviewed mapping;
+- `migration_reconcile.rewrite_quote_creator(jsonb)`, which changes only the
+  creator UUID when a reviewed mapping exists; and
+- `migration_reconcile.quote_import_candidates`, which blocks reviewed quote
+  imports whose creator remains unmapped.
+
+The clean-room test proves mapped, ownerless, and unmapped cases and rolls all
+synthetic identities and quotes back. No real identity mapping belongs in Git.

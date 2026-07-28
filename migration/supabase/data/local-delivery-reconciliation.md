@@ -50,7 +50,9 @@ generated.
 The classification and decision rules are exercised repeatably by
 `migration/supabase/sql/verify_reconciliation_classification.sql`. The test
 uses synthetic transaction-only rows, verifies both source manifests, and
-rolls back without retaining staged data.
+rolls back without retaining staged data. It also verifies that a reviewed
+legacy Auth UUID is rewritten to its canonical UUID and that an unmapped quote
+owner remains quarantined.
 
 ## Identity rules
 
@@ -65,6 +67,12 @@ Auth is reconciled separately from public rows:
 
 The current count differences—13 Auth users, 12 app profiles, and 11 dispatch
 roles in Local-Delivery—must be explained by UUID before cutover.
+
+The approved mapping is loaded only into the private local
+`migration_reconcile.identity_map` table. The
+`migration_reconcile.quote_import_candidates` view is the import boundary:
+only rows with `ready_for_import = true` may feed a generated quote migration.
+An unmapped creator never falls back to another user or to a null owner.
 
 ## Table-specific merge rules
 

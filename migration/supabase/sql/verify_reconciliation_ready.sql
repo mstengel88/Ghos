@@ -24,6 +24,7 @@ declare
   actual_table_count bigint;
   actual_row_count bigint;
   unresolved_count bigint;
+  blocked_quote_count bigint;
 begin
   if (
     select count(*)
@@ -65,6 +66,17 @@ begin
     raise exception
       'Reconciliation is not ready: % legacy-only or conflicting rows lack decisions',
       unresolved_count;
+  end if;
+
+  select count(*)
+  into blocked_quote_count
+  from migration_reconcile.quote_import_candidates
+  where not ready_for_import;
+
+  if blocked_quote_count <> 0 then
+    raise exception
+      'Reconciliation is not ready: % reviewed quote import(s) have unmapped creators',
+      blocked_quote_count;
   end if;
 
   raise notice 'Every legacy-only and conflicting row has a merge decision.';

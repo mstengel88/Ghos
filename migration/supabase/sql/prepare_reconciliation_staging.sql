@@ -50,6 +50,19 @@ create table if not exists migration_reconcile.merge_decisions (
   primary key (table_name, record_key)
 );
 
+create table if not exists migration_reconcile.identity_map (
+  legacy_user_id uuid primary key,
+  canonical_user_id uuid not null unique,
+  normalized_email text not null unique
+    check (
+      normalized_email = lower(btrim(normalized_email))
+      and position('@' in normalized_email) > 1
+    ),
+  decision_notes text not null,
+  decided_by text not null,
+  decided_at timestamptz not null default now()
+);
+
 create or replace function migration_reconcile.shared_jsonb_projection(
   left_payload jsonb,
   right_payload jsonb
@@ -63,6 +76,33 @@ as $$
   select coalesce(jsonb_object_agg(item.key, item.value), '{}'::jsonb)
   from jsonb_each(left_payload) as item
   where right_payload ? item.key
+$$;
+
+create or replace function migration_reconcile.rewrite_quote_creator(
+  quote_payload jsonb
+)
+returns jsonb
+language sql
+stable
+strict
+set search_path = ''
+as $$
+  select case
+    when not quote_payload ? 'created_by_user_id'
+      or nullif(quote_payload ->> 'created_by_user_id', '') is null
+      or identity.canonical_user_id is null
+      then quote_payload
+    else jsonb_set(
+      quote_payload,
+      '{created_by_user_id}',
+      to_jsonb(identity.canonical_user_id::text),
+      false
+    )
+  end
+  from (select 1) seed
+  left join migration_reconcile.identity_map identity
+    on identity.legacy_user_id =
+      nullif(quote_payload ->> 'created_by_user_id', '')::uuid
 $$;
 
 create or replace view migration_reconcile.record_comparison as
@@ -124,6 +164,41 @@ left join migration_reconcile.merge_decisions decision
 where comparison.classification in ('legacy_only', 'conflict')
   and decision.record_key is null;
 
+create or replace view migration_reconcile.quote_import_candidates as
+select
+  source.record_key,
+  comparison.classification,
+  decision.decision,
+  source.payload as legacy_payload,
+  migration_reconcile.rewrite_quote_creator(source.payload)
+    as rewritten_payload,
+  case
+    when not source.payload ? 'created_by_user_id'
+      or nullif(source.payload ->> 'created_by_user_id', '') is null
+      then 'not_required'
+    when identity.canonical_user_id is not null
+      then 'mapped'
+    else 'unmapped'
+  end as creator_resolution,
+  (
+    not source.payload ? 'created_by_user_id'
+    or nullif(source.payload ->> 'created_by_user_id', '') is null
+    or identity.canonical_user_id is not null
+  ) as ready_for_import
+from migration_reconcile.source_rows source
+join migration_reconcile.record_comparison comparison
+  on comparison.table_name = source.table_name
+  and comparison.record_key = source.record_key
+join migration_reconcile.merge_decisions decision
+  on decision.table_name = source.table_name
+  and decision.record_key = source.record_key
+left join migration_reconcile.identity_map identity
+  on identity.legacy_user_id =
+    nullif(source.payload ->> 'created_by_user_id', '')::uuid
+where source.source_project = 'quote_live'
+  and source.table_name = 'custom_delivery_quotes'
+  and decision.decision in ('import_legacy', 'merge_reviewed');
+
 comment on schema migration_reconcile is
   'Local-only staging for Local-Delivery and Quote Live reconciliation.';
 
@@ -132,3 +207,9 @@ comment on table migration_reconcile.import_batches is
 
 comment on table migration_reconcile.source_rows is
   'Contains sensitive temporary production projections; never dump into Git.';
+
+comment on table migration_reconcile.identity_map is
+  'Private reviewed Auth UUID mapping; never dump identities into Git.';
+
+comment on view migration_reconcile.quote_import_candidates is
+  'Reviewed Quote Live imports with deterministic creator remapping and fail-closed readiness.';

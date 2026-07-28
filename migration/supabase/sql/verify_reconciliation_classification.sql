@@ -14,6 +14,9 @@ begin
   ) or exists (
     select 1
     from migration_reconcile.merge_decisions
+  ) or exists (
+    select 1
+    from migration_reconcile.identity_map
   ) then
     raise exception
       'Refusing synthetic reconciliation test because staging is not empty';
@@ -39,8 +42,8 @@ values
   (
     'quote_live',
     '2026-07-27 22:45:00-05',
-    1,
-    3,
+    2,
+    6,
     repeat('b', 64)
   );
 
@@ -86,6 +89,24 @@ values
     'dispatch_orders',
     'fixture-conflict',
     '{"id":"fixture-conflict","status":"delivered","route_id":"route-2"}'
+  ),
+  (
+    'quote_live',
+    'custom_delivery_quotes',
+    'fixture-quote-mapped',
+    '{"id":"fixture-quote-mapped","quote_total_cents":10000,"created_by_user_id":"10000000-0000-0000-0000-000000000001"}'
+  ),
+  (
+    'quote_live',
+    'custom_delivery_quotes',
+    'fixture-quote-unmapped',
+    '{"id":"fixture-quote-unmapped","quote_total_cents":20000,"created_by_user_id":"30000000-0000-0000-0000-000000000001"}'
+  ),
+  (
+    'quote_live',
+    'custom_delivery_quotes',
+    'fixture-quote-no-owner',
+    '{"id":"fixture-quote-no-owner","quote_total_cents":30000}'
   );
 
 do $$
@@ -125,13 +146,28 @@ begin
   into unresolved_count
   from migration_reconcile.unresolved_records;
 
-  if unresolved_count <> 2 then
+  if unresolved_count <> 5 then
     raise exception
-      'Expected two unresolved records before review, found %',
+      'Expected five unresolved records before review, found %',
       unresolved_count;
   end if;
 end
 $$;
+
+insert into migration_reconcile.identity_map (
+  legacy_user_id,
+  canonical_user_id,
+  normalized_email,
+  decision_notes,
+  decided_by
+)
+values (
+  '10000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  'mapped-user@example.invalid',
+  'Synthetic divergent identity mapping.',
+  'clean-room-test'
+);
 
 insert into migration_reconcile.merge_decisions (
   table_name,
@@ -154,6 +190,27 @@ values
     'keep_canonical',
     'Synthetic test confirms current Dispatch v2 state remains authoritative.',
     'clean-room-test'
+  ),
+  (
+    'custom_delivery_quotes',
+    'fixture-quote-mapped',
+    'import_legacy',
+    'Synthetic quote with a reviewed creator mapping.',
+    'clean-room-test'
+  ),
+  (
+    'custom_delivery_quotes',
+    'fixture-quote-unmapped',
+    'import_legacy',
+    'Synthetic quote deliberately retained in the quarantine test.',
+    'clean-room-test'
+  ),
+  (
+    'custom_delivery_quotes',
+    'fixture-quote-no-owner',
+    'import_legacy',
+    'Synthetic quote without a creator reference.',
+    'clean-room-test'
   );
 
 do $$
@@ -162,6 +219,9 @@ declare
   actual_table_count bigint;
   actual_row_count bigint;
   unresolved_count bigint;
+  ready_quote_count bigint;
+  blocked_quote_count bigint;
+  rewritten_creator text;
 begin
   for batch in
     select *
@@ -196,8 +256,31 @@ begin
       unresolved_count;
   end if;
 
+  select
+    count(*) filter (where ready_for_import),
+    count(*) filter (where not ready_for_import)
+  into ready_quote_count, blocked_quote_count
+  from migration_reconcile.quote_import_candidates;
+
+  if ready_quote_count <> 2 or blocked_quote_count <> 1 then
+    raise exception
+      'Expected two ready quote imports and one quarantined quote, found % ready/% blocked',
+      ready_quote_count,
+      blocked_quote_count;
+  end if;
+
+  select rewritten_payload ->> 'created_by_user_id'
+  into rewritten_creator
+  from migration_reconcile.quote_import_candidates
+  where record_key = 'fixture-quote-mapped';
+
+  if rewritten_creator <> '20000000-0000-0000-0000-000000000001' then
+    raise exception
+      'Mapped quote creator was not rewritten to the canonical UUID';
+  end if;
+
   raise notice
-    'Synthetic reconciliation classifications, manifests, and decisions verified.';
+    'Synthetic reconciliation, identity rewrite, and quarantine behavior verified.';
 end
 $$;
 
@@ -214,6 +297,9 @@ begin
   ) or exists (
     select 1
     from migration_reconcile.merge_decisions
+  ) or exists (
+    select 1
+    from migration_reconcile.identity_map
   ) then
     raise exception
       'Synthetic reconciliation fixtures remained after rollback';

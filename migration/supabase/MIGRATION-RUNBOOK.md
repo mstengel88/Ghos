@@ -59,6 +59,8 @@ For each of the five production applications:
       and keys (Dispatch V2 directly; ShipCalc migration branch)
 - [x] Sanitized Local-Delivery/Quote Live key and row reconciliation completed
       without exporting customer data or secrets
+- [x] Quote creator UUID rewrite and unmapped-owner quarantine behavior pass
+      in the isolated reconciliation lab
 - [x] Local-Delivery Storage/reference manifest records bucket objects,
       embedded database images, and unresolved photo payloads
 - [ ] No production secret exists in source control or container images
