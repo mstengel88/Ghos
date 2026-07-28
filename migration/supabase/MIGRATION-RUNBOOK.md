@@ -23,12 +23,16 @@ For each of the five production applications:
 - [ ] Storage buckets, object totals, policies, and URL dependencies inventoried
 - [ ] Edge Functions, environment secrets, schedules, and external APIs inventoried
 - [ ] All clients and service-role consumers identified
+- [x] Located application source audited for direct PostgreSQL consumers
+- [ ] Quote V2 live Prisma `DATABASE_URL` classified without revealing it
+- [ ] Help Desk canonical source and database consumers identified
 
 ## Gate 2 — Backup and recovery
 
 - [ ] Encrypted managed database export created
+- [ ] Managed database password reset impact gate passes for each project
 - [ ] Auth schema recovery approach tested
-- [ ] Storage objects and metadata exported
+- [x] Local-Delivery Storage objects and metadata exported and SHA-256 verified
 - [ ] Edge Function source and secret-name manifest captured
 - [ ] Restore completed into an isolated local environment
 - [ ] Restore validation report retained

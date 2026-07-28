@@ -4,8 +4,8 @@ Run date: 2026-07-28
 
 Source: managed Local-Delivery project
 
-Status: read-only metadata and reference inventory complete; object-byte export
-not started.
+Status: initial object-byte export complete and locally verified. Encryption,
+off-Mac backup, isolated restore, and final-delta export remain pending.
 
 ## Supabase Storage
 
@@ -28,6 +28,27 @@ The digest covers the sorted object name, declared size, and ETag for every
 object. Object names and ETags are not retained in Git.
 
 GreenHills Quote Live still has zero objects in its `dispatch-photos` bucket.
+
+## Initial byte export
+
+The private ignored export completed on 2026-07-28:
+
+- 470 files;
+- 640,756,931 actual bytes;
+- zero missing files;
+- zero SHA-256 mismatches;
+- zero retained partial files.
+
+The SHA-256 checksum of the private byte manifest is:
+
+```text
+60e1db6162c1894a00a4729132ebb84004b77995d5c88dcf5af2d8fa7bd7de21
+```
+
+The private manifest, object names, metadata, and image bytes remain under the
+ignored migration export directory and are not committed. This is a verified
+local copy, not yet a complete backup: it still needs encryption and an
+off-Mac copy.
 
 ## Database photo references
 
@@ -53,7 +74,7 @@ be transferred by copying the Storage bucket alone.
 
 1. Export `dispatch_orders.photo_urls` with the database, including the large
    embedded JPEG payloads.
-2. Export all 470 Storage objects and their metadata independently.
+2. Preserve the verified export of all 470 Storage objects and their metadata.
 3. Preserve the 18 currently unreferenced Storage objects until retention and
    duplicate decisions are approved.
 4. Quarantine and inspect the four unclassified photo-text records during the
@@ -65,4 +86,3 @@ be transferred by copying the Storage bucket alone.
 
 No image bytes, paths, customer data, or secret values were exported during
 this inventory.
-

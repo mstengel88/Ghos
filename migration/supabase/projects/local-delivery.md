@@ -2,6 +2,8 @@
 
 Inventory date: 2026-07-27
 
+Follow-up data and Storage snapshot: 2026-07-28
+
 Project ref: `mtntrlbuhcbdrngiubdu`
 
 Inventory method: official Supabase MCP, project-scoped to Local-Delivery with
@@ -23,8 +25,8 @@ shipping calculator and a newer copy of the quote/B2B data model.
 - Public indexes: 106
 - Auth users: 13
 - Storage buckets: 1
-- Storage objects: 469
-- Storage bytes: 640,360,940 (about 610.7 MiB)
+- Storage objects: 470
+- Storage bytes: 640,756,931 (about 611.1 MiB)
 - Supabase migration history entries: 4
 
 All 22 public tables have RLS enabled. No public views or materialized views
@@ -37,18 +39,18 @@ were found.
 | `app_audit_log` | 866 |
 | `app_settings` | 16 |
 | `app_user_profiles` | 12 |
-| `custom_delivery_quotes` | 209 |
+| `custom_delivery_quotes` | 210 |
 | `dispatch_audit_log` | 38,066 |
 | `dispatch_b2b_companies` | 82 |
 | `dispatch_driver_locations` | 11 |
 | `dispatch_employees` | 12 |
 | `dispatch_notifications` | 45 |
-| `dispatch_orders` | 964 |
+| `dispatch_orders` | 966 |
 | `dispatch_push_subscriptions` | 2 |
 | `dispatch_routes` | 24 |
 | `dispatch_settings` | 2 |
 | `dispatch_shopify_updates` | 156 |
-| `dispatch_stop_metrics` | 586 |
+| `dispatch_stop_metrics` | 588 |
 | `dispatch_trucks` | 8 |
 | `dispatch_user_roles` | 11 |
 | `origin_addresses` | 5 |
@@ -87,8 +89,9 @@ stack rather than a plain PostgreSQL restore.
 - `auth.users` contains 13 users.
 - `app_user_profiles` contains 12 profiles.
 - `dispatch_user_roles` contains 11 role records.
-- The public `dispatch-photos` bucket contains 469 objects.
-- The bucket holds about 610.7 MiB.
+- The public `dispatch-photos` bucket contains 470 objects.
+- The bucket holds about 611.1 MiB.
+- 452 objects match current order photo references; 18 are unreferenced.
 - Its configured object-size limit is 10 MiB.
 - Allowed types are JPEG, PNG, WebP, HEIC, and HEIF.
 
@@ -217,18 +220,18 @@ Row-count comparison:
 | `app_audit_log` | 866 | 658 | +208 |
 | `app_settings` | 16 | 16 | 0 |
 | `app_user_profiles` | 12 | 11 | +1 |
-| `custom_delivery_quotes` | 209 | 89 | +120 |
+| `custom_delivery_quotes` | 210 | 89 | +121 |
 | `dispatch_audit_log` | 38,066 | 287 | +37,779 |
 | `dispatch_b2b_companies` | 82 | 0 | +82 |
 | `dispatch_driver_locations` | 11 | 8 | +3 |
 | `dispatch_employees` | 12 | 11 | +1 |
 | `dispatch_notifications` | 45 | 60 | -15 |
-| `dispatch_orders` | 964 | 457 | +507 |
+| `dispatch_orders` | 966 | 457 | +509 |
 | `dispatch_push_subscriptions` | 2 | 2 | 0 |
 | `dispatch_routes` | 24 | 22 | +2 |
 | `dispatch_settings` | 2 | 2 | 0 |
 | `dispatch_shopify_updates` | 156 | 40 | +116 |
-| `dispatch_stop_metrics` | 586 | 90 | +496 |
+| `dispatch_stop_metrics` | 588 | 90 | +498 |
 | `dispatch_trucks` | 8 | 7 | +1 |
 | `dispatch_user_roles` | 11 | 1 | +10 |
 | `origin_addresses` | 5 | 5 | 0 |
@@ -249,7 +252,7 @@ This project requires:
 1. PostgreSQL schema and data migration.
 2. Supabase Auth migration for 13 users.
 3. RLS, function, trigger, index, and Realtime verification.
-4. Transfer and validation of 469 Storage objects.
+4. Transfer and validation of 470 Storage objects.
 5. Recreation of Edge Functions and secret values.
 6. Shopify, Google, and public callback testing.
 7. Dispatch V2 and ShipCalc application integration testing.

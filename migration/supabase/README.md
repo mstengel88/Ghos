@@ -64,6 +64,24 @@ The script follows Supabase's platform-to-self-hosted process by creating
 separate role, schema, and data dumps. Exports are ignored, permission-restricted,
 and checksummed. They still need encryption and an off-Mac backup.
 
+## Export managed Storage
+
+Storage object bytes can be exported independently while the exact database
+connection remains gated. The exporter uses an existing server-side Supabase
+service-role credential, never prints it or object paths, preserves the bucket
+hierarchy, supports resuming complete files, and creates a SHA-256 manifest:
+
+```bash
+python3 tools/export_supabase_storage.py \
+  --env-file /path/to/private/runtime.env \
+  --bucket dispatch-photos \
+  --output migration/supabase/exports/storage/local-delivery/initial
+```
+
+The output is ignored because object paths, metadata, and bytes may contain
+sensitive production data. Encrypt it and retain an off-Mac copy before
+considering the Storage backup gate complete.
+
 ## Prepare the self-hosted compatibility lab
 
 ```bash

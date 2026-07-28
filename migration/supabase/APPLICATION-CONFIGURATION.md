@@ -66,6 +66,26 @@ ever committed must be rotated and the repository history reviewed before
 cutover. Database passwords are not being reset as part of this configuration
 change.
 
+## Direct database consumer audit
+
+The located applications predominantly use Supabase through its HTTP API.
+Dispatch V2, ShipCalc, Ticket Printer, WinterWatch-Pro, Dump Site, and GHOS do
+not contain a direct managed PostgreSQL consumer in the reviewed source.
+
+Quote V2 is the exception at the framework layer: Prisma requires
+`DATABASE_URL` for Shopify `Session` and `AppSettings` records. Its Docker
+Compose design provides a separate `contractor-postgres` container for those
+two models, while quote and dispatch business data use the Supabase HTTP API.
+The live container's untracked value must still be classified before any
+GreenHills Quote Live database password reset.
+
+Help Desk remains unclassified because its canonical application source has
+not been located.
+
+See `DATABASE-CREDENTIAL-IMPACT.md` for the safe live check, impact matrix, and
+password-reset gate. The check reports only a connection class and must never
+print the URL.
+
 ## GHSSERVER cutover contract
 
 The eventual deployment changes values, not application code:
