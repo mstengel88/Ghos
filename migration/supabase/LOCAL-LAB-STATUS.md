@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-27
+Last verified: 2026-07-27 at 10:42 PM CT
 
 ## Baseline
 
@@ -124,6 +124,26 @@ SHA-256: 6e8d4d089481a9a5913d14ed39fda605cdf9f9763c3ff1d3884a29f04150da12
 No application should point at the lab yet. The next acceptance step is a
 repeatable clean-room restore followed by a sanitized data rehearsal and
 cross-project reconciliation plan.
+
+## Repeatable clean-room acceptance
+
+The guarded reset and complete schema rebuild were repeated successfully on
+2026-07-27. The resulting database again matched all 22 table contracts, 26
+RLS policies, eight functions, eight triggers, 106 indexes, 45 constraints,
+Storage bucket metadata, and the Realtime publication.
+
+The immediately preceding schema-only backup is:
+
+```text
+/tmp/ghos-local-delivery-clean-room-before-20260727-224158.sql
+SHA-256: 04d6287baaf02161821b0416176378481020a909a48a3e0202faceef6bddb585
+```
+
+`tools/verify_local_delivery_clean_room.sh` provides repeatable contract,
+transaction-only RLS, and synthetic reconciliation acceptance. It verifies
+matching, canonical-only, legacy-only, and conflicting records; requires
+reviewed decisions for the latter two actionable classifications; rolls back
+all fixtures; and requires reconciliation staging to remain empty.
 
 ## Reconciliation staging
 

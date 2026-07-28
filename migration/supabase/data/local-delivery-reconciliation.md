@@ -46,6 +46,11 @@ Nothing in `conflict` is auto-merged. A reviewed decision is recorded in
 `migration_reconcile.merge_decisions` before a production migration can be
 generated.
 
+The classification and decision rules are exercised repeatably by
+`migration/supabase/sql/verify_reconciliation_classification.sql`. The test
+uses synthetic transaction-only rows, verifies both source manifests, and
+rolls back without retaining staged data.
+
 ## Identity rules
 
 Auth is reconciled separately from public rows:

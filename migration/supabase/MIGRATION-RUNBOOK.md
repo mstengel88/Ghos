@@ -38,8 +38,8 @@ For each of the five production applications:
 
 - [x] Isolated PostgreSQL 17 Supabase lab starts with all services healthy
 - [x] Baseline self-hosted smoke test passes (35/35 on 2026-07-27)
-- [ ] Database migrations apply cleanly
-- [ ] RLS behavior matches production
+- [x] Local-Delivery database migrations apply cleanly from an empty lab
+- [x] Local-Delivery RLS role behavior passes transaction-only acceptance tests
 - [ ] Auth login, logout, password reset, invitations, and roles work
 - [ ] Storage upload, download, signed URL, and public URL behavior works
 - [ ] Edge Functions pass functional tests

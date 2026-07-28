@@ -120,5 +120,18 @@ docker exec -i supabase-db \
   < migration/supabase/sql/prepare_reconciliation_staging.sql
 ```
 
+After rebuilding the Local-Delivery schema, run the complete contract and
+transaction-only RLS acceptance suite:
+
+```bash
+tools/verify_local_delivery_clean_room.sh
+```
+
+The suite verifies the live schema contract, prepares the isolated
+reconciliation schema, exercises anonymous, authenticated, active, inactive,
+administrator, and service-role visibility, and tests all four reconciliation
+classifications plus reviewed merge decisions. Every synthetic fixture is
+rolled back, and reconciliation staging must remain empty.
+
 The staging rows are sensitive temporary data. They must never be committed,
 included in a routine schema dump, or copied into application fixtures.
