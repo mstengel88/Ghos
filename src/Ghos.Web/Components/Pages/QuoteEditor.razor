@@ -9,6 +9,9 @@
 @inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
 @inject ShopifySyncService ShopifySyncService
 @inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
 <PageTitle>@(IsNew ? "New quote" : Model.QuoteNumber) | GHOS</PageTitle>
 
@@ -138,23 +141,36 @@ else
                         </label>
                         <label class="wide">
                             <span>Delivery address</span>
-                            <InputText @bind-Value="Model.AddressLine1" />
+                            <InputText id="quote-address1"
+                                       @bind-Value="Model.AddressLine1"
+                                       autocomplete="street-address"
+                                       placeholder="Start typing an address…" />
+                            <small class="address-lookup-status @AddressLookupStatusClass">
+                                @AddressLookupStatus
+                            </small>
                         </label>
                         <label class="wide">
                             <span>Address line 2</span>
-                            <InputText @bind-Value="Model.AddressLine2" />
+                            <InputText @bind-Value="Model.AddressLine2"
+                                       autocomplete="address-line2" />
                         </label>
                         <label>
                             <span>City</span>
-                            <InputText @bind-Value="Model.City" />
+                            <InputText id="quote-city"
+                                       @bind-Value="Model.City"
+                                       autocomplete="address-level2" />
                         </label>
                         <label>
                             <span>State</span>
-                            <InputText @bind-Value="Model.State" />
+                            <InputText id="quote-state"
+                                       @bind-Value="Model.State"
+                                       autocomplete="address-level1" />
                         </label>
                         <label>
                             <span>ZIP code</span>
-                            <InputText @bind-Value="Model.PostalCode" />
+                            <InputText id="quote-postal-code"
+                                       @bind-Value="Model.PostalCode"
+                                       autocomplete="postal-code" />
                         </label>
                         <label class="check-field">
                             <InputCheckbox @bind-Value="Model.IsTaxExempt" />
@@ -211,22 +227,51 @@ else
                             <span>Search by product, SKU, or vendor</span>
                             <input @bind="ProductSearch"
                                    @bind:event="oninput"
-                                   placeholder="Start typing…" />
+                                   autocomplete="off"
+                                   placeholder="Type product name, SKU, or vendor…" />
                         </label>
-                        <select @bind="SelectedOptionKey">
-                            <option value="">Choose a matching product…</option>
-                            @foreach (var option in FilteredProductOptions)
-                            {
-                                <option value="@option.Key">
-                                    @option.Label · @GetOptionPrice(option).ToString("C2")
-                                </option>
-                            }
-                        </select>
                         <button type="button"
-                                disabled="@string.IsNullOrWhiteSpace(SelectedOptionKey)"
-                                @onclick="AddSelectedLine">
-                            + Add product
+                                disabled="@string.IsNullOrWhiteSpace(ProductSearch)"
+                                @onclick="ClearProductSearch">
+                            Clear
                         </button>
+                        @if (!string.IsNullOrWhiteSpace(ProductSearch))
+                        {
+                            <div class="product-search-results">
+                                @if (!FilteredProductOptions.Any())
+                                {
+                                    <div class="product-no-results">
+                                        No matching products
+                                    </div>
+                                }
+                                else
+                                {
+                                    @foreach (var option in FilteredProductOptions)
+                                    {
+                                        <button type="button"
+                                                class="product-result"
+                                                @onclick="() => AddSearchResult(option)">
+                                            @if (!string.IsNullOrWhiteSpace(option.ImageUrl))
+                                            {
+                                                <img src="@option.ImageUrl" alt="" />
+                                            }
+                                            else
+                                            {
+                                                <span class="product-result-placeholder">GH</span>
+                                            }
+                                            <span class="product-result-copy">
+                                                <strong>@option.Label</strong>
+                                                <small>@option.Sku · @option.Vendor</small>
+                                            </span>
+                                            <span class="product-result-price">
+                                                @GetOptionPrice(option).ToString("C2")
+                                                <small>@option.UnitLabel</small>
+                                            </span>
+                                        </button>
+                                    }
+                                }
+                            </div>
+                        }
                     </div>
 
                     @if (Model.Lines.Count == 0)
@@ -396,50 +441,75 @@ else
                         <span>03</span>
                         <div>
                             <h3>Delivery & adjustments</h3>
-                            <p>Use Dispatch v2’s round-trip material routing or override the charge for a custom quote.</p>
+                            <p>@(Model.Audience == QuoteAudience.Custom
+                                ? "Build a custom delivery or shipping charge."
+                                : "Calculate delivery with Dispatch v2’s round-trip material routing.")</p>
                         </div>
                     </div>
 
-                    <div class="delivery-actions">
-                        <button type="button"
-                                disabled="@CalculatingDelivery"
-                                @onclick="CalculateDeliveryAsync">
-                            @(CalculatingDelivery ? "Calculating route…" : "Calculate delivery")
-                        </button>
-                        @if (!string.IsNullOrWhiteSpace(Model.DeliverySummary))
-                        {
+                    @if (Model.Audience == QuoteAudience.Custom)
+                    {
+                        <div class="custom-delivery-calculator">
                             <div>
-                                <strong>@Model.DeliveryServiceName</strong>
-                                <span>@Model.DeliverySummary · @Model.DeliveryEta</span>
+                                <strong>Custom delivery calculator</strong>
+                                <span>Enter a flat delivery charge or calculate shipping by miles or hours.</span>
                             </div>
-                        }
-                    </div>
+                            <div class="form-grid adjustments">
+                                <label>
+                                    <span>Flat delivery amount</span>
+                                    <InputNumber @bind-Value="Model.CustomDeliveryAmount" />
+                                    <small>Used when quantity and rate are blank.</small>
+                                </label>
+                                <label>
+                                    <span>Shipping quantity</span>
+                                    <InputNumber @bind-Value="Model.ShippingQuantity" />
+                                </label>
+                                <label>
+                                    <span>Shipping unit</span>
+                                    <InputSelect @bind-Value="Model.ShippingUnit">
+                                        <option value="miles">Miles</option>
+                                        <option value="hours">Hours</option>
+                                    </InputSelect>
+                                </label>
+                                <label>
+                                    <span>Price per shipping unit</span>
+                                    <InputNumber @bind-Value="Model.ShippingRate" />
+                                    <small>Quantity × rate overrides the flat amount.</small>
+                                </label>
+                                <label>
+                                    <span>Minute charge</span>
+                                    <InputNumber @bind-Value="Model.RatePerMinute" />
+                                    <small>Stored for Dispatch compatibility.</small>
+                                </label>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="delivery-actions">
+                            <button type="button"
+                                    disabled="@CalculatingDelivery"
+                                    @onclick="CalculateDeliveryAsync">
+                                @(CalculatingDelivery ? "Calculating route…" : "Calculate delivery")
+                            </button>
+                            @if (!string.IsNullOrWhiteSpace(Model.DeliverySummary))
+                            {
+                                <div>
+                                    <strong>@Model.DeliveryServiceName</strong>
+                                    <span>@Model.DeliverySummary · @Model.DeliveryEta</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div>
+                                    <strong>Dispatch delivery calculator</strong>
+                                    <span>Uses the selected products, pickup origins, and round-trip time.</span>
+                                </div>
+                            }
+                        </div>
+                    }
 
-                    <div class="form-grid adjustments">
-                        <label>
-                            <span>Delivery amount override</span>
-                            <InputNumber @bind-Value="Model.CustomDeliveryAmount" />
-                            <small>Leave blank to use the calculated amount.</small>
-                        </label>
-                        <label>
-                            <span>Minute charge</span>
-                            <InputNumber @bind-Value="Model.RatePerMinute" />
-                            <small>Dispatch v2 default: $2.08/minute.</small>
-                        </label>
-                        <label>
-                            <span>Custom shipping quantity</span>
-                            <InputNumber @bind-Value="Model.ShippingQuantity" />
-                        </label>
-                        <label>
-                            <span>Shipping unit</span>
-                            <InputText @bind-Value="Model.ShippingUnit"
-                                       placeholder="miles, hours…" />
-                        </label>
-                        <label>
-                            <span>Price per shipping unit</span>
-                            <InputNumber @bind-Value="Model.ShippingRate" />
-                            <small>Quantity × rate replaces delivery when both are entered.</small>
-                        </label>
+                    <div class="form-grid adjustments tax-adjustment">
                         <label>
                             <span>Tax rate (%)</span>
                             <InputNumber @bind-Value="Model.TaxRatePercent"
@@ -562,10 +632,14 @@ else
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
     private string? DispatchSyncMessage { get; set; }
-    private string SelectedOptionKey { get; set; } = string.Empty;
     private string SelectedCompanyExternalId { get; set; } = string.Empty;
     private string ProductSearch { get; set; } = string.Empty;
+    private string AddressLookupStatus { get; set; } =
+        "Loading Google address lookup…";
+    private string AddressLookupStatusClass { get; set; } = "loading";
     private Guid? ActiveCalculatorLineKey { get; set; }
+    private DotNetObjectReference<QuoteEditor>? AddressLookupReference { get; set; }
+    private bool AddressLookupInitialized { get; set; }
     private QuoteEditModel Model { get; set; } = new();
     private List<ProductOption> ProductOptions { get; set; } = [];
     private List<QuoteB2BCompany> B2BCompanies { get; set; } = [];
@@ -576,18 +650,24 @@ else
                 option.Label.Contains(ProductSearch, StringComparison.OrdinalIgnoreCase) ||
                 (option.Sku?.Contains(ProductSearch, StringComparison.OrdinalIgnoreCase) ?? false) ||
                 (option.Vendor?.Contains(ProductSearch, StringComparison.OrdinalIgnoreCase) ?? false))
-            .Take(100);
+            .Take(12);
     private decimal Subtotal => Model.Lines.Sum(GetLineTotal);
     private bool HasCustomShippingCalculation =>
+        Model.Audience == QuoteAudience.Custom &&
         Model.ShippingQuantity.GetValueOrDefault() > 0 &&
         Model.ShippingRate.GetValueOrDefault() > 0;
     private decimal EffectiveDeliveryAmount => HasCustomShippingCalculation
         ? Math.Round(
             Model.ShippingQuantity!.Value * Model.ShippingRate!.Value,
             2)
-        : Model.CustomDeliveryAmount is not null
+        : Model.Audience == QuoteAudience.Custom &&
+          Model.CustomDeliveryAmount is not null
             ? Math.Max(0m, Model.CustomDeliveryAmount.Value)
-            : Math.Max(0m, Model.CalculatedDeliveryAmount.GetValueOrDefault());
+            : Model.Audience == QuoteAudience.Custom
+                ? 0m
+                : Math.Max(
+                    0m,
+                    Model.CalculatedDeliveryAmount.GetValueOrDefault());
     private decimal TaxAmount => Model.IsTaxExempt
         ? 0m
         : Math.Round(Subtotal * Math.Max(0m, Model.TaxRatePercent) / 100m, 2);
@@ -732,6 +812,74 @@ else
         Loading = false;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Loading || NotFound || AddressLookupInitialized)
+        {
+            return;
+        }
+
+        AddressLookupInitialized = true;
+        var browserApiKey =
+            Configuration["Quote:GoogleMapsBrowserApiKey"];
+        if (string.IsNullOrWhiteSpace(browserApiKey))
+        {
+            browserApiKey =
+                Configuration["Quote:GoogleMapsApiKey"];
+        }
+
+        if (string.IsNullOrWhiteSpace(browserApiKey))
+        {
+            AddressLookupStatus =
+                "Google address lookup is not configured. Manual entry is still available.";
+            AddressLookupStatusClass = "unavailable";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            AddressLookupReference =
+                DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync(
+                "ghos.quoteAddressAutocomplete.attach",
+                new
+                {
+                    apiKey = browserApiKey,
+                    address1Id = "quote-address1",
+                    cityId = "quote-city",
+                    stateId = "quote-state",
+                    postalCodeId = "quote-postal-code"
+                },
+                AddressLookupReference);
+            AddressLookupStatus =
+                "Google address lookup ready — choose a suggestion to fill city, state, and ZIP.";
+            AddressLookupStatusClass = "ready";
+        }
+        catch (Exception exception)
+        {
+            AddressLookupStatus =
+                $"Google address lookup unavailable: {exception.Message}";
+            AddressLookupStatusClass = "unavailable";
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task ApplyGoogleAddressAsync(GoogleAddressSelection selection)
+    {
+        Model.AddressLine1 = Clean(selection.AddressLine1);
+        Model.City = Clean(selection.City);
+        Model.State = Clean(selection.State) ?? "WI";
+        Model.PostalCode = Clean(selection.PostalCode);
+        Model.Country = Clean(selection.Country) ?? "US";
+        AddressLookupStatus =
+            "Address selected from Google. Review the details before calculating delivery.";
+        AddressLookupStatusClass = "selected";
+        return InvokeAsync(StateHasChanged);
+    }
+
     private void CompanyChanged(ChangeEventArgs args)
     {
         SelectedCompanyExternalId =
@@ -772,7 +920,29 @@ else
 
     private void ChangeAudience(QuoteAudience audience)
     {
+        if (Model.Audience == audience)
+        {
+            return;
+        }
+
         Model.Audience = audience;
+        if (audience == QuoteAudience.Custom)
+        {
+            Model.CalculatedDeliveryAmount = null;
+            Model.DeliveryServiceName = null;
+            Model.DeliveryDescription = null;
+            Model.DeliveryEta = null;
+            Model.DeliverySummary = null;
+            Model.SourceBreakdownJson = null;
+        }
+        else
+        {
+            Model.CustomDeliveryAmount = null;
+            Model.ShippingQuantity = null;
+            Model.ShippingRate = null;
+            Model.ShippingUnit = "miles";
+        }
+
         ApplyAudiencePricing();
     }
 
@@ -806,18 +976,13 @@ else
             Model.Audience,
             Model.ContractorTier);
 
-    private void AddSelectedLine()
+    private void AddSearchResult(ProductOption option)
     {
-        var option = ProductOptions.FirstOrDefault(item =>
-            item.Key == SelectedOptionKey);
-        if (option is null)
-        {
-            return;
-        }
-
         AddLine(option, 1m);
-        SelectedOptionKey = string.Empty;
+        ProductSearch = string.Empty;
     }
+
+    private void ClearProductSearch() => ProductSearch = string.Empty;
 
     private void AddLine(ProductOption option, decimal quantity)
     {
@@ -913,6 +1078,13 @@ else
     {
         ErrorMessage = null;
         SuccessMessage = null;
+        if (Model.Audience == QuoteAudience.Custom)
+        {
+            ErrorMessage =
+                "Custom quotes use the custom delivery calculator.";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(Model.AddressLine1) ||
             string.IsNullOrWhiteSpace(Model.City) ||
             string.IsNullOrWhiteSpace(Model.State) ||
@@ -1083,12 +1255,26 @@ else
         quote.BillingCountry = Clean(Model.BillingCountry);
         quote.Subtotal = Subtotal;
         quote.CalculatedDeliveryAmount =
-            Model.CalculatedDeliveryAmount;
-        quote.CustomDeliveryAmount = Model.CustomDeliveryAmount;
+            Model.Audience == QuoteAudience.Custom
+                ? null
+                : Model.CalculatedDeliveryAmount;
+        quote.CustomDeliveryAmount =
+            Model.Audience == QuoteAudience.Custom
+                ? Model.CustomDeliveryAmount
+                : null;
         quote.RatePerMinute = Model.RatePerMinute;
-        quote.ShippingQuantity = Model.ShippingQuantity;
-        quote.ShippingRate = Model.ShippingRate;
-        quote.ShippingUnit = Clean(Model.ShippingUnit);
+        quote.ShippingQuantity =
+            Model.Audience == QuoteAudience.Custom
+                ? Model.ShippingQuantity
+                : null;
+        quote.ShippingRate =
+            Model.Audience == QuoteAudience.Custom
+                ? Model.ShippingRate
+                : null;
+        quote.ShippingUnit =
+            Model.Audience == QuoteAudience.Custom
+                ? Clean(Model.ShippingUnit)
+                : null;
         quote.DeliveryAmount = EffectiveDeliveryAmount;
         quote.TaxRate = Model.IsTaxExempt
             ? 0m
@@ -1163,6 +1349,34 @@ else
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (AddressLookupInitialized)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync(
+                    "ghos.quoteAddressAutocomplete.detach",
+                    "quote-address1");
+            }
+            catch (JSDisconnectedException)
+            {
+                // The browser has already disconnected.
+            }
+        }
+
+        AddressLookupReference?.Dispose();
+    }
+
+    public sealed class GoogleAddressSelection
+    {
+        public string? AddressLine1 { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public string? PostalCode { get; set; }
+        public string? Country { get; set; }
+    }
 
     private sealed record ProductOption(
         string Key,

@@ -15,7 +15,161 @@ globalThis.ghos = {
         input.select();
         document.execCommand("copy");
         input.remove();
-    }
+    },
+    quoteAddressAutocomplete: (() => {
+        let googlePlacesPromise = null;
+        const instances = new Map();
+
+        const load = (apiKey) => {
+            if (globalThis.google?.maps?.places) {
+                return Promise.resolve();
+            }
+
+            if (googlePlacesPromise) {
+                return googlePlacesPromise;
+            }
+
+            googlePlacesPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector(
+                    'script[data-google-places="true"]');
+                if (existing) {
+                    existing.addEventListener("load", resolve, { once: true });
+                    existing.addEventListener(
+                        "error",
+                        () => reject(
+                            new Error("Failed to load Google Places.")),
+                        { once: true });
+                    return;
+                }
+
+                const script = document.createElement("script");
+                script.src =
+                    "https://maps.googleapis.com/maps/api/js?key=" +
+                    encodeURIComponent(apiKey) +
+                    "&libraries=places";
+                script.async = true;
+                script.defer = true;
+                script.dataset.googlePlaces = "true";
+                script.addEventListener("load", () => {
+                    if (globalThis.google?.maps?.places) {
+                        resolve();
+                        return;
+                    }
+
+                    reject(new Error(
+                        "Google Places loaded without the Places library."));
+                }, { once: true });
+                script.addEventListener(
+                    "error",
+                    () => reject(
+                        new Error("Failed to load Google Places.")),
+                    { once: true });
+                document.head.append(script);
+            });
+
+            return googlePlacesPromise;
+        };
+
+        const componentValue = (components, type, shortName = false) => {
+            const component = components.find(
+                (candidate) => candidate.types?.includes(type));
+            if (!component) {
+                return "";
+            }
+
+            return shortName
+                ? component.short_name || component.long_name || ""
+                : component.long_name || "";
+        };
+
+        return {
+            attach: async (options, dotNetReference) => {
+                await load(options.apiKey);
+
+                const addressInput =
+                    document.getElementById(options.address1Id);
+                if (!addressInput) {
+                    throw new Error("The delivery address input was not found.");
+                }
+
+                const existing = instances.get(options.address1Id);
+                if (existing) {
+                    globalThis.google.maps.event.removeListener(
+                        existing.listener);
+                }
+
+                const autocomplete =
+                    new globalThis.google.maps.places.Autocomplete(
+                        addressInput,
+                        {
+                            types: ["address"],
+                            componentRestrictions: { country: ["us"] },
+                            fields: [
+                                "address_components",
+                                "formatted_address"
+                            ]
+                        });
+                const listener = autocomplete.addListener(
+                    "place_changed",
+                    async () => {
+                        const place = autocomplete.getPlace();
+                        const components = place?.address_components || [];
+                        const streetNumber =
+                            componentValue(
+                                components,
+                                "street_number");
+                        const route =
+                            componentValue(components, "route");
+                        const city =
+                            componentValue(components, "locality") ||
+                            componentValue(
+                                components,
+                                "postal_town") ||
+                            componentValue(
+                                components,
+                                "sublocality_level_1");
+                        const selection = {
+                            addressLine1:
+                                [streetNumber, route]
+                                    .filter(Boolean)
+                                    .join(" ")
+                                    .trim(),
+                            city,
+                            state: componentValue(
+                                components,
+                                "administrative_area_level_1",
+                                true),
+                            postalCode: componentValue(
+                                components,
+                                "postal_code"),
+                            country:
+                                componentValue(
+                                    components,
+                                    "country",
+                                    true) || "US"
+                        };
+
+                        await dotNetReference.invokeMethodAsync(
+                            "ApplyGoogleAddressAsync",
+                            selection);
+                    });
+
+                instances.set(
+                    options.address1Id,
+                    { autocomplete, listener, dotNetReference });
+            },
+            detach: (address1Id) => {
+                const existing = instances.get(address1Id);
+                if (!existing) {
+                    return;
+                }
+
+                globalThis.google?.maps?.event?.removeListener(
+                    existing.listener);
+                instances.delete(address1Id);
+            }
+        };
+    })()
 };
 
 (() => {
