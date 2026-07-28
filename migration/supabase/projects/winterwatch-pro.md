@@ -85,6 +85,7 @@ remains retained as migration evidence.
 4. Restore database, Auth, and Storage into the isolated lab and validate RLS.
 5. Test approved staging credentials for every external Edge Function service.
 6. Run the WinterWatch web/mobile client against the candidate backend through
-   environment configuration.
+   environment configuration. The environment-switchable client is committed
+   on WinterWatch branch `codex/self-hosted-supabase-config` at `337bf8f`.
 7. Complete a backup/restore drill and a rehearsed maintenance-window cutover.
 8. Keep managed Supabase intact through the rollback observation window.

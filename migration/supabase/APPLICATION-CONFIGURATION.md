@@ -57,6 +57,43 @@ Acceptance:
 The branch must be reviewed and merged before declaring the production
 ShipCalc deployment environment-switchable.
 
+## WinterWatch-Pro consumer
+
+Canonical source:
+
+```text
+/Users/mattstengel/winterwatch
+```
+
+WinterWatch's Edge Functions already use runtime Supabase variables. The
+browser client and PWA cache configuration still embed the managed project URL,
+and the client embeds its publishable key in TypeScript. The real `.env`
+already defines the correct `VITE_SUPABASE_*` variables, but the application
+does not consistently consume them.
+
+A reviewed conversion is available on the WinterWatch branch:
+
+```text
+codex/self-hosted-supabase-config
+```
+
+Verified commit:
+
+- `337bf8f` — reads the browser URL/key and PWA cache target from the runtime
+  environment, stops tracking real environment files without deleting the
+  local copies, and retains only a safe example.
+
+Acceptance:
+
+- Vitest: 1 test passed;
+- Vite production/PWA build: passed;
+- no managed project URL or JWT-shaped value remains in the changed
+  application source; and
+- unrelated local iOS/dispatch work remains unstaged and uncommitted.
+
+The branch must be reviewed and merged before declaring the production
+WinterWatch deployment environment-switchable.
+
 ## Credential-history caution
 
 Removing an environment file from the current Git tree does not erase older

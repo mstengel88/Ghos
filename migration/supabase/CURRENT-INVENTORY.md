@@ -131,7 +131,9 @@ Only secret names were inventoried.
   `pg_cron`/`pg_net` migrations are replaced by a GHOS systemd timer.
   Auth, private Storage, Realtime, seven Edge Functions, and external services
   remain separate migration gates. All seven Edge Functions pass secret-free
-  local acceptance. See `projects/winterwatch-pro.md`.
+  local acceptance. Its browser/PWA client is environment-switchable on
+  migration branch `codex/self-hosted-supabase-config`. See
+  `projects/winterwatch-pro.md`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
   Sandbox is the canonical dispatch application and must own the final dispatch
   migration baseline. Shared dispatch tables in GreenHills Quote Live are a
