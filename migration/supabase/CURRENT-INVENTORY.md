@@ -20,9 +20,12 @@ All six accessible projects are healthy and currently run PostgreSQL 17.
 | Dump Site | `bnethnlrhwcjgjgjvoxz` | us-west-2 | `/Users/mattstengel/Documents/GreenHills APP/supabase` | 2 |
 
 The stated five critical applications do not map one-to-one to these projects:
-Dispatch and ShipCalc share Local-Delivery, while Help Desk and GreenHills Quote
-Live currently lack a confirmed canonical source binding. All six projects stay
-in scope until the owner confirms which one is noncritical or shared.
+Dispatch and ShipCalc share Local-Delivery, while Help Desk still lacks a
+confirmed canonical source binding. Dispatch V2 Sandbox is the sole continuing
+dispatch application. The older dispatch implementation embedded in
+`local-contractor` will be retired after its unique production data has been
+reconciled into the V2-owned model. GreenHills Quote Live remains in scope
+because its quote tool and production data continue to matter.
 
 ## Deployed Edge Functions
 
@@ -117,8 +120,9 @@ Only secret names were inventoried.
 - WinterWatch-Pro: 36 local migrations, Auth, Storage, Realtime, `pg_cron`, and
   `pg_net`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
-  references shared dispatch tables that also exist in GreenHills Quote Live
-  and need a canonical migration baseline.
+  Sandbox is the canonical dispatch application and must own the final dispatch
+  migration baseline. Shared dispatch tables in GreenHills Quote Live are a
+  one-time reconciliation source, not a second continuing implementation.
 - GreenHills Quote Live: 22 public tables, 11 Auth users, 89 quotes, 457
   dispatch orders, 20 visible public RLS policies, and a public but empty
   `dispatch-photos` bucket. See
@@ -139,6 +143,9 @@ Only secret names were inventoried.
 4. Public Shopify and email/OAuth callbacks cannot rely on Tailscale-only URLs.
 5. Several application schemas reuse generic table names. Projects remain
    isolated during the infrastructure migration.
-6. Help Desk canonical source must be located. GreenHills Quote Live is now
-   bound to `local-contractor`, but its shared dispatch schema must be
-   reconciled with Dispatch V2 before final migration sequencing.
+6. Help Desk canonical source must be located.
+7. GreenHills Quote Live is bound to `local-contractor` for the quote tool, but
+   its legacy dispatch schema and rows must be reconciled into the
+   Local-Delivery/Dispatch V2 model before the old dispatch runtime is disabled.
+   No legacy dispatch table or data should be deleted until row counts,
+   relationships, history, photos, and active work have been validated.

@@ -92,6 +92,8 @@ Do not use `down --volumes` after migration data has been loaded.
 ## Next acceptance step
 
 The lab is ready for isolated schema compatibility testing. No application
-should point at it yet. The next step is to compare Local-Delivery with Quote
-Live, establish canonical migrations, and restore a non-production schema copy
-before transferring any production rows.
+should point at it yet. The next step is to compare Local-Delivery with the
+legacy dispatch schema in Quote Live, establish Dispatch V2 Sandbox as the
+canonical migration baseline, and restore a non-production schema copy before
+transferring any production rows. The quote tool remains a continuing
+application even though its older dispatch implementation will be retired.

@@ -6,14 +6,14 @@
       "classification": "production-candidate"
     },
     {
-      "label": "Dispatch V2 sandbox",
+      "label": "Dispatch V2 sandbox (canonical dispatch)",
       "path": "/Users/mattstengel/local-delivery/dispatch-v2-sandbox",
-      "classification": "integration-source"
+      "classification": "production-canonical"
     },
     {
-      "label": "GreenHills Quote Live candidate",
+      "label": "GreenHills Quote Live / legacy dispatch source",
       "path": "/Users/mattstengel/local-contractor",
-      "classification": "production-candidate"
+      "classification": "production-quote-and-retirement-source"
     },
     {
       "label": "Edit My Ticket",

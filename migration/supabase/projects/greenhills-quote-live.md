@@ -11,8 +11,13 @@ details, credentials, tokens, or secret values were exported.
 ## Executive summary
 
 GreenHills Quote Live is an active production database, not an empty or
-quote-only project. It contains the quote tool, Shopify shipping configuration,
-and a populated copy of the dispatch data model.
+quote-only project. It contains the continuing quote tool, Shopify shipping
+configuration, and a populated legacy copy of the dispatch data model.
+
+Dispatch V2 Sandbox is the sole continuing dispatch application. The dispatch
+portion of this project is therefore a protected migration source: preserve and
+reconcile its unique records, but do not make its routes, UI, background jobs,
+or schema ownership part of the final GHOS runtime.
 
 The compact Supabase table listing reported stale planner estimates for several
 tables. Exact read-only `COUNT(*)` queries were used for the counts below.
@@ -129,9 +134,16 @@ including:
 - shipping material rules and origin addresses
 - dispatch tables and supporting audit/notification tables
 
-This confirms `local-contractor` as the primary source candidate for this
-managed project. It also shares schema concepts with Dispatch V2, so ownership
-of common dispatch migrations must be consolidated before self-hosting.
+This confirms `local-contractor` as the primary source candidate for the quote
+tool in this managed project. Its embedded dispatch implementation is not the
+continuing source application. Dispatch V2 Sandbox at
+`/Users/mattstengel/local-delivery/dispatch-v2-sandbox` owns the future
+dispatch behavior and common dispatch migrations.
+
+The shared tables require a deliberate schema-and-data reconciliation. Unique
+legacy rows and history must be transferred or archived, while overlapping
+records must be matched without creating duplicate orders, routes, employees,
+trucks, notifications, or audit events.
 
 Local SQL contains newer B2B quote fields and reliability/index work that are
 not all visible in the live table shape. Those files must not be applied
@@ -148,8 +160,11 @@ This project requires all of the following:
 4. Shopify session-token handling without exposing token values in source.
 5. Storage bucket/config recreation; no object transfer is currently required.
 6. Environment secret recreation.
-7. Quote and dispatch application integration testing.
-8. A planned cutover with a final delta export after writes are paused.
+7. Quote application integration testing.
+8. A one-time legacy-dispatch reconciliation into the V2-owned schema.
+9. A planned cutover with a final delta export after writes are paused.
+10. Retirement of the old dispatch UI, routes, jobs, and credentials only after
+    validation and an agreed observation period.
 
 MCP is suitable for read-only discovery and structured row export. It does not
 replace a full logical database backup, Auth configuration export, secret
