@@ -297,6 +297,47 @@ public sealed class QuoteConfiguration
     public string? UpdatedByUserId { get; set; }
 }
 
+public sealed class QuoteTaxRateCache
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    [MaxLength(64)]
+    public string CacheKey { get; set; } = string.Empty;
+
+    [MaxLength(240)]
+    public string? AddressLine1 { get; set; }
+
+    [MaxLength(120)]
+    public string? City { get; set; }
+
+    [MaxLength(40)]
+    public string? State { get; set; }
+
+    [MaxLength(20)]
+    public string? PostalCode { get; set; }
+
+    [MaxLength(8)]
+    public string? Country { get; set; }
+
+    public decimal Rate { get; set; }
+
+    [MaxLength(80)]
+    public string Label { get; set; } = "Shopify tax";
+
+    [MaxLength(40)]
+    public string Source { get; set; } = "shopify";
+
+    public decimal SampleTaxableAmount { get; set; } = 100m;
+
+    public decimal? ShopifyTotalTax { get; set; }
+
+    public DateTime CalculatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public DateTime ExpiresAtUtc { get; set; }
+
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
 public sealed class QuoteB2BCompany
 {
     public Guid Id { get; set; } = Guid.NewGuid();

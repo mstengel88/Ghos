@@ -54,6 +54,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<QuoteConfiguration> QuoteConfigurations =>
         Set<QuoteConfiguration>();
 
+    public DbSet<QuoteTaxRateCache> QuoteTaxRateCache =>
+        Set<QuoteTaxRateCache>();
+
     public DbSet<QuoteMaterialRule> QuoteMaterialRules =>
         Set<QuoteMaterialRule>();
 
@@ -364,6 +367,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             configuration.Property(item => item.DefaultRatePerMinute).HasPrecision(10, 2);
             configuration.Property(item => item.MaximumDeliveryRadiusMiles)
                 .HasPrecision(10, 2);
+        });
+
+        builder.Entity<QuoteTaxRateCache>(cache =>
+        {
+            cache.ToTable("QuoteTaxRateCache");
+            cache.HasIndex(item => item.CacheKey).IsUnique();
+            cache.HasIndex(item => item.ExpiresAtUtc);
+            cache.Property(item => item.Rate).HasPrecision(8, 6);
+            cache.Property(item => item.SampleTaxableAmount)
+                .HasPrecision(18, 2);
+            cache.Property(item => item.ShopifyTotalTax)
+                .HasPrecision(18, 2);
         });
 
         builder.Entity<QuoteMaterialRule>(rule =>

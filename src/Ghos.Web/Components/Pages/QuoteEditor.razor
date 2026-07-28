@@ -6,7 +6,7 @@
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject QuoteDeliveryService DeliveryService
-@inject QuoteTaxCalculator TaxCalculator
+@inject ShopifyQuoteTaxService TaxService
 @inject DispatchQuoteDataSyncService DispatchQuoteDataSyncService
 @inject ShopifySyncService ShopifySyncService
 @inject ShopifyDraftOrderCredentialStore ShopifyDraftOrderCredentialStore
@@ -146,7 +146,7 @@ else
                             <span>Delivery address</span>
                             <InputText id="quote-address1"
                                        @bind-Value="Model.AddressLine1"
-                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddressAsync"
                                        autocomplete="street-address"
                                        placeholder="Start typing an address…" />
                             <div id="quote-address-suggestions"
@@ -161,33 +161,33 @@ else
                         <label class="wide">
                             <span>Address line 2</span>
                             <InputText @bind-Value="Model.AddressLine2"
-                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddressAsync"
                                        autocomplete="address-line2" />
                         </label>
                         <label>
                             <span>City</span>
                             <InputText id="quote-city"
                                        @bind-Value="Model.City"
-                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddressAsync"
                                        autocomplete="address-level2" />
                         </label>
                         <label>
                             <span>State</span>
                             <InputText id="quote-state"
                                        @bind-Value="Model.State"
-                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddressAsync"
                                        autocomplete="address-level1" />
                         </label>
                         <label>
                             <span>ZIP code</span>
                             <InputText id="quote-postal-code"
                                        @bind-Value="Model.PostalCode"
-                                       @bind-Value:after="ApplyTaxRateForCurrentAddress"
+                                       @bind-Value:after="ApplyTaxRateForCurrentAddressAsync"
                                        autocomplete="postal-code" />
                         </label>
                         <label class="check-field">
                             <InputCheckbox @bind-Value="Model.IsTaxExempt"
-                                           @bind-Value:after="ApplyTaxRateForCurrentAddress" />
+                                           @bind-Value:after="ApplyTaxRateForCurrentAddressAsync" />
                             <span>Tax exempt</span>
                         </label>
                     </div>
@@ -876,7 +876,7 @@ else
 
         if (IsNew)
         {
-            ApplyTaxRateForCurrentAddress();
+            await ApplyTaxRateForCurrentAddressAsync();
         }
 
         Loading = false;
@@ -933,21 +933,22 @@ else
     }
 
     [JSInvokable]
-    public Task ApplyGoogleAddressAsync(GoogleAddressSelection selection)
+    public async Task ApplyGoogleAddressAsync(
+        GoogleAddressSelection selection)
     {
         Model.AddressLine1 = Clean(selection.AddressLine1);
         Model.City = Clean(selection.City);
         Model.State = Clean(selection.State) ?? "WI";
         Model.PostalCode = Clean(selection.PostalCode);
         Model.Country = Clean(selection.Country) ?? "US";
-        ApplyTaxRateForCurrentAddress();
+        await ApplyTaxRateForCurrentAddressAsync();
         AddressLookupStatus =
             "Address selected from Google. Review the details before calculating delivery.";
         AddressLookupStatusClass = "selected";
-        return InvokeAsync(StateHasChanged);
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void CompanyChanged(ChangeEventArgs args)
+    private async Task CompanyChanged(ChangeEventArgs args)
     {
         SelectedCompanyExternalId =
             args.Value?.ToString() ?? string.Empty;
@@ -982,11 +983,11 @@ else
         Model.BillingState = company.BillingState ?? "WI";
         Model.BillingPostalCode = company.BillingPostalCode;
         Model.BillingCountry = company.BillingCountry ?? "US";
-        ApplyTaxRateForCurrentAddress();
+        await ApplyTaxRateForCurrentAddressAsync();
         ApplyAudiencePricing();
     }
 
-    private void ChangeAudience(QuoteAudience audience)
+    private async Task ChangeAudience(QuoteAudience audience)
     {
         if (Model.Audience == audience)
         {
@@ -1011,11 +1012,11 @@ else
             Model.ShippingUnit = "miles";
         }
 
-        ApplyTaxRateForCurrentAddress();
+        await ApplyTaxRateForCurrentAddressAsync();
         ApplyAudiencePricing();
     }
 
-    private void ApplyTaxRateForCurrentAddress()
+    private async Task ApplyTaxRateForCurrentAddressAsync()
     {
         if (Model.IsTaxExempt)
         {
@@ -1029,7 +1030,7 @@ else
             return;
         }
 
-        var match = TaxCalculator.Resolve(new QuoteTaxAddress(
+        var match = await TaxService.ResolveAsync(new QuoteTaxAddress(
             Model.AddressLine1,
             Model.AddressLine2,
             Model.City,
@@ -1323,6 +1324,7 @@ else
                 await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var userId = authenticationState.User.FindFirstValue(
                 System.Security.Claims.ClaimTypes.NameIdentifier);
+            await ApplyTaxRateForCurrentAddressAsync();
             await using var dbContext =
                 await DbContextFactory.CreateDbContextAsync();
             await using var transaction =
@@ -1398,7 +1400,6 @@ else
 
     private void MapToEntity(CustomerQuote quote, string? userId)
     {
-        ApplyTaxRateForCurrentAddress();
         quote.Status = Model.Status;
         quote.Audience = Model.Audience;
         quote.ContractorTier = Model.ContractorTier;
