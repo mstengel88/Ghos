@@ -30,7 +30,7 @@ dispatch records have been reconciled and archived.
 | App profiles and roles | Local-Delivery Auth | Reconcile people by normalized email, never UUID alone |
 | Shopify sessions and app tokens | Neither database copy | Reauthorize in the target environment |
 | Push subscriptions | Neither database copy | Devices re-register after cutover |
-| Dispatch photos | Local-Delivery | Transfer all 469 objects and metadata; Quote Live has no objects |
+| Dispatch photos | Local-Delivery | Transfer every object and metadata plus embedded database images; Quote Live has no objects |
 
 ## Reconciliation classifications
 
@@ -117,6 +117,11 @@ legacy-only orders, routes, trucks, or stop metrics. It identified 40
 legacy-only read notifications with valid canonical order/route references and
 three legacy-only quotes requiring creator-identity review.
 
+The read-only photo inventory is recorded in
+`storage-manifest-20260728.md`. At inventory time the bucket held 470 objects,
+while 170 orders retained roughly 151.4 million characters of embedded JPEG
+data in `dispatch_orders.photo_urls`. Both storage forms must migrate.
+
 When database access is available:
 
 1. Create fresh encrypted exports for both projects.
@@ -137,6 +142,7 @@ When database access is available:
 - [ ] Active orders and routes match Local-Delivery
 - [ ] Quote totals and source breakdowns sample-tested
 - [ ] Product and material calculator configuration tested
-- [ ] 469 Storage objects restored with matching hashes
+- [ ] Every Storage object at extraction time restored with matching SHA-256
+- [ ] Embedded and unclassified `dispatch_orders.photo_urls` payloads retained
 - [ ] Final delta rehearsal passes after a simulated write freeze
 - [ ] Rollback restore tested

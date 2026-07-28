@@ -318,3 +318,20 @@ The pass confirmed:
 No managed project was modified and no customer data or secret value was
 exported. See
 `data/sanitized-reconciliation-20260728.md`.
+
+## Photo migration inventory
+
+A read-only Storage/reference inventory found 470 current objects totaling
+640,756,931 bytes. Database order records reference 452 distinct bucket
+objects, leaving 18 currently unreferenced objects that must be preserved until
+retention review.
+
+Photo migration is not limited to Supabase Storage:
+
+- 170 orders contain embedded JPEG data URLs in `dispatch_orders.photo_urls`;
+- those embedded fields occupy 151,395,742 characters;
+- four additional photo-text records are not yet classified.
+
+The Storage metadata manifest, reference counts, and migration requirements are
+recorded in `data/storage-manifest-20260728.md`. No object bytes or paths were
+exported.
