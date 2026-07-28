@@ -378,7 +378,12 @@ else
     private static IEnumerable<CalculatorProductOption> CreateOptions(
         Product product)
     {
-        if (product.Variants.Count == 0)
+        var availableVariants = product.Variants
+            .Where(item => item.SortOrder >= 0)
+            .OrderBy(item => item.SortOrder)
+            .ToList();
+
+        if (availableVariants.Count == 0)
         {
             yield return new(
                 product.Id.ToString(),
@@ -393,7 +398,7 @@ else
             yield break;
         }
 
-        foreach (var variant in product.Variants.OrderBy(item => item.SortOrder))
+        foreach (var variant in availableVariants)
         {
             yield return new(
                 variant.Id.ToString(),

@@ -757,7 +757,13 @@ else
 
         ProductOptions = products
             .SelectMany(product =>
-                product.Variants.Count == 0
+            {
+                var availableVariants = product.Variants
+                    .Where(variant => variant.SortOrder >= 0)
+                    .OrderBy(variant => variant.SortOrder)
+                    .ToList();
+
+                return availableVariants.Count == 0
                     ? [new ProductOption(
                         product.Id.ToString(),
                         product.Id,
@@ -774,8 +780,7 @@ else
                         null,
                         GetDefaultUnit(product),
                         PaverWallCalculator.Resolve(product))]
-                    : product.Variants
-                        .OrderBy(variant => variant.SortOrder)
+                    : availableVariants
                         .Select(variant => new ProductOption(
                             variant.Id.ToString(),
                             product.Id,
@@ -795,7 +800,8 @@ else
                             variant.ContractorTier1Price,
                             variant.ContractorTier2Price,
                             variant.UnitLabel ?? GetDefaultUnit(product),
-                            PaverWallCalculator.Resolve(product, variant))))
+                            PaverWallCalculator.Resolve(product, variant)));
+            })
             .ToList();
 
         if (QuoteId is not null)

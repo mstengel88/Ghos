@@ -13,6 +13,8 @@ public sealed class ShopifySyncService(
     CatalogSyncCoordinator syncCoordinator,
     ILogger<ShopifySyncService> logger)
 {
+    private const int ArchivedVariantSortOrder = -1;
+
     private static readonly HashSet<string> GenericCollectionHandles =
     [
         "all",
@@ -426,13 +428,16 @@ public sealed class ShopifySyncService(
         var incomingIds = snapshot.Variants
             .Select(variant => variant.Id)
             .ToHashSet(StringComparer.Ordinal);
-        var removedVariants = product.Variants
-            .Where(variant => !incomingIds.Contains(variant.ShopifyVariantId))
-            .ToList();
 
-        foreach (var removedVariant in removedVariants)
+        // Keep variants that have disappeared from Shopify so existing quotes retain
+        // their product relationship. They are hidden from current product pickers by
+        // marking them unavailable and can be reactivated if Shopify returns them.
+        foreach (var removedVariant in product.Variants
+                     .Where(variant =>
+                         !incomingIds.Contains(variant.ShopifyVariantId)))
         {
-            product.Variants.Remove(removedVariant);
+            removedVariant.AvailableForSale = false;
+            removedVariant.SortOrder = ArchivedVariantSortOrder;
         }
 
         var existingByShopifyId = product.Variants.ToDictionary(
@@ -532,6 +537,18 @@ public sealed class ShopifySyncService(
 
     private static bool SourceHasChanged(Product product, ShopifyProductSnapshot snapshot)
     {
+        var incomingVariantIds = snapshot.Variants
+            .Select(variant => variant.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var existingVariants = product.Variants
+            .Where(variant =>
+                incomingVariantIds.Contains(variant.ShopifyVariantId))
+            .OrderBy(variant => variant.SortOrder)
+            .ToList();
+        var removedVariantStillAvailable = product.Variants.Any(variant =>
+            !incomingVariantIds.Contains(variant.ShopifyVariantId) &&
+            variant.SortOrder != ArchivedVariantSortOrder);
+
         if (product.ShopifyTitle != snapshot.Title ||
             product.ShopifyHandle != snapshot.Handle ||
             product.ShopifyStatus != snapshot.Status ||
@@ -554,14 +571,11 @@ public sealed class ShopifySyncService(
                 snapshot.ProjectCalculator.SquareFeetPerLayer ||
             product.PalletWeightLbs !=
                 snapshot.ProjectCalculator.PalletWeightLbs ||
-            product.Variants.Count != snapshot.Variants.Count)
+            existingVariants.Count != snapshot.Variants.Count ||
+            removedVariantStillAvailable)
         {
             return true;
         }
-
-        var existingVariants = product.Variants
-            .OrderBy(variant => variant.SortOrder)
-            .ToList();
 
         for (var index = 0; index < snapshot.Variants.Count; index++)
         {
