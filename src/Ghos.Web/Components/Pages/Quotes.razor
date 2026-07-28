@@ -53,9 +53,13 @@ else
         </article>
         <article>
             <span>Quoted value</span>
-            <strong>@QuoteItems.Where(quote =>
-                    quote.Status is not QuoteStatus.Declined and not QuoteStatus.Expired)
-                .Sum(quote => quote.Total).ToString("C0")</strong>
+            <strong>@(
+                QuoteItems
+                    .Where(quote =>
+                        quote.Status is not QuoteStatus.Declined and not QuoteStatus.Expired)
+                    .Sum(quote => quote.Total)
+                    .ToString("C0")
+            )</strong>
         </article>
     </section>
 
