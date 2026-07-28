@@ -15,7 +15,7 @@ All six accessible projects are healthy and currently run PostgreSQL 17.
 | Ticket Printer | `dlayrpnmfnbjlxgnkczv` | us-west-2 | `/Users/mattstengel/edit-my-ticket` | 17 |
 | WinterWatch-Pro | `caegybyfdkmgjrygnavg` | us-east-1 | `/Users/mattstengel/winterwatch` | 7 |
 | Help Desk | `kryirjstfeksxotyabis` | us-west-2 | canonical source not yet located | 1 |
-| GreenHills Quote Live | `dbyxbgbkokcddgeybjmf` | us-west-2 | likely quote-tool source; project binding not yet confirmed | 0 |
+| GreenHills Quote Live | `dbyxbgbkokcddgeybjmf` | us-west-2 | `/Users/mattstengel/local-contractor` confirmed as primary source candidate by live schema | 0 |
 | Local-Delivery | `mtntrlbuhcbdrngiubdu` | us-west-2 | `/Users/mattstengel/shipcalc2` and `/Users/mattstengel/local-delivery/dispatch-v2-sandbox` | 2 |
 | Dump Site | `bnethnlrhwcjgjgjvoxz` | us-west-2 | `/Users/mattstengel/Documents/GreenHills APP/supabase` | 2 |
 
@@ -70,7 +70,9 @@ in scope until the owner confirms which one is noncritical or shared.
 - `dump-site-api`
 - `dump-site-bridge`
 
-GreenHills Quote Live currently has no deployed Edge Functions.
+GreenHills Quote Live currently has no deployed Edge Functions. A project-scoped
+read-only MCP inventory confirmed that it is nevertheless an active production
+database containing the quote tool and populated dispatch data.
 
 All currently listed deployed functions report `verify_jwt: false`. This does
 not automatically mean they are unauthenticated—some inspect shared secrets or
@@ -106,6 +108,8 @@ Only secret names were inventoried.
 - Dump Site: Shopify, Modern Retail, Resend, QR/bridge secrets, notification
   addresses, and Supabase service credentials.
 - GreenHills Quote Live: no Edge Function secrets are currently registered.
+  Shopify session/configuration data and application service-role usage still
+  require a separate credential migration plan.
 
 ## Static schema findings
 
@@ -113,7 +117,12 @@ Only secret names were inventoried.
 - WinterWatch-Pro: 36 local migrations, Auth, Storage, Realtime, `pg_cron`, and
   `pg_net`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
-  references 14 shared tables that need a canonical migration baseline.
+  references shared dispatch tables that also exist in GreenHills Quote Live
+  and need a canonical migration baseline.
+- GreenHills Quote Live: 22 public tables, 11 Auth users, 89 quotes, 457
+  dispatch orders, 20 visible public RLS policies, and a public but empty
+  `dispatch-photos` bucket. See
+  `projects/greenhills-quote-live.md` for the MCP-backed inventory.
 - Dump Site: eight migrations, `pgcrypto`, queue/claim RPC functions, and two
   Edge Functions.
 - Older `/Users/mattstengel/build-my-app` and `build-my-app2` folders are
@@ -130,5 +139,6 @@ Only secret names were inventoried.
 4. Public Shopify and email/OAuth callbacks cannot rely on Tailscale-only URLs.
 5. Several application schemas reuse generic table names. Projects remain
    isolated during the infrastructure migration.
-6. Help Desk canonical source and GreenHills Quote Live source binding must be
-   located before either project can pass the source-completeness gate.
+6. Help Desk canonical source must be located. GreenHills Quote Live is now
+   bound to `local-contractor`, but its shared dispatch schema must be
+   reconciled with Dispatch V2 before final migration sequencing.
