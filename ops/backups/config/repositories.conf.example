@@ -1,4 +1,4 @@
 # name|repository|password-file|optional-environment-file
-# Both repositories are required. Do not place either one inside /opt/ghos.
-local|/mnt/ghos-backup/restic|/etc/ghos-backup/restic-local.password|
-offsite|s3:s3.example.com/green-hills-backup|/etc/ghos-backup/restic-offsite.password|/etc/ghos-backup/offsite.env
+# At least one repository is required. Use the B2 configurator for production.
+# Add a physically separate local/NAS repository later without changing the off-site entry.
+offsite|s3:https://s3.us-west-004.backblazeb2.com/green-hills-backup/ghos|/etc/ghos-backup/restic-offsite.password|/etc/ghos-backup/offsite.env

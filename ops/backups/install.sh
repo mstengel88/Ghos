@@ -34,7 +34,7 @@ if [[ ! -e "$CONFIG_DIR/excludes.txt" ]]; then
   install -m 0600 "$SCRIPT_DIR/config/excludes.txt" "$CONFIG_DIR/excludes.txt"
 fi
 
-for command_name in ghos-backup ghos-backup-init ghos-backup-maintenance ghos-backup-restore-drill ghos-backup-watchdog; do
+for command_name in ghos-backup ghos-backup-init ghos-backup-maintenance ghos-backup-restore-drill ghos-backup-watchdog ghos-backup-configure-b2; do
   ln -sfn "$BIN_DIR/bin/$command_name" "/usr/local/sbin/$command_name"
 done
 
@@ -43,5 +43,5 @@ systemctl daemon-reload
 
 printf '%s\n' \
   'Backup tooling installed but timers were not enabled.' \
-  'Configure /etc/ghos-backup, initialize both repositories, run a backup,' \
+  'Configure /etc/ghos-backup, initialize every repository, run a backup,' \
   'and pass the restore drill before enabling the timers.'

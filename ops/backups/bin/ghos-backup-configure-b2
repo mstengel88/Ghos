@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+CONFIG_DIR="${GHOS_BACKUP_CONFIG_DIR:-/etc/ghos-backup}"
+BACKUP_CONFIG="$CONFIG_DIR/backup.env"
+REPOSITORIES_CONFIG="$CONFIG_DIR/repositories.conf"
+OFFSITE_ENV="$CONFIG_DIR/offsite.env"
+PASSWORD_FILE="$CONFIG_DIR/restic-offsite.password"
+
+if [[ "$EUID" -ne 0 ]]; then
+  printf 'Run this command with sudo.\n' >&2
+  exit 1
+fi
+
+[[ -d "$CONFIG_DIR" && -f "$BACKUP_CONFIG" ]] || {
+  printf 'Install the GHOS backup tooling before configuring B2.\n' >&2
+  exit 1
+}
+
+printf '%s\n' \
+  'Configure the GHOS encrypted Backblaze B2 backup repository.' \
+  'Nothing entered here is sent to Git or printed after configuration.' \
+  ''
+
+read -r -p 'B2 S3 endpoint (example: s3.us-west-004.backblazeb2.com): ' endpoint
+read -r -p 'Private B2 bucket name: ' bucket
+read -r -p 'B2 application key ID: ' key_id
+read -r -s -p 'B2 application key: ' application_key
+printf '\n'
+read -r -s -p 'New restic encryption password: ' restic_password
+printf '\n'
+read -r -s -p 'Repeat restic encryption password: ' restic_password_repeat
+printf '\n'
+
+endpoint="${endpoint#https://}"
+endpoint="${endpoint#http://}"
+endpoint="${endpoint%/}"
+bucket="${bucket#/}"
+bucket="${bucket%/}"
+
+[[ "$endpoint" =~ ^s3\.[A-Za-z0-9-]+\.backblazeb2\.com$ ]] || {
+  printf 'The endpoint does not look like a Backblaze B2 S3 endpoint.\n' >&2
+  exit 1
+}
+[[ "$bucket" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{4,48}[A-Za-z0-9]$ ]] || {
+  printf 'The bucket name is invalid.\n' >&2
+  exit 1
+}
+[[ -n "$key_id" && -n "$application_key" ]] || {
+  printf 'The B2 key ID and application key are required.\n' >&2
+  exit 1
+}
+[[ ${#restic_password} -ge 20 ]] || {
+  printf 'Use a restic encryption password of at least 20 characters.\n' >&2
+  exit 1
+}
+[[ "$restic_password" == "$restic_password_repeat" ]] || {
+  printf 'The restic encryption passwords did not match.\n' >&2
+  exit 1
+}
+
+timestamp="$(date -u +'%Y%m%dT%H%M%SZ')"
+for file in "$REPOSITORIES_CONFIG" "$OFFSITE_ENV" "$PASSWORD_FILE"; do
+  if [[ -f "$file" ]]; then
+    cp -a "$file" "$file.before-b2-$timestamp"
+  fi
+done
+
+region="${endpoint#s3.}"
+region="${region%%.*}"
+
+{
+  printf 'AWS_ACCESS_KEY_ID=%q\n' "$key_id"
+  printf '%s=%q\n' 'AWS_SECRET_ACCESS_KEY' "$application_key"
+  printf 'AWS_DEFAULT_REGION=%q\n' "$region"
+} >"$OFFSITE_ENV"
+printf '%s\n' "$restic_password" >"$PASSWORD_FILE"
+printf '%s\n' \
+  '# name|repository|password-file|optional-environment-file' \
+  "offsite|s3:https://$endpoint/$bucket/ghos|$PASSWORD_FILE|$OFFSITE_ENV" \
+  >"$REPOSITORIES_CONFIG"
+
+if grep -q '^RESTORE_DRILL_REPOSITORY=' "$BACKUP_CONFIG"; then
+  sed -i 's/^RESTORE_DRILL_REPOSITORY=.*/RESTORE_DRILL_REPOSITORY=offsite/' \
+    "$BACKUP_CONFIG"
+else
+  printf '\nRESTORE_DRILL_REPOSITORY=offsite\n' >>"$BACKUP_CONFIG"
+fi
+
+chmod 0600 "$BACKUP_CONFIG" "$REPOSITORIES_CONFIG" "$OFFSITE_ENV" "$PASSWORD_FILE"
+chown root:root "$BACKUP_CONFIG" "$REPOSITORIES_CONFIG" "$OFFSITE_ENV" "$PASSWORD_FILE"
+
+unset application_key restic_password restic_password_repeat
+printf '%s\n' \
+  '' \
+  'B2 configuration saved in root-only files.' \
+  'Store the restic encryption password in your password manager and sealed recovery record.' \
+  'Next run: sudo ghos-backup-init'

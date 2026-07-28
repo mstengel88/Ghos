@@ -9,8 +9,9 @@ from file snapshots.
 1. **Logical application backups** — PostgreSQL custom-format dumps, database
    globals, Docker volume exports, application configuration, assets, and
    self-hosted Supabase Storage objects.
-2. **Two encrypted restic repositories** — one on storage physically separate
-   from the GHOS VM and one off site.
+2. **Encrypted restic repositories** — an off-site repository is required. Add
+   a second repository on storage physically separate from the GHOS VM when
+   suitable independent local storage is available.
 3. **Host/VM recovery** — Acronis protects the Windows host, Hyper-V
    configuration, and VM disks. This is not a replacement for logical database
    backups.
@@ -23,12 +24,14 @@ repository write fails.
 Do not put the only backup repository under `/opt/ghos`, inside the GHOS VHDX,
 or on the same RAID volume as the live server.
 
-Recommended targets:
+Required and recommended targets:
 
-- `local`: a dedicated NAS/backup disk mounted read-write only for the backup
-  service, for example `/mnt/ghos-backup/restic`.
-- `offsite`: a private restic-compatible object-storage repository with a
+- `offsite` (required): a private restic-compatible object-storage repository with a
   separate account, MFA, and billing/capacity alerts.
+- `local` (recommended second tier): a dedicated physical NAS/backup disk
+  mounted read-write only for the backup service, for example
+  `/mnt/ghos-backup/restic`. Never reuse or reformat a disk that protects
+  another production system.
 
 The repository password must be unique, stored in a password manager, printed
 into the sealed recovery envelope, and copied to neither Git nor the repository
@@ -50,7 +53,18 @@ cd /opt/ghos
 sudo ./ops/backups/install.sh
 ```
 
-Edit the root-only files under `/etc/ghos-backup/`:
+For Backblaze B2, securely configure the repository from the GHOS terminal:
+
+```bash
+sudo ghos-backup-configure-b2
+```
+
+The command prompts for the B2 S3 endpoint, bucket, restricted application key,
+and a new restic encryption password. Secret input is hidden and stored only in
+root-owned files with mode `0600`. Store the restic password separately in the
+company password manager and sealed recovery record.
+
+Review the remaining root-only files under `/etc/ghos-backup/`:
 
 - `backup.env`
 - `repositories.conf`
@@ -62,7 +76,7 @@ Create each repository password file with mode `0600`. If an object-storage
 backend needs credentials, put them in its repository environment file, also
 with mode `0600`.
 
-Initialize and validate both repositories:
+Initialize and validate every configured repository:
 
 ```bash
 sudo /usr/local/sbin/ghos-backup-init
@@ -75,7 +89,7 @@ sudo /usr/local/sbin/ghos-backup
 sudo /usr/local/sbin/ghos-backup-restore-drill
 ```
 
-Only after both succeed, enable the schedules:
+Only after the backup and restore drill both succeed, enable the schedules:
 
 ```bash
 sudo systemctl enable --now ghos-backup.timer

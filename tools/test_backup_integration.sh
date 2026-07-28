@@ -42,12 +42,11 @@ cat >"$config_dir/backup.env" <<EOF
 BACKUP_ROOT=$state_dir
 BACKUP_HOST_TAG=ghos-integration-test
 BACKUP_CONFIG_DIR=$config_dir
-RESTORE_DRILL_REPOSITORY=local
+RESTORE_DRILL_REPOSITORY=offsite
 RESTORE_DRILL_DATABASE=ghos
 EOF
 printf 'integration-restic-password\n' >"$config_dir/restic.password"
 cat >"$config_dir/repositories.conf" <<EOF
-local|$test_root/local-repository|$config_dir/restic.password|
 offsite|$test_root/offsite-repository|$config_dir/restic.password|
 EOF
 cat >"$config_dir/databases.conf" <<EOF
@@ -86,11 +85,8 @@ export PATH="$test_root/bin:$PATH"
 "$repo_root/ops/backups/bin/ghos-backup-restore-drill"
 
 test -s "$state_dir/status/last-success"
-RESTIC_REPOSITORY="$test_root/local-repository" \
-RESTIC_PASSWORD_FILE="$config_dir/restic.password" \
-  restic snapshots --tag ghos-automatic --compact | grep -q ghos-integration-test
 RESTIC_REPOSITORY="$test_root/offsite-repository" \
 RESTIC_PASSWORD_FILE="$config_dir/restic.password" \
   restic snapshots --tag ghos-automatic --compact | grep -q ghos-integration-test
 
-printf 'Backup integration test passed with two repositories and a database restore drill.\n'
+printf 'Backup integration test passed with one off-site repository and a database restore drill.\n'

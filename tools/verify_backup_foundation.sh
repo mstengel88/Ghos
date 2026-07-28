@@ -12,6 +12,7 @@ scripts=(
   "$backup_root/bin/ghos-backup-maintenance"
   "$backup_root/bin/ghos-backup-restore-drill"
   "$backup_root/bin/ghos-backup-watchdog"
+  "$backup_root/bin/ghos-backup-configure-b2"
   "$repo_root/tools/test_backup_integration.sh"
 )
 
@@ -25,7 +26,6 @@ done
 
 grep -q '^/opt/ghos/postgres/\*\*$' "$backup_root/config/excludes.txt"
 grep -q '^ghos|' "$backup_root/config/databases.conf.example"
-grep -q '^local|' "$backup_root/config/repositories.conf.example"
 grep -q '^offsite|' "$backup_root/config/repositories.conf.example"
 
 if grep -R -E \

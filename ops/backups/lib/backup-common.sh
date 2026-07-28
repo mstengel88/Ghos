@@ -78,14 +78,19 @@ load_repository() {
 for_each_repository() {
   local callback="$1"
   local name repository password_file environment_file
+  local repository_count=0
 
   while IFS='|' read -r name repository password_file environment_file; do
     [[ -n "$name" ]] || continue
+    repository_count=$((repository_count + 1))
     (
       load_repository "$name"
       "$callback" "$name"
     ) || return $?
   done < <(each_config_line "$REPOSITORIES_FILE")
+
+  (( repository_count > 0 )) ||
+    die "No backup repositories are configured in $REPOSITORIES_FILE."
 }
 
 write_status() {
