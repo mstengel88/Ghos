@@ -23,7 +23,8 @@ public sealed class DispatchIntegrationClient(HttpClient httpClient)
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
             endpoint.Uri);
-        request.Headers.Add("x-ghos-secret", integrationSecret);
+        var normalizedSecret = integrationSecret.Trim();
+        request.Headers.Add("x-ghos-secret", normalizedSecret);
 
         HttpResponseMessage response;
         try
@@ -61,7 +62,9 @@ public sealed class DispatchIntegrationClient(HttpClient httpClient)
                 var message = response.StatusCode switch
                 {
                     System.Net.HttpStatusCode.Unauthorized =>
-                        "The dispatch app rejected the integration secret.",
+                        "The dispatch app rejected the integration secret. " +
+                        $"GHOS sent fingerprint {DispatchCredentialStore.CreateFingerprint(normalizedSecret)}; " +
+                        "the running Dispatch V2 container is using a different GHOS_INTEGRATION_SECRET.",
                     System.Net.HttpStatusCode.NotFound =>
                         "The dispatch app does not have the GHOS export endpoint deployed yet.",
                     _ => payload?.Message ??

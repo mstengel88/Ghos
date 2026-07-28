@@ -18,8 +18,8 @@
     <div class="connection-state @(Configured ? "connected" : "pending")">
         <i></i>
         <div>
-            <strong>@(Configured ? "Connection configured" : "Setup required")</strong>
-            <span>@(Settings?.BaseUrl ?? "No dispatch address saved")</span>
+            <strong>@ConnectionStatus</strong>
+            <span>@ConnectionAddress</span>
         </div>
     </div>
 </div>
@@ -34,7 +34,7 @@
     <div class="dispatch-alert success" role="status">@SuccessMessage</div>
 }
 
-@if (!Configured || ShowConnectionForm)
+@if ((!Configured || ShowConnectionForm) && !ServerManaged)
 {
     <section class="panel setup-panel">
         <div class="setup-number">1</div>
@@ -118,13 +118,25 @@ else
                         @onclick="FullRefreshAsync">
                     Full refresh
                 </button>
-                <button class="text-action"
-                        type="button"
-                        disabled="@Busy"
-                        @onclick="BeginReplacement">
-                    Replace connection
-                </button>
+                @if (!ServerManaged)
+                {
+                    <button class="text-action"
+                            type="button"
+                            disabled="@Busy"
+                            @onclick="BeginReplacement">
+                        Replace connection
+                    </button>
+                }
             </div>
+            @if (ServerManaged)
+            {
+                <small>
+                    Server-managed key fingerprint:
+                    <strong>@ServerManagedFingerprint</strong>.
+                    Update <code>GHOS_DISPATCH_INTEGRATION_SECRET</code> in
+                    <code>/opt/ghos/.env</code> to rotate it.
+                </small>
+            }
         </section>
 
         <section class="panel status-panel">
@@ -178,6 +190,8 @@ else
             BaseUrl = "https://dispatch.winterwatch-pro.info"
         };
     private bool Configured { get; set; }
+    private bool ServerManaged { get; set; }
+    private string? ServerManagedFingerprint { get; set; }
     private bool ShowConnectionForm { get; set; }
     private bool Busy { get; set; }
     private string? ErrorMessage { get; set; }
@@ -185,6 +199,9 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        ServerManaged = CredentialStore.UsesServerManagedCredentials;
+        ServerManagedFingerprint =
+            CredentialStore.ServerManagedFingerprint;
         Configured = await SyncService.IsConfiguredAsync();
         Settings = await SyncService.GetSettingsAsync();
         if (Settings is not null)
@@ -192,6 +209,18 @@ else
             ConnectionModel.BaseUrl = Settings.BaseUrl;
         }
     }
+
+    private string ConnectionStatus =>
+        !Configured
+            ? "Setup required"
+            : ServerManaged
+                ? "Server-managed connection"
+                : "Connection configured";
+
+    private string ConnectionAddress =>
+        ServerManaged
+            ? "Configured from the protected GHOS environment"
+            : Settings?.BaseUrl ?? "No dispatch address saved";
 
     private async Task TestAndSaveAsync()
     {

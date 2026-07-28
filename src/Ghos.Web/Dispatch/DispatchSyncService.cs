@@ -76,7 +76,26 @@ public sealed class DispatchSyncService(
         await using var dbContext =
             await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var settings = await dbContext.DispatchConnectionSettings
-            .SingleAsync(cancellationToken);
+            .SingleOrDefaultAsync(cancellationToken);
+        if (settings is null)
+        {
+            settings = new DispatchConnectionSettings
+            {
+                BaseUrl = credentials.BaseUrl,
+                EncryptedIntegrationSecret = string.Empty,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            dbContext.DispatchConnectionSettings.Add(settings);
+        }
+        else if (!string.Equals(
+                     settings.BaseUrl,
+                     credentials.BaseUrl,
+                     StringComparison.OrdinalIgnoreCase))
+        {
+            settings.BaseUrl = credentials.BaseUrl;
+            settings.UpdatedAtUtc = DateTime.UtcNow;
+        }
+
         var startedAt = DateTime.UtcNow;
         settings.LastSyncStartedAtUtc = startedAt;
         settings.LastSyncStatus = "Running";

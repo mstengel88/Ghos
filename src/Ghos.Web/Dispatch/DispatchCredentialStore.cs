@@ -1,6 +1,9 @@
 using Ghos.Web.Data;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Ghos.Web.Dispatch;
 
@@ -10,19 +13,36 @@ public sealed class DispatchCredentialStore
 {
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
     private readonly IDataProtector _protector;
+    private readonly DispatchSyncOptions _options;
 
     public DispatchCredentialStore(
         IDbContextFactory<ApplicationDbContext> dbContextFactory,
-        IDataProtectionProvider dataProtectionProvider)
+        IDataProtectionProvider dataProtectionProvider,
+        IOptions<DispatchSyncOptions> options)
     {
         _dbContextFactory = dbContextFactory;
         _protector = dataProtectionProvider.CreateProtector(
             "GreenHills.GHOS.Dispatch.IntegrationSecret.v1");
+        _options = options.Value;
     }
+
+    public bool UsesServerManagedCredentials =>
+        !string.IsNullOrWhiteSpace(_options.BaseUrl) &&
+        !string.IsNullOrWhiteSpace(_options.IntegrationSecret);
+
+    public string? ServerManagedFingerprint =>
+        UsesServerManagedCredentials
+            ? CreateFingerprint(_options.IntegrationSecret)
+            : null;
 
     public async Task<bool> HasCredentialsAsync(
         CancellationToken cancellationToken = default)
     {
+        if (UsesServerManagedCredentials)
+        {
+            return true;
+        }
+
         await using var dbContext =
             await _dbContextFactory.CreateDbContextAsync(cancellationToken);
         return await dbContext.DispatchConnectionSettings
@@ -32,6 +52,13 @@ public sealed class DispatchCredentialStore
     public async Task<DispatchCredentials?> GetAsync(
         CancellationToken cancellationToken = default)
     {
+        if (UsesServerManagedCredentials)
+        {
+            return new DispatchCredentials(
+                NormalizeBaseUrl(_options.BaseUrl),
+                _options.IntegrationSecret.Trim());
+        }
+
         await using var dbContext =
             await _dbContextFactory.CreateDbContextAsync(cancellationToken);
         var settings = await dbContext.DispatchConnectionSettings
@@ -100,5 +127,12 @@ public sealed class DispatchCredentialStore
         }
 
         return uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+    }
+
+    public static string CreateFingerprint(string integrationSecret)
+    {
+        var normalized = integrationSecret.Trim();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(hash)[..12].ToLowerInvariant();
     }
 }
