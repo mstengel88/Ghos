@@ -124,3 +124,21 @@ SHA-256: 6e8d4d089481a9a5913d14ed39fda605cdf9f9763c3ff1d3884a29f04150da12
 No application should point at the lab yet. The next acceptance step is a
 repeatable clean-room restore followed by a sanitized data rehearsal and
 cross-project reconciliation plan.
+
+## Reconciliation staging
+
+The local-only `migration_reconcile` staging schema is installed and its
+classification logic has passed a transaction-only synthetic test. It:
+
+- compares Local-Delivery and Quote Live rows by table and deterministic key;
+- ignores fields absent from the older project shape while comparing all
+  fields shared by both projects;
+- classifies canonical-only, legacy-only, matching, and conflicting rows;
+- records explicit merge decisions;
+- refuses readiness when either checked import manifest is missing;
+- refuses readiness when loaded table/row totals differ from a manifest;
+- refuses readiness while any legacy-only or conflicting row lacks a decision.
+
+The staging schema is empty. No production rows or credentials have been loaded.
+Bulk rehearsal remains blocked on encrypted database exports or direct
+read-only database connections; MCP remains the read-only inventory channel.

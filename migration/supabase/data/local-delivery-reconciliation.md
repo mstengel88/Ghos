@@ -1,0 +1,130 @@
+# Local-Delivery data reconciliation plan
+
+Status: design complete; production export not started
+
+Canonical target: Local-Delivery / Dispatch V2 Sandbox
+
+Legacy comparison source: GreenHills Quote Live
+
+Production access remains read-only. No customer rows, Auth identities, Storage
+objects, Shopify sessions, or credentials belong in Git.
+
+## Ownership decision
+
+Dispatch V2 Sandbox already contains the continuing dispatch and quote
+workflows. The Local-Delivery project therefore owns the future operational
+model. Quote Live remains a protected source until its unique quote and legacy
+dispatch records have been reconciled and archived.
+
+| Data group | Canonical owner | Reconciliation rule |
+|---|---|---|
+| Dispatch orders, routes, trucks, employees | Local-Delivery | Local current state wins; preserve legacy-only history |
+| Stop metrics and driver locations | Local-Delivery | Preserve metrics; archive stale location samples |
+| Dispatch audit and Shopify updates | Local-Delivery | Append legacy-only IDs; never rewrite canonical events |
+| Notifications | Local-Delivery | Preserve legacy-only records only when referenced entities exist |
+| Custom delivery quotes | Local-Delivery V2 quote workflow | Merge by quote UUID; quarantine conflicting shared fields |
+| B2B companies | Local-Delivery | Local shape and values are authoritative |
+| Product source map | Shopify refresh through Local-Delivery | Compare by SKU, then refresh rather than importing stale rows blindly |
+| Origins, material rules, app settings | Local-Delivery | Compare natural keys and require manual approval for conflicts |
+| App profiles and roles | Local-Delivery Auth | Reconcile people by normalized email, never UUID alone |
+| Shopify sessions and app tokens | Neither database copy | Reauthorize in the target environment |
+| Push subscriptions | Neither database copy | Devices re-register after cutover |
+| Dispatch photos | Local-Delivery | Transfer all 469 objects and metadata; Quote Live has no objects |
+
+## Reconciliation classifications
+
+Every source row is loaded into the local-only
+`migration_reconcile.source_rows` staging table as JSON:
+
+- `canonical_only`: exists only in Local-Delivery;
+- `legacy_only`: exists only in Quote Live;
+- `matching`: same primary key and identical values for fields shared by both
+  project shapes;
+- `conflict`: same primary key but different shared values.
+
+Nothing in `conflict` is auto-merged. A reviewed decision is recorded in
+`migration_reconcile.merge_decisions` before a production migration can be
+generated.
+
+## Identity rules
+
+Auth is reconciled separately from public rows:
+
+1. Normalize email with `lower(trim(email))`.
+2. Keep the Local-Delivery Auth UUID for an existing person.
+3. Map Quote Live UUIDs to the canonical UUID through an explicit identity map.
+4. Create or invite Quote-only users through the target Auth service.
+5. Rewrite Auth foreign keys only from the reviewed identity map.
+6. Do not migrate active sessions, refresh tokens, JWTs, or service keys.
+
+The current count differences—13 Auth users, 12 app profiles, and 11 dispatch
+roles in Local-Delivery—must be explained by UUID before cutover.
+
+## Table-specific merge rules
+
+### Current dispatch state
+
+For duplicate IDs in `dispatch_orders`, `dispatch_routes`,
+`dispatch_employees`, and `dispatch_trucks`, Local-Delivery wins. Legacy-only
+records are imported only after their foreign keys are mapped and their status
+is confirmed as historical rather than active work.
+
+No Quote Live row may overwrite current route assignment, stop sequence,
+delivery window, travel time, proof-of-delivery, or delivery status in
+Local-Delivery.
+
+### Quotes
+
+`custom_delivery_quotes.id` is the identity key. Quote-only UUIDs are candidates
+for import into the newer 38-column Local-Delivery shape. Newer fields absent
+from Quote Live use target defaults or remain null. Duplicate UUIDs with
+different shared values require review; timestamps alone do not justify an
+automatic overwrite.
+
+### Configuration
+
+- `app_settings`: compare by `key`;
+- `shipping_material_rules`: compare by `prefix`;
+- `product_source_map`: compare by `sku`;
+- `shopify_app_settings`: compare by `shop`;
+- `origin_addresses`: compare IDs and normalized label/address.
+
+Configuration conflicts are resolved manually, then verified through the quote
+calculator, material calculators, Shopify rates, and Dispatch V2.
+
+### Append-only history
+
+Audit and Shopify-update records are merged by their primary key. Duplicate IDs
+must match; a differing duplicate is quarantined. Rows with broken references
+are retained in an encrypted archive until a mapping decision is made.
+
+## Export and handling boundary
+
+Bulk production transfer requires encrypted logical exports or a direct
+read-only database connection. MCP is appropriate for inventory and aggregate
+verification, but not for a complete 38,000-row audit history, Auth migration,
+or 610.7 MiB Storage transfer.
+
+When database access is available:
+
+1. Create fresh encrypted exports for both projects.
+2. Record checksums and exact extraction timestamps.
+3. Keep exports under the ignored `migration/supabase/exports/` path.
+4. Load JSON row projections into the local reconciliation schema.
+5. Run the classification and conflict reports.
+6. Generate a reviewed, deterministic merge migration.
+7. Rehearse the merge against a newly restored Local-Delivery target.
+
+## Acceptance gates
+
+- [ ] Exact production exports retained and checksummed
+- [ ] All 22 tables classified by primary/natural key
+- [ ] Every conflict reviewed
+- [ ] Auth identity map approved
+- [ ] Foreign-key orphan report is empty
+- [ ] Active orders and routes match Local-Delivery
+- [ ] Quote totals and source breakdowns sample-tested
+- [ ] Product and material calculator configuration tested
+- [ ] 469 Storage objects restored with matching hashes
+- [ ] Final delta rehearsal passes after a simulated write freeze
+- [ ] Rollback restore tested

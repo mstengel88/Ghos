@@ -105,3 +105,20 @@ also lacks extended-attribute support.
 7. Parallel production operation, controlled cutover, and rollback window.
 
 See `MIGRATION-RUNBOOK.md` for acceptance gates.
+
+## Local-Delivery data reconciliation
+
+The verified schema baseline is followed by a local-only data reconciliation
+stage. The ownership rules and acceptance gates are documented in
+`data/local-delivery-reconciliation.md`.
+
+Prepare the empty staging schema inside the isolated lab with:
+
+```bash
+docker exec -i supabase-db \
+  psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < migration/supabase/sql/prepare_reconciliation_staging.sql
+```
+
+The staging rows are sensitive temporary data. They must never be committed,
+included in a routine schema dump, or copied into application fixtures.
