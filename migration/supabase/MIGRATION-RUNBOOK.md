@@ -69,6 +69,8 @@ For each of the five production applications:
       embedded database images, and unresolved photo payloads
 - [x] Dump Site eight-migration schema, RLS, generated order number, rate
       limit, and CounterPoint queue workflow pass in disposable PostgreSQL 17
+- [x] Dump Site Edge Function method, QR-token, submission-validation, and
+      bridge-secret contracts pass in the isolated local Edge Runtime
 - [x] Ticket Printer application migrations pass on disposable PostgreSQL 17
 - [x] Ticket Printer Edge Functions pass secret-free local acceptance
 - [x] Ticket Printer managed `pg_cron` task has a GHOS systemd replacement

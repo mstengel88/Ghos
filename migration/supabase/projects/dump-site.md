@@ -5,9 +5,10 @@ Managed project: Dump Site (`bnethnlrhwcjgjgjvoxz`)
 Canonical source:
 `/Users/mattstengel/Documents/GreenHills APP/supabase`
 
-Status: local PostgreSQL 17 schema and queue-workflow rehearsal passed;
-production rows, exact managed schema comparison, secrets, and external
-callbacks are not migrated.
+Status: local PostgreSQL 17 schema, queue-workflow rehearsal, and both Edge
+Function authorization contracts pass. Production rows, exact managed schema
+comparison, production secrets, client cutover, and external callbacks are not
+migrated.
 
 ## Application contract
 
@@ -35,6 +36,46 @@ Run it with:
 ```bash
 tools/verify_dump_site_schema.sh
 ```
+
+## Edge Function compatibility
+
+Both inventoried functions run in the isolated local Supabase Edge Runtime
+using deterministic test-only credentials. The acceptance test verifies:
+
+- the API POST-only and route-not-found guards;
+- submission validation before any database access;
+- negative and positive QR-token checks;
+- missing and incorrect bridge-secret rejection;
+- authenticated bridge payload validation; and
+- authenticated bridge health.
+
+The test cannot target a non-loopback URL, verifies both source hashes before
+startup, does not invoke Shopify, Resend, Modern Retail, or production
+Supabase, and restores the Local-Delivery functions when it exits.
+
+Run it with:
+
+```bash
+tools/verify_dump_site_edge_functions.sh
+```
+
+## Client cutover inventory
+
+The standalone clients still point directly at the managed function URL:
+
+- iOS: `ProjectInfo.plist` key `DumpSiteAPIBaseURL`;
+- Android: `GreenHillsINC-Android/app/build.gradle.kts` build configuration.
+
+The iOS value is already configuration-shaped, but its release value still
+needs to be supplied by the future environment/build pipeline. Android needs
+the same environment-specific build configuration instead of a literal
+managed-project URL. The canonical application checkout is highly modified, so
+no client files were changed during this server-side rehearsal.
+
+Cutover must update both clients to the same public HTTPS function gateway.
+Tailscale-only access is not sufficient for the Shopify website/app-proxy
+workflow. The managed URL remains the rollback target until mobile and website
+acceptance passes.
 
 ## Source fingerprints
 
@@ -83,6 +124,7 @@ reports, or command history.
    verify counts, constraints, and generated-number sequence state.
 5. Capture the Edge Function secret values through an authorized private
    handoff and test Shopify, email, QR, and bridge callbacks using staging
+   credentials. The local authorization contract already passes with test-only
    credentials.
 6. Deploy behind HTTPS because the Shopify and QR workflows cannot use a
    Tailscale-only callback.

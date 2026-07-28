@@ -1,0 +1,19 @@
+# Local compatibility-lab override only.
+# Mounts the Dump Site functions with deterministic test-only credentials.
+# These values are intentionally non-production and must never be reused.
+services:
+  functions:
+    environment:
+      DUMP_SITE_QR_TOKEN: local-compatibility-qr-token
+      DUMP_SITE_BRIDGE_SECRET: local-compatibility-bridge-secret
+      SHOPIFY_API_KEY: local-compatibility-shopify-key
+      SHOPIFY_API_SECRET: local-compatibility-shopify-secret
+      MODERN_RETAIL_ENABLED: "false"
+      MODERN_RETAIL_API_USERNAME: ""
+      MODERN_RETAIL_API_PASSWORD: ""
+      MODERN_RETAIL_DUMP_ITEM_MAP: ""
+      MODERN_RETAIL_COMPANY_CUSTOMER_MAP: ""
+      MODERN_RETAIL_DEFAULT_CUSTOMER_EMAIL: ""
+      RESEND_API_KEY: ""
+      DUMP_SITE_FROM_EMAIL: ""
+      DUMP_SITE_NOTIFICATION_EMAIL: ""
