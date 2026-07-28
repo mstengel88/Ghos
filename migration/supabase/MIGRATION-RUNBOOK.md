@@ -37,11 +37,13 @@ For each of the five production applications:
 ## Gate 3 — Local compatibility
 
 - [x] Isolated PostgreSQL 17 Supabase lab starts with all services healthy
-- [x] Baseline self-hosted smoke test passes (35/35 on 2026-07-27)
+- [x] Self-hosted smoke test passes before and after Local-Delivery restore
+  (35/35 most recently on 2026-07-28)
 - [x] Local-Delivery database migrations apply cleanly from an empty lab
 - [x] Local-Delivery RLS role behavior passes transaction-only acceptance tests
 - [ ] Auth login, logout, password reset, invitations, and roles work
-- [ ] Storage upload, download, signed URL, and public URL behavior works
+- [x] Storage upload, download, integrity, signed URL, public URL, and TUS
+  resumable behavior works
 - [ ] Edge Functions pass functional tests
 - [ ] App configuration supports environment-specific Supabase URLs and keys
 - [ ] No production secret exists in source control or container images

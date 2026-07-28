@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-27 at 10:42 PM CT
+Last verified: 2026-07-28 at 7:03 AM CT
 
 ## Baseline
 
@@ -144,6 +144,33 @@ transaction-only RLS, and synthetic reconciliation acceptance. It verifies
 matching, canonical-only, legacy-only, and conflicting records; requires
 reviewed decisions for the latter two actionable classifications; rolls back
 all fixtures; and requires reconciliation staging to remain empty.
+
+## Post-restore service acceptance
+
+The pinned upstream self-hosted smoke suite was repeated after the
+Local-Delivery schema restore on 2026-07-28 and passed 35 of 35 checks. This
+confirmed:
+
+- administrator user creation, password sign-in, authenticated profile access,
+  and administrator deletion;
+- anonymous and service-role PostgREST behavior;
+- Storage bucket creation, a 7 MB upload, byte and hash matched download,
+  signed URL access without authorization headers, and cleanup;
+- multi-chunk TUS resumable upload, integrity verification, and cleanup;
+- the baseline Edge Function, Realtime health, and protected administration
+  routes.
+
+Cleanup was verified independently after the suite:
+
+```text
+Auth users: 0
+Storage objects: 0
+Storage buckets retained: dispatch-photos
+```
+
+The complete Local-Delivery schema, RLS, and reconciliation suite passed again
+after the service lifecycle test. Password recovery, invitations, and actual
+application-specific Edge Functions remain separate acceptance gates.
 
 ## Reconciliation staging
 
