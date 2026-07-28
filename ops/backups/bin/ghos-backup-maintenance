@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
+  # shellcheck source=/dev/null
+  source /usr/local/lib/ghos-backup/lib/backup-common.sh
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=ops/backups/lib/backup-common.sh
+  source "$SCRIPT_DIR/../lib/backup-common.sh"
+fi
+
+require_root
+require_command restic
+require_command flock
+load_backup_config
+
+ensure_private_directory "$BACKUP_ROOT"
+exec 9>"$LOCK_FILE"
+flock -n 9 || die "A GHOS backup or maintenance operation is already running."
+
+maintain_repository() {
+  local name="$1"
+  repository_exists || die "Repository '$name' is not initialized."
+  restic forget \
+    --host "$BACKUP_HOST_TAG" \
+    --tag ghos-automatic \
+    --group-by host,tags \
+    --keep-hourly "${KEEP_HOURLY:-24}" \
+    --keep-daily "${KEEP_DAILY:-14}" \
+    --keep-weekly "${KEEP_WEEKLY:-8}" \
+    --keep-monthly "${KEEP_MONTHLY:-12}" \
+    --prune
+  restic check --read-data-subset="${RESTIC_CHECK_SUBSET:-5%}"
+}
+
+if for_each_repository maintain_repository; then
+  write_status success maintenance "Retention and repository checks completed."
+  notify_status success maintenance "Retention and repository checks completed." || true
+else
+  write_status failure maintenance "Retention or repository check failed."
+  notify_status failure maintenance "Retention or repository check failed." || true
+  exit 1
+fi

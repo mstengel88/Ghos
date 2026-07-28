@@ -1,0 +1,13 @@
+[Unit]
+Description=Alert when GHOS backups are missing or stale
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ghos-backup-watchdog
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ghos-backup
+ReadOnlyPaths=/etc/ghos-backup

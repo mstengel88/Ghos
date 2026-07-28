@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the GHOS backup every six hours
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:15:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=ghos-backup.service
+
+[Install]
+WantedBy=timers.target

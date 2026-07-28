@@ -1,0 +1,5 @@
+# name|compose-file|compose-service|database-user|database-name|postgres-image
+ghos|/opt/ghos/compose.yml|postgres|ghosadmin|ghos|postgres:16
+
+# Add each self-hosted Supabase project after it is deployed. Example:
+# local-delivery|/opt/supabase/local-delivery/docker-compose.yml|db|postgres|postgres|supabase/postgres:17.4.1.054

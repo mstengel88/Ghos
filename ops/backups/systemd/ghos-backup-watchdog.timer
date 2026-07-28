@@ -1,0 +1,11 @@
+[Unit]
+Description=Check GHOS backup freshness hourly
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5m
+Persistent=true
+Unit=ghos-backup-watchdog.service
+
+[Install]
+WantedBy=timers.target

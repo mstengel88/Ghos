@@ -1,0 +1,11 @@
+[Unit]
+Description=Prove the latest GHOS database backup can be restored monthly
+
+[Timer]
+OnCalendar=Sun *-*-01..07 04:15:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=ghos-backup-restore-drill.service
+
+[Install]
+WantedBy=timers.target

@@ -29,6 +29,8 @@ For each of the five production applications:
 
 ## Gate 2 — Backup and recovery
 
+- [x] GHOS logical backup, encrypted dual-repository snapshot, retention,
+      integrity-check, and automated PostgreSQL restore-drill tooling committed
 - [ ] Encrypted managed database export created
 - [ ] Managed database password reset impact gate passes for each project
 - [ ] Auth schema recovery approach tested
@@ -74,6 +76,9 @@ For each of the five production applications:
 - [ ] Firewall limits database and administrative ports
 - [ ] Automatic VM and container startup verified
 - [ ] Nightly logical backups and regular full backups tested
+- [ ] GHOS backup repositories initialized on separate local and off-site targets
+- [ ] Automated GHOS database restore drill passes on GHSSERVER
+- [ ] Acronis alternate-location VM/host restore is tested
 - [ ] Monitoring and capacity alerts enabled
 
 ## Gate 5 — Per-application cutover

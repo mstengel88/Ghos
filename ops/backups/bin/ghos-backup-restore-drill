@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
+  # shellcheck source=/dev/null
+  source /usr/local/lib/ghos-backup/lib/backup-common.sh
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=ops/backups/lib/backup-common.sh
+  source "$SCRIPT_DIR/../lib/backup-common.sh"
+fi
+
+require_root
+require_command docker
+require_command restic
+require_command flock
+load_backup_config
+
+ensure_private_directory "$BACKUP_ROOT"
+exec 9>"$LOCK_FILE"
+flock -n 9 || die "A GHOS backup or maintenance operation is already running."
+
+repository_name="${RESTORE_DRILL_REPOSITORY:-local}"
+database_name="${RESTORE_DRILL_DATABASE:-ghos}"
+restore_root="$(mktemp -d "$BACKUP_ROOT/restore-drill.XXXXXXXX")"
+container_name="ghos-restore-drill-$(date +%s)"
+drill_password="restore-drill-only"
+
+cleanup() {
+  docker rm -f "$container_name" >/dev/null 2>&1 || true
+  if [[ -d "$restore_root" && "$restore_root" == "$BACKUP_ROOT"/restore-drill.* ]]; then
+    find "$restore_root" -depth -delete
+  fi
+}
+trap cleanup EXIT
+
+load_repository "$repository_name"
+repository_exists || die "Repository '$repository_name' is not initialized."
+
+restic restore latest \
+  --host "$BACKUP_HOST_TAG" \
+  --tag ghos-automatic \
+  --target "$restore_root" \
+  --include "**/databases/$database_name.dump" \
+  --include "**/databases/$database_name-postgres-image"
+
+dump_file="$(find "$restore_root" -type f -path "*/databases/$database_name.dump" -print -quit)"
+image_file="$(find "$restore_root" -type f -path "*/databases/$database_name-postgres-image" -print -quit)"
+[[ -n "$dump_file" && -s "$dump_file" ]] || die "Latest snapshot does not contain $database_name.dump"
+[[ -n "$image_file" && -s "$image_file" ]] || die "Latest snapshot does not identify the PostgreSQL image."
+postgres_image="$(cat "$image_file")"
+
+docker run -d --rm \
+  --name "$container_name" \
+  -e "POSTGRES_PASSWORD=$drill_password" \
+  "$postgres_image" >/dev/null
+
+for _ in $(seq 1 60); do
+  if docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+docker exec "$container_name" pg_isready -U postgres >/dev/null
+docker exec "$container_name" createdb -U postgres restore_drill
+docker exec -i "$container_name" \
+  pg_restore --exit-on-error --no-owner --no-acl -U postgres -d restore_drill <"$dump_file"
+docker exec "$container_name" \
+  psql -v ON_ERROR_STOP=1 -U postgres -d restore_drill \
+  -c 'select current_database(), count(*) as schema_count from information_schema.schemata;' >/dev/null
+
+write_status success restore-drill \
+  "Database '$database_name' restored and queried from repository '$repository_name'."
+notify_status success restore-drill \
+  "Database '$database_name' restored and queried from repository '$repository_name'." || true
+printf "Restore drill passed for database '%s' from repository '%s'.\n" \
+  "$database_name" "$repository_name"

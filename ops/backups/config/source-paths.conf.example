@@ -1,0 +1,10 @@
+# One absolute path per line. Missing required paths fail the backup.
+/opt/ghos/compose.yml
+/opt/ghos/.env
+/opt/ghos/assets
+/opt/ghos/src
+/etc/ghos-backup
+
+# Add each self-hosted Supabase stack and its Storage object root:
+# /opt/supabase/local-delivery
+# /srv/supabase/local-delivery/storage

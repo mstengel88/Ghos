@@ -1,0 +1,17 @@
+[Unit]
+Description=GHOS encrypted application and database backup
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+Environment=RESTIC_CACHE_DIR=/var/lib/ghos-backup/cache
+ExecStart=/usr/local/sbin/ghos-backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ghos-backup /mnt/ghos-backup /var/run/docker.sock
+ReadOnlyPaths=/opt/ghos /etc/ghos-backup

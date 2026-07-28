@@ -16,10 +16,14 @@ redis/
 portainer/
 /assets/
 backups/
+!/ops/backups/
+!/ops/backups/**
 
 # .NET
 **/bin/
 **/obj/
+!/ops/backups/bin/
+!/ops/backups/bin/**
 *.user
 *.suo
 *.userosscache

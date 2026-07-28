@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
+  # shellcheck source=/dev/null
+  source /usr/local/lib/ghos-backup/lib/backup-common.sh
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=ops/backups/lib/backup-common.sh
+  source "$SCRIPT_DIR/../lib/backup-common.sh"
+fi
+
+require_root
+require_command docker
+require_command restic
+require_command sha256sum
+require_command flock
+load_backup_config
+
+ensure_private_directory "$BACKUP_ROOT"
+ensure_private_directory "$STATUS_DIR"
+
+exec 9>"$LOCK_FILE"
+flock -n 9 || die "Another GHOS backup is already running."
+
+run_id="$(date -u +'%Y%m%dT%H%M%SZ')"
+run_dir="$BACKUP_ROOT/runs/$run_id"
+database_dir="$run_dir/databases"
+volume_dir="$run_dir/volume-exports"
+metadata_dir="$run_dir/metadata"
+paths_file="$run_dir/backup-paths"
+phase="prepare"
+completed=false
+
+cleanup() {
+  local exit_code=$?
+  if [[ "$completed" != "true" ]]; then
+    write_status failure "$phase" "Backup run $run_id failed."
+    notify_status failure "$phase" "Backup run $run_id failed with exit code $exit_code." || true
+  fi
+  if [[ -d "$run_dir" && "$run_dir" == "$BACKUP_ROOT"/runs/* ]]; then
+    find "$run_dir" -depth -delete
+  fi
+  exit "$exit_code"
+}
+trap cleanup EXIT
+
+ensure_private_directory "$database_dir"
+ensure_private_directory "$volume_dir"
+ensure_private_directory "$metadata_dir"
+
+printf '%s\n' "$run_id" >"$metadata_dir/run-id"
+iso_timestamp >"$metadata_dir/created-at"
+uname -a >"$metadata_dir/uname.txt"
+docker version >"$metadata_dir/docker-version.txt"
+docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' >"$metadata_dir/containers.txt"
+
+phase="database-dumps"
+while IFS='|' read -r name compose_file service db_user db_name postgres_image; do
+  [[ -f "$compose_file" ]] || die "Database '$name' compose file not found: $compose_file"
+  [[ -n "$name" && -n "$service" && -n "$db_user" && -n "$db_name" ]] ||
+    die "Invalid database entry in $DATABASES_FILE"
+
+  dump_file="$database_dir/$name.dump"
+  globals_file="$database_dir/$name-globals.sql"
+
+  docker compose -f "$compose_file" exec -T "$service" \
+    pg_dump --format=custom --compress=6 --no-owner --no-acl \
+    --username="$db_user" --dbname="$db_name" >"$dump_file"
+  [[ -s "$dump_file" ]] || die "Database '$name' produced an empty dump."
+
+  docker compose -f "$compose_file" exec -T "$service" \
+    pg_dumpall --globals-only --username="$db_user" >"$globals_file"
+  [[ -s "$globals_file" ]] || die "Database '$name' produced an empty globals dump."
+
+  docker compose -f "$compose_file" exec -T "$service" \
+    pg_restore --list <"$dump_file" >"$database_dir/$name-contents.txt"
+
+  printf '%s\n' "${postgres_image:-postgres:16}" >"$database_dir/$name-postgres-image"
+done < <(each_config_line "$DATABASES_FILE")
+
+phase="volume-exports"
+while IFS='|' read -r name compose_file service container_path; do
+  [[ -f "$compose_file" ]] || die "Volume '$name' compose file not found: $compose_file"
+  [[ -n "$name" && -n "$service" && "$container_path" == /* ]] ||
+    die "Invalid volume export entry in $VOLUME_EXPORTS_FILE"
+
+  archive="$volume_dir/$name.tar"
+  docker compose -f "$compose_file" exec -T "$service" \
+    tar --numeric-owner -C "$container_path" -cf - . >"$archive"
+  [[ -s "$archive" ]] || die "Volume '$name' produced an empty archive."
+  tar -tf "$archive" >/dev/null
+done < <(each_config_line "$VOLUME_EXPORTS_FILE")
+
+phase="source-validation"
+: >"$paths_file"
+printf '%s\n' "$run_dir" >>"$paths_file"
+while IFS= read -r source_path; do
+  [[ "$source_path" == /* ]] || die "Backup source must be absolute: $source_path"
+  [[ -e "$source_path" ]] || die "Required backup source does not exist: $source_path"
+  printf '%s\n' "$source_path" >>"$paths_file"
+done < <(each_config_line "$SOURCE_PATHS_FILE")
+
+(
+  cd "$run_dir"
+  find . -type f ! -name SHA256SUMS ! -name backup-paths -print0 |
+    sort -z |
+    xargs -0 sha256sum >"$run_dir.sha256.tmp"
+  mv "$run_dir.sha256.tmp" SHA256SUMS
+)
+
+backup_repository() {
+  local name="$1"
+  phase="repository-$name"
+  repository_exists || die "Repository '$name' is not initialized."
+  restic backup \
+    --host "$BACKUP_HOST_TAG" \
+    --tag ghos-automatic \
+    --tag "$run_id" \
+    --files-from-verbatim "$paths_file" \
+    --exclude-file "$EXCLUDES_FILE"
+  restic snapshots --latest 1 --host "$BACKUP_HOST_TAG" --tag "$run_id" --compact
+}
+
+for_each_repository backup_repository
+
+phase="complete"
+completed=true
+write_status success complete "Backup run $run_id completed in every configured repository."
+notify_status success complete "Backup run $run_id completed in every configured repository." || true
+printf 'GHOS backup %s completed successfully.\n' "$run_id"

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
+  # shellcheck source=/dev/null
+  source /usr/local/lib/ghos-backup/lib/backup-common.sh
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=ops/backups/lib/backup-common.sh
+  source "$SCRIPT_DIR/../lib/backup-common.sh"
+fi
+
+require_root
+load_backup_config
+
+success_file="$STATUS_DIR/last-success"
+maximum_age_seconds="${BACKUP_MAXIMUM_AGE_SECONDS:-28800}"
+now_epoch="$(date +%s)"
+
+if [[ ! -s "$success_file" ]]; then
+  write_status failure watchdog "No successful backup has been recorded."
+  notify_status failure watchdog "No successful backup has been recorded." || true
+  exit 1
+fi
+
+success_epoch="$(date -r "$success_file" +%s)"
+age_seconds=$((now_epoch - success_epoch))
+if (( age_seconds > maximum_age_seconds )); then
+  write_status failure watchdog \
+    "Latest successful backup is $age_seconds seconds old."
+  notify_status failure watchdog \
+    "Latest successful backup is stale ($age_seconds seconds old)." || true
+  exit 1
+fi
+
+printf 'Latest successful backup is %s seconds old.\n' "$age_seconds"

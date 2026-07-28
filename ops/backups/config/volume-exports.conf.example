@@ -1,0 +1,2 @@
+# name|compose-file|compose-service|path-inside-container
+ghos-data-protection|/opt/ghos/compose.yml|ghos-web|/var/lib/ghos/data-protection

@@ -1,0 +1,11 @@
+[Unit]
+Description=Verify and prune GHOS backups weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 02:30:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=ghos-backup-maintenance.service
+
+[Install]
+WantedBy=timers.target

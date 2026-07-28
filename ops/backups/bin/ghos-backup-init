@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
+  # shellcheck source=/dev/null
+  source /usr/local/lib/ghos-backup/lib/backup-common.sh
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=ops/backups/lib/backup-common.sh
+  source "$SCRIPT_DIR/../lib/backup-common.sh"
+fi
+
+require_root
+require_command restic
+load_backup_config
+
+initialize_repository() {
+  local name="$1"
+  if repository_exists; then
+    printf 'Repository %s already initialized and accessible.\n' "$name"
+  else
+    printf 'Initializing repository %s...\n' "$name"
+    restic init
+  fi
+  restic check
+}
+
+for_each_repository initialize_repository
+printf 'All configured backup repositories are ready.\n'

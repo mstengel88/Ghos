@@ -1,0 +1,16 @@
+[Unit]
+Description=GHOS backup retention and repository verification
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=RESTIC_CACHE_DIR=/var/lib/ghos-backup/cache
+ExecStart=/usr/local/sbin/ghos-backup-maintenance
+Nice=15
+IOSchedulingClass=idle
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ghos-backup /mnt/ghos-backup
+ReadOnlyPaths=/etc/ghos-backup

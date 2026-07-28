@@ -1,0 +1,12 @@
+# Live database files are never copied as the database backup.
+/opt/ghos/postgres/**
+
+# Redis is a cache in GHOS. Rebuild it after recovery.
+/opt/ghos/redis/**
+
+# Build output is reproducible.
+**/bin/**
+**/obj/**
+
+# A backup repository must never recurse into itself.
+/mnt/ghos-backup/**
