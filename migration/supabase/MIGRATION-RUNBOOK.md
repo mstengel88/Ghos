@@ -61,6 +61,9 @@ For each of the five production applications:
       and keys (Dispatch V2 directly; ShipCalc migration branch)
 - [x] WinterWatch-Pro client candidate supports environment-specific Supabase
       URL/key and PWA caching through its migration branch
+- [x] GreenHills Quote Live already supports environment-specific Supabase
+      configuration; its migration branch protects runtime secrets and passes
+      secret-free configuration acceptance
 - [x] Sanitized Local-Delivery/Quote Live key and row reconciliation completed
       without exporting customer data or secrets
 - [x] Quote creator UUID rewrite and unmapped-owner quarantine behavior pass

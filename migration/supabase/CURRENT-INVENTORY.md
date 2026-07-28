@@ -144,7 +144,9 @@ Only secret names were inventoried.
   `projects/local-delivery.md`.
 - GreenHills Quote Live: 22 public tables, 11 Auth users, 89 quotes, 457
   dispatch orders, 20 visible public RLS policies, and a public but empty
-  `dispatch-photos` bucket. See
+  `dispatch-photos` bucket. Its continuing quote client is environment
+  configurable, has a migration branch protecting runtime secrets, and passes
+  secret-free configuration acceptance. See
   `projects/greenhills-quote-live.md` for the MCP-backed inventory.
 - Dump Site: eight migrations, `pgcrypto`, queue/claim RPC functions, and two
   Edge Functions. Its migrations and core queue workflow now pass in a

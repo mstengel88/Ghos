@@ -177,3 +177,36 @@ This project requires all of the following:
 MCP is suitable for read-only discovery and structured row export. It does not
 replace a full logical database backup, Auth configuration export, secret
 inventory, or cutover procedure.
+
+## Client cutover readiness
+
+The continuing quote application already reads its Supabase URL, anonymous
+key, and service credential from runtime environment variables. Its Docker
+deployment consumes `.env.contractor`, while the tracked example contains only
+placeholders.
+
+Migration branch `codex/self-hosted-supabase-config` in
+`/Users/mattstengel/local-contractor` adds repository-level protection for
+runtime environment files, private keys, and certificates. This closes a gap
+where `.env.contractor` was ignored only by this Mac's private Git exclude
+file.
+
+Run the secret-free configuration acceptance with:
+
+```bash
+tools/verify_quote_live_client_config.sh
+```
+
+The check verifies that:
+
+- data access uses `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`;
+- user authentication uses `SUPABASE_ANON_KEY`;
+- Docker loads the private runtime environment file;
+- that private file is ignored and untracked;
+- the example contains placeholders; and
+- no managed Supabase project URL is embedded in tracked runtime source.
+
+The production application build passes. The broader repository type-check
+still reports pre-existing errors across legacy dispatch code and several
+application types. Those errors are an independent cleanup gate; the dispatch
+portion must not become authoritative again while fixing them.
