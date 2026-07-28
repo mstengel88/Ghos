@@ -158,5 +158,34 @@ tools/verify_local_delivery_auth_email.sh
 This test verifies capture, link redemption, session issuance, invited-user
 profile access, recovered-password replacement, sign-in, and complete cleanup.
 
+## Local-Delivery Edge Functions
+
+Mount the captured deployed functions into the isolated lab without production
+secrets:
+
+```bash
+cd migration/supabase/runtime/stack
+
+docker compose \
+  --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.pg17.yml \
+  -f ../../docker-compose.macos-storage.yml \
+  -f ../../docker-compose.mailpit.yml \
+  -f ../../docker-compose.edge-functions.yml \
+  up -d --no-deps functions
+```
+
+Then run the secret-free source and HTTP contract checks:
+
+```bash
+tools/verify_local_delivery_edge_functions.sh
+```
+
+These checks intentionally exercise only branches that cannot call Shopify or
+Google. External callback acceptance remains blocked until test credentials or
+mock endpoints are configured and the carrier-service rate-scope defect in the
+captured production source is fixed in a reviewed migration candidate.
+
 The staging rows are sensitive temporary data. They must never be committed,
 included in a routine schema dump, or copied into application fixtures.

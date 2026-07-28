@@ -11,6 +11,33 @@ application SQL below. It is not yet the final production restore artifact.
 - `850_live_indexes.sql`
 - `900_live_contract.sql`
 
+## Captured deployed Edge Functions
+
+The following files are a byte-for-byte, secret-free capture of the functions
+deployed to managed Local-Delivery on 2026-07-28. They also match the canonical
+ShipCalc source. These hashes are enforced by
+`tools/verify_local_delivery_edge_functions.sh`.
+
+| Function source | SHA-256 |
+|---|---|
+| `functions/carrier-service/index.ts` | `5932eeaf6d969561b5279812d44d8c7c137a50080d6e1dfe2db7fd495c5f2354` |
+| `functions/shopify-api/index.ts` | `e8fde587e01520d9c87a6dafec30baa5f3b3730d1b43a5d196fcb68c7d940aee` |
+| `functions/shopify-api/shipping-calc.ts` | `2d9384f4d5219b32515aa274986b8db04dc8665eaf7626eedb262f21ed68e407` |
+
+The compatibility lab mounts these sources with
+`docker-compose.edge-functions.yml`. The override deliberately supplies empty
+external-service credentials so local contract tests cannot contact Shopify or
+Google.
+
+### Review blocker before production cutover
+
+`carrier-service/index.ts` currently reads `RATE_PER_MINUTE` inside
+`getDriveTimeCost`, while that constant is declared only inside the request
+handler. A real route calculation can therefore fail after Google returns a
+valid route. The exact deployed source is preserved here as migration evidence;
+the defect must be corrected and tested with mocked external APIs in a reviewed
+candidate before the callback is moved away from managed Supabase.
+
 ## Canonical application SQL
 
 Apply in this order:

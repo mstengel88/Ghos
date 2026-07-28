@@ -46,7 +46,8 @@ For each of the five production applications:
 - [x] Auth password recovery and invitations pass through a local email catcher
 - [x] Storage upload, download, integrity, signed URL, public URL, and TUS
   resumable behavior works
-- [ ] Edge Functions pass functional tests
+- [x] Captured Edge Function source hashes and secret-free HTTP contracts pass
+- [ ] Edge Functions pass mocked Shopify/Google and callback functional tests
 - [ ] App configuration supports environment-specific Supabase URLs and keys
 - [ ] No production secret exists in source control or container images
 

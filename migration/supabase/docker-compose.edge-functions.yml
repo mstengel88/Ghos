@@ -1,0 +1,15 @@
+# Local compatibility-lab override only.
+# Mounts the captured Local-Delivery Edge Functions without adding production
+# credentials or replacing the upstream main request router.
+services:
+  functions:
+    volumes:
+      - ./volumes/functions:/home/deno/functions:z
+      - ../../baselines/local-delivery/functions/carrier-service:/home/deno/functions/carrier-service:ro
+      - ../../baselines/local-delivery/functions/shopify-api:/home/deno/functions/shopify-api:ro
+    environment:
+      ADMIN_PASSWORD: ""
+      GOOGLE_MAPS_API_KEY: ""
+      SHOPIFY_CLIENT_ID: ""
+      SHOPIFY_CLIENT_SECRET: ""
+      SHOPIFY_STORE_DOMAIN: ""

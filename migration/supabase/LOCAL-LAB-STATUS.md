@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-28 at 7:38 AM CT
+Last verified: 2026-07-28 at 7:53 AM CT
 
 ## Baseline
 
@@ -29,6 +29,32 @@ All 12 application services are running and healthy:
 - Storage
 - Studio
 - Supavisor
+
+## Local-Delivery Edge Function compatibility
+
+The exact deployed `carrier-service`, `shopify-api`, and shipping-calculator
+sources are now retained under the tracked Local-Delivery baseline with
+SHA-256 hashes. A local-only Compose override mounts them into the Edge Runtime
+while forcing Shopify, Google, and administrator credentials to empty values.
+
+`tools/verify_local_delivery_edge_functions.sh` passed:
+
+- all three captured-source hash checks;
+- carrier-service CORS preflight;
+- the non-POST and missing-rate empty-rate contracts;
+- the shopify-api missing-configuration guard;
+- verification that no external Shopify call is attempted without credentials.
+
+The complete Local-Delivery schema, RLS, and reconciliation suite passed again
+after the functions were mounted: 22 tables, 26 policies, eight functions,
+eight triggers, 106 indexes, 45 constraints, Storage metadata, Realtime
+publication, and all synthetic reconciliation classifications.
+
+The captured carrier callback has a blocking scope defect: its route helper
+references `RATE_PER_MINUTE`, but that value is currently declared only inside
+the request handler. The deployed source remains unchanged as evidence. A
+reviewed candidate and mocked Google/Shopify acceptance are required before
+external callback cutover.
 
 ## Verification
 

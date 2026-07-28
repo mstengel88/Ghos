@@ -1325,6 +1325,8 @@ else
                 System.Security.Claims.ClaimTypes.NameIdentifier);
             await using var dbContext =
                 await DbContextFactory.CreateDbContextAsync();
+            await using var transaction =
+                await dbContext.Database.BeginTransactionAsync();
             CustomerQuote quote;
             if (QuoteId is null)
             {
@@ -1340,13 +1342,23 @@ else
             else
             {
                 quote = await dbContext.CustomerQuotes
-                    .Include(item => item.Lines)
-                    .SingleAsync(item => item.Id == QuoteId);
-                dbContext.CustomerQuoteLines.RemoveRange(quote.Lines);
+                    .SingleOrDefaultAsync(item => item.Id == QuoteId) ??
+                    throw new InvalidOperationException(
+                        "This quote no longer exists. Return to quote history and reopen it.");
+
+                // Replace the persisted line set directly. Loading the old lines,
+                // marking them deleted, and then replacing the navigation collection
+                // can make EF issue duplicate/stale deletes when a synchronized quote
+                // was edited. ExecuteDelete keeps the replacement atomic without
+                // tracking obsolete line entities.
+                await dbContext.CustomerQuoteLines
+                    .Where(line => line.CustomerQuoteId == quote.Id)
+                    .ExecuteDeleteAsync();
             }
 
             MapToEntity(quote, userId);
             await dbContext.SaveChangesAsync();
+            await transaction.CommitAsync();
             QuoteId = quote.Id;
             Model.QuoteNumber = quote.QuoteNumber;
             SuccessMessage = $"{quote.QuoteNumber} saved.";
