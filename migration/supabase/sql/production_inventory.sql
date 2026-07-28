@@ -55,6 +55,20 @@ select
 from information_schema.triggers
 order by event_object_schema, event_object_table, trigger_name;
 
+-- Some managed read-only roles do not expose application triggers through
+-- information_schema.triggers. Query pg_trigger as a second authoritative
+-- inventory path.
+select
+  n.nspname as table_schema,
+  c.relname as table_name,
+  t.tgname as trigger_name,
+  pg_get_triggerdef(t.oid, true) as trigger_definition
+from pg_trigger t
+join pg_class c on c.oid = t.tgrelid
+join pg_namespace n on n.oid = c.relnamespace
+where not t.tgisinternal
+order by n.nspname, c.relname, t.tgname;
+
 select schemaname, tablename, policyname, permissive, roles, cmd
 from pg_policies
 order by schemaname, tablename, policyname;
