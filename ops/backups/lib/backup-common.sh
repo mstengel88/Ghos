@@ -64,8 +64,18 @@ load_repository() {
     if [[ -n "${environment_file:-}" ]]; then
       [[ -f "$environment_file" ]] ||
         die "Repository '$name' environment file does not exist: $environment_file"
+      # Repository clients such as restic read credentials from the process
+      # environment. The root-only file contains shell-compatible assignments;
+      # allexport makes those assignments available to child processes without
+      # requiring users to add `export` to secret files manually.
+      local allexport_was_enabled=false
+      [[ "$-" == *a* ]] && allexport_was_enabled=true
+      set -a
       # shellcheck disable=SC1090
       source "$environment_file"
+      if [[ "$allexport_was_enabled" != "true" ]]; then
+        set +a
+      fi
     fi
     export RESTIC_REPOSITORY="$repository"
     export RESTIC_PASSWORD_FILE="$password_file"

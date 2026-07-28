@@ -20,9 +20,9 @@ initialize_repository() {
     printf 'Repository %s already initialized and accessible.\n' "$name"
   else
     printf 'Initializing repository %s...\n' "$name"
-    restic init
+    restic init || die "Repository '$name' could not be initialized."
   fi
-  restic check
+  restic check || die "Repository '$name' failed its integrity check."
 }
 
 for_each_repository initialize_repository
