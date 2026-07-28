@@ -269,9 +269,11 @@ public sealed class ShopifySyncService(
         catch (DbUpdateConcurrencyException exception)
             when (concurrencyAttempt == 0)
         {
+            var conflicts = DescribeConcurrencyEntries(exception);
             logger.LogWarning(
                 exception,
-                "The Shopify catalog changed during synchronization. GHOS will retry once with a fresh database snapshot.");
+                "The Shopify catalog changed during synchronization for {Conflicts}. GHOS will retry once with a fresh database snapshot.",
+                conflicts);
             await UpdateRunStatusAsync(
                 syncRun.Id,
                 "Retried",
@@ -284,6 +286,13 @@ public sealed class ShopifySyncService(
         }
         catch (Exception exception)
         {
+            if (exception is DbUpdateConcurrencyException concurrencyException)
+            {
+                logger.LogError(
+                    "Shopify synchronization conflicts remained for {Conflicts}.",
+                    DescribeConcurrencyEntries(concurrencyException));
+            }
+
             logger.LogError(exception, "Shopify product synchronization failed.");
             await UpdateRunStatusAsync(
                 syncRun.Id,
@@ -292,6 +301,27 @@ public sealed class ShopifySyncService(
                 cancellationToken);
             throw;
         }
+    }
+
+    private static string DescribeConcurrencyEntries(
+        DbUpdateConcurrencyException exception)
+    {
+        if (exception.Entries.Count == 0)
+        {
+            return "an unknown database row";
+        }
+
+        return string.Join(
+            ", ",
+            exception.Entries.Select(entry =>
+            {
+                var key = entry.Metadata.FindPrimaryKey();
+                var values = key?.Properties.Select(property =>
+                    $"{property.Name}={entry.Property(property.Name).CurrentValue}");
+                return $"{entry.Metadata.ClrType.Name}[{string.Join(
+                    ";",
+                    values ?? [])}]";
+            }));
     }
 
     private async Task UpdateRunStatusAsync(
