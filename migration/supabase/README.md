@@ -250,3 +250,18 @@ credentials.
 
 The staging rows are sensitive temporary data. They must never be committed,
 included in a routine schema dump, or copied into application fixtures.
+
+## Dump Site schema rehearsal
+
+The Dump Site source can be rehearsed without altering the Local-Delivery lab.
+The verifier creates a disposable database inside the pinned PostgreSQL 17
+container, applies all eight canonical migrations, exercises the queue
+workflow, and removes the database afterward:
+
+```bash
+tools/verify_dump_site_schema.sh
+```
+
+Set `DUMP_SITE_SOURCE_ROOT` if the canonical Green Hills application repository
+is stored somewhere other than its documented Mac path. Production data,
+secrets, and external callbacks are deliberately excluded from this rehearsal.

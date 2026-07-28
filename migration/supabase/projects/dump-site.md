@@ -1,0 +1,91 @@
+# Dump Site migration contract
+
+Managed project: Dump Site (`bnethnlrhwcjgjgjvoxz`)
+
+Canonical source:
+`/Users/mattstengel/Documents/GreenHills APP/supabase`
+
+Status: local PostgreSQL 17 schema and queue-workflow rehearsal passed;
+production rows, exact managed schema comparison, secrets, and external
+callbacks are not migrated.
+
+## Application contract
+
+The source contains eight ordered migrations. Together they create:
+
+- three service-only public tables with RLS enabled;
+- 32 columns on `dump_site_entries`;
+- two application triggers;
+- nine Dump Site functions;
+- generated order numbers beginning with `201-D10000`;
+- idempotent client-submission handling;
+- notification and optional Modern Retail status;
+- the CounterPoint bridge queue, claim lease, completion, operator claim, and
+  operator release workflows; and
+- automatic queueing when Modern Retail is disabled.
+
+The local rehearsal applies all eight migrations to a disposable database
+inside the pinned Supabase PostgreSQL 17 container. It verifies table and
+column counts, RLS, role grants, order-number generation, automatic queueing,
+claim/completion behavior, and rate limiting. The disposable database is
+removed after every run.
+
+Run it with:
+
+```bash
+tools/verify_dump_site_schema.sh
+```
+
+## Source fingerprints
+
+| Source | SHA-256 |
+|---|---|
+| `20260723000000_dump_site.sql` | `5b98274bf79d1117219dd07dab708111de87d7425f416ea828b782dd4cbd2993` |
+| `20260723010000_dump_site_email_notifications.sql` | `608655f4f1b6e3db594f4612382425179b696b0913121a05a0793ed8e2da8304` |
+| `20260723020000_dump_site_modern_retail.sql` | `9da1d59ff017a835ad95f69f75e23767996f47e014f7801a28c0f5fedcf0a67a` |
+| `20260723030000_dump_site_order_numbers.sql` | `de10ec59ad6b09ee7f291a14dc40b9b2a4c9562a2da9f1c2679d77334a6d2a0e` |
+| `20260724000000_dump_site_counterpoint_bridge.sql` | `faeda4dbb8776b7fa5e787b8b07d026444d928d8317468edb718428584533679` |
+| `20260724010000_dump_site_201_d_order_numbers.sql` | `b32f803d7725e6f1f8801c7b0735742c147e42f835b15acf5d30482666f294cb` |
+| `20260724020000_dump_site_operator_queue.sql` | `c36e4807db341c8f8ad0296b4128251039354254ba8f6b3c229aaeedbb5237a0` |
+| `20260724030000_disable_dump_site_modern_retail.sql` | `6afb17766444f1202724657964deb383e70846ecec7b0da331cbfa205805faf6` |
+| `functions/dump-site-api/index.ts` | `4732a4a6e92a7bcfcb200a66d657d7fd2478f8892eafa1ee7c55f9057761d38b` |
+| `functions/dump-site-bridge/index.ts` | `3bdf9a9b88cd195a0113d93f5c7e337bc3f4d25210139e87f05cb13dcdfcecf3` |
+
+The two local Edge Function files match the deployed source captured through
+the Supabase Management API. Managed versions were active at inventory time:
+`dump-site-api` version 19 and `dump-site-bridge` version 5. Both report
+`verify_jwt: false`; the API implements its own access checks, and the bridge
+requires a shared bearer secret.
+
+## Secret-name inventory
+
+Secret values were not retrieved. The deployed functions depend on:
+
+- Supabase URL, public keys, service credentials, database URL, and JWKS;
+- Shopify API credentials;
+- Dump Site QR and bridge secrets;
+- Resend and notification sender/recipient settings; and
+- optional Modern Retail credentials, enablement, and item mapping.
+
+Secrets must be entered into the future GHSSERVER runtime from the company
+password manager. They must not be copied into Git, Docker images, migration
+reports, or command history.
+
+## Remaining gates
+
+1. Capture an encrypted exact database export without resetting a production
+   database password.
+2. Compare the exact managed schema and migration history to the eight local
+   migrations.
+3. Inventory row counts and primary-key ranges without retaining customer
+   payloads in Git.
+4. Restore the encrypted data export into the isolated Dump Site database and
+   verify counts, constraints, and generated-number sequence state.
+5. Capture the Edge Function secret values through an authorized private
+   handoff and test Shopify, email, QR, and bridge callbacks using staging
+   credentials.
+6. Deploy behind HTTPS because the Shopify and QR workflows cannot use a
+   Tailscale-only callback.
+7. Run the GHOS queue and the standalone Dump Site client against the same
+   candidate backend before the managed-project cutover.
+8. Keep managed Supabase intact through the rollback observation window.

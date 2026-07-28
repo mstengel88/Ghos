@@ -123,6 +123,26 @@ Post-test cleanup was verified:
 - Storage buckets: 0
 - Storage objects: 0
 
+## Dump Site isolated schema rehearsal
+
+The eight canonical Dump Site migrations now apply cleanly to a disposable
+database inside the pinned Supabase PostgreSQL 17 container. The rehearsal does
+not reset or modify the Local-Delivery `postgres` database and removes its
+temporary database on exit.
+
+`tools/verify_dump_site_schema.sh` passed:
+
+- three service-only public tables with RLS;
+- 32 `dump_site_entries` columns;
+- nine application functions and two triggers;
+- first generated order number `201-D10000`;
+- automatic CounterPoint queueing when Modern Retail is disabled;
+- queue claim and completion behavior; and
+- rate-limit increment behavior.
+
+Production rows, exact managed-schema comparison, secret values, and external
+callbacks remain gated. See `projects/dump-site.md`.
+
 ## macOS Storage compatibility
 
 Supabase Storage's file backend requires Linux extended attributes. A normal

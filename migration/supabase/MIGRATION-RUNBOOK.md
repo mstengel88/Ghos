@@ -65,6 +65,8 @@ For each of the five production applications:
       in the isolated reconciliation lab
 - [x] Local-Delivery Storage/reference manifest records bucket objects,
       embedded database images, and unresolved photo payloads
+- [x] Dump Site eight-migration schema, RLS, generated order number, rate
+      limit, and CounterPoint queue workflow pass in disposable PostgreSQL 17
 - [ ] No production secret exists in source control or container images
 
 ## Gate 4 — GHSSERVER deployment

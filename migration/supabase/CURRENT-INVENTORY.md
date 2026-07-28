@@ -133,7 +133,8 @@ Only secret names were inventoried.
   `dispatch-photos` bucket. See
   `projects/greenhills-quote-live.md` for the MCP-backed inventory.
 - Dump Site: eight migrations, `pgcrypto`, queue/claim RPC functions, and two
-  Edge Functions.
+  Edge Functions. Its migrations and core queue workflow now pass in a
+  disposable PostgreSQL 17 database; see `projects/dump-site.md`.
 - Older `/Users/mattstengel/build-my-app` and `build-my-app2` folders are
   WinterWatch-Pro predecessors, not additional managed projects.
 
