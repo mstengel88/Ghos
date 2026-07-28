@@ -74,6 +74,26 @@ This sparse-clones only the official `docker/` directory at the pinned commit,
 copies it to the ignored runtime directory, and creates a private `.env`. It
 does not start containers or access managed project data.
 
+On macOS with Docker Desktop, start the PostgreSQL 17 lab with the tracked
+Storage override. The override uses a Docker-managed Linux volume because the
+macOS bind mount does not support the extended attributes required by the
+Supabase Storage file backend:
+
+```bash
+cd migration/supabase/runtime/stack
+
+docker compose \
+  --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.pg17.yml \
+  -f ../../docker-compose.macos-storage.yml \
+  up -d
+```
+
+The override is for the Mac compatibility lab only. The future Ubuntu VM uses
+normal Linux storage and should not include it unless its backing filesystem
+also lacks extended-attribute support.
+
 ## Migration phases
 
 1. Static source and migration inventory.

@@ -1,0 +1,17 @@
+# Docker Desktop's macOS bind mount does not provide the Linux extended
+# attributes required by Supabase Storage's file backend. Keep the official
+# compose file unchanged and replace only the two shared storage mounts with a
+# Docker-managed Linux volume for the local compatibility lab.
+
+services:
+  storage:
+    volumes: !override
+      - supabase_storage_data:/var/lib/storage
+
+  imgproxy:
+    volumes: !override
+      - supabase_storage_data:/var/lib/storage
+
+volumes:
+  supabase_storage_data:
+    name: ghos-supabase-storage-data

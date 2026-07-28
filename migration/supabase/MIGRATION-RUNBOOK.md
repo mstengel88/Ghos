@@ -36,6 +36,8 @@ For each of the five production applications:
 
 ## Gate 3 — Local compatibility
 
+- [x] Isolated PostgreSQL 17 Supabase lab starts with all services healthy
+- [x] Baseline self-hosted smoke test passes (35/35 on 2026-07-27)
 - [ ] Database migrations apply cleanly
 - [ ] RLS behavior matches production
 - [ ] Auth login, logout, password reset, invitations, and roles work
