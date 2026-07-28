@@ -79,8 +79,9 @@ two models, while quote and dispatch business data use the Supabase HTTP API.
 The live container's untracked value must still be classified before any
 GreenHills Quote Live database password reset.
 
-Help Desk remains unclassified because its canonical application source has
-not been located.
+Help Desk is retired and excluded from the active application cutover. Its
+managed project remains untouched until a separate retention/archive decision
+is approved.
 
 See `DATABASE-CREDENTIAL-IMPACT.md` for the safe live check, impact matrix, and
 password-reset gate. The check reports only a connection class and must never

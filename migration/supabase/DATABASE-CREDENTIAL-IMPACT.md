@@ -36,7 +36,7 @@ applications, and backup jobs using the old password will fail until updated.
 | Dump Site | Supabase HTTP API and Edge Functions | No direct database variable found in located source | No expected impact |
 | Ticket Printer | Supabase HTTP API and Edge Functions | No direct database variable found in located source | No expected impact |
 | WinterWatch-Pro | Supabase HTTP API and Edge Functions | No direct database variable found in located source | No expected impact |
-| Help Desk | Canonical application source not yet located | Unknown | Reset blocked |
+| Help Desk | Retired; excluded from active application cutover | Not applicable to active cutover | Leave managed project unchanged pending archive decision |
 
 The Quote V2 source explicitly says its Prisma database must be separate from
 production business data. Its Compose file creates `contractor-postgres`, and

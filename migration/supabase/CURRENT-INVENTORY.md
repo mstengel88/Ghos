@@ -14,17 +14,18 @@ All six accessible projects are healthy and currently run PostgreSQL 17.
 |---|---|---|---|---:|
 | Ticket Printer | `dlayrpnmfnbjlxgnkczv` | us-west-2 | `/Users/mattstengel/edit-my-ticket` | 17 |
 | WinterWatch-Pro | `caegybyfdkmgjrygnavg` | us-east-1 | `/Users/mattstengel/winterwatch` | 7 |
-| Help Desk | `kryirjstfeksxotyabis` | us-west-2 | canonical source not yet located | 1 |
+| Help Desk | `kryirjstfeksxotyabis` | us-west-2 | retired; no active app migration | 1 |
 | GreenHills Quote Live | `dbyxbgbkokcddgeybjmf` | us-west-2 | `/Users/mattstengel/local-contractor` confirmed as primary source candidate by live schema | 0 |
 | Local-Delivery | `mtntrlbuhcbdrngiubdu` | us-west-2 | `/Users/mattstengel/shipcalc2` and `/Users/mattstengel/local-delivery/dispatch-v2-sandbox` | 2 |
 | Dump Site | `bnethnlrhwcjgjgjvoxz` | us-west-2 | `/Users/mattstengel/Documents/GreenHills APP/supabase` | 2 |
 
 The stated five critical applications do not map one-to-one to these projects:
-Dispatch and ShipCalc share Local-Delivery, while Help Desk still lacks a
-confirmed canonical source binding. Dispatch V2 Sandbox is the sole continuing
-dispatch application. The older dispatch implementation embedded in
-`local-contractor` will be retired after its unique production data has been
-reconciled into the V2-owned model. GreenHills Quote Live remains in scope
+Dispatch and ShipCalc share Local-Delivery, while Help Desk is no longer used
+and is excluded from active application cutover. Its managed project remains
+untouched pending a separate archive/retention decision. Dispatch V2 Sandbox
+is the sole continuing dispatch application. The older dispatch implementation
+embedded in `local-contractor` will be retired after its unique production data
+has been reconciled into the V2-owned model. GreenHills Quote Live remains in scope
 because its quote tool and production data continue to matter.
 
 ## Deployed Edge Functions
@@ -92,8 +93,8 @@ Management API and compared with the local repositories:
 - Local-Delivery: deployed source matches; local `carrier-service` additionally
   contains a test file.
 - Dump Site: deployed source matches local source.
-- Help Desk: deployed function was recovered, but canonical application source
-  is still missing.
+- Help Desk: deployed function was recovered for archival evidence. No active
+  application migration is planned.
 
 Deployed bundles are retained under the ignored `exports/` directory. The two
 drifts must be reconciled before declaring the local repositories authoritative.
@@ -147,7 +148,9 @@ Only secret names were inventoried.
 4. Public Shopify and email/OAuth callbacks cannot rely on Tailscale-only URLs.
 5. Several application schemas reuse generic table names. Projects remain
    isolated during the infrastructure migration.
-6. Help Desk canonical source must be located.
+6. Help Desk is retired and does not block GHSSERVER application cutover. Its
+   managed project still requires a retention/archive decision before any
+   scale-down or deletion.
 7. GreenHills Quote Live is bound to `local-contractor` for the quote tool, but
    its legacy dispatch schema and rows must be reconciled into the
    Local-Delivery/Dispatch V2 model before the old dispatch runtime is disabled.

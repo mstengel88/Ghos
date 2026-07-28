@@ -21,11 +21,6 @@
       "classification": "production-candidate"
     },
     {
-      "label": "Help Desk source placeholder",
-      "path": "/Users/mattstengel/help-desk",
-      "classification": "source-not-located"
-    },
-    {
       "label": "Shipping Calculator",
       "path": "/Users/mattstengel/shipcalc2",
       "classification": "production-candidate"

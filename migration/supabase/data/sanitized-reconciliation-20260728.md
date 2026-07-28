@@ -111,5 +111,7 @@ they must not be silently assigned to another user.
 - Review the three legacy-only quotes, 17 quote conflicts, and two profile
   conflicts using authorized business context.
 - Build and approve the Auth identity map.
+- Rehearse the documented 16-row quote creator UUID rewrite to canonical
+  Local-Delivery identities.
 - Transfer and hash-verify all 470 Local-Delivery Storage objects.
 - Re-run this comparison against the final delta immediately before cutover.

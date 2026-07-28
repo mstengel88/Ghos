@@ -25,7 +25,7 @@ For each of the five production applications:
 - [ ] All clients and service-role consumers identified
 - [x] Located application source audited for direct PostgreSQL consumers
 - [ ] Quote V2 live Prisma `DATABASE_URL` classified without revealing it
-- [ ] Help Desk canonical source and database consumers identified
+- [x] Help Desk confirmed retired and excluded from active application cutover
 
 ## Gate 2 — Backup and recovery
 

@@ -319,6 +319,11 @@ No managed project was modified and no customer data or secret value was
 exported. See
 `data/sanitized-reconciliation-20260728.md`.
 
+The privacy-preserving Auth comparison and canonical identity decisions are
+recorded in `data/auth-identity-reconciliation-20260728.md`. Local-Delivery
+identities are canonical; 16 Quote Live quote creator references require a
+rehearsed UUID rewrite during import.
+
 ## Photo migration inventory
 
 A read-only Storage/reference inventory found 470 current objects totaling
