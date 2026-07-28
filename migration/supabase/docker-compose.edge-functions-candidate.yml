@@ -11,6 +11,7 @@ services:
       ADMIN_PASSWORD: ""
       GOOGLE_MAPS_API_KEY: local-compatibility-test-key
       GOOGLE_DISTANCE_MATRIX_URL: http://host.docker.internal:18765/maps
-      SHOPIFY_CLIENT_ID: ""
-      SHOPIFY_CLIENT_SECRET: ""
-      SHOPIFY_STORE_DOMAIN: ""
+      SHOPIFY_API_BASE_URL: http://host.docker.internal:18765/shopify
+      SHOPIFY_CLIENT_ID: local-candidate-client
+      SHOPIFY_CLIENT_SECRET: local-candidate-secret
+      SHOPIFY_STORE_DOMAIN: local-candidate.invalid

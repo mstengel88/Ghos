@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-28 at 8:06 AM CT
+Last verified: 2026-07-28 at 8:42 AM CT
 
 ## Baseline
 
@@ -66,9 +66,23 @@ temporary localhost-only route mock:
 - `$62.40` returned as the Shopify carrier rate;
 - negative inputs clamped to zero.
 
-The candidate retains Google's official endpoint as the default; only the
-local Compose override supplies the mock URL. Vendor-origin, distance-limit,
-multi-load, and Shopify API branches remain required before callback cutover.
+The candidate retains Google and Shopify's official endpoints as defaults;
+only the local Compose override supplies mock URLs. The expanded acceptance
+suite now also passed:
+
+- vendor-specific origin selection for two Shopify variants;
+- two unique cached routes across four required truck loads;
+- a combined carrier rate of `$291.20`;
+- rejection of a route beyond the configured 50-mile limit;
+- Shopify client-credential exchange and product transformation;
+- a deterministic Shopify shipping quote of `$172.50`;
+- safe propagation of a synthetic Shopify GraphQL error.
+
+All external requests stayed on localhost. Disposable origin rows were removed,
+the complete Local-Delivery contract/RLS/reconciliation suite passed, and the
+Edge Functions container was returned to the captured secret-free baseline.
+Callback authentication, credential injection, public HTTPS, and registration
+remain required before callback cutover.
 
 ## Verification
 

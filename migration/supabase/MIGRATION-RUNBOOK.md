@@ -48,8 +48,8 @@ For each of the five production applications:
   resumable behavior works
 - [x] Captured Edge Function source hashes and secret-free HTTP contracts pass
 - [x] Carrier callback rate calculation passes a mocked Google route test
-- [ ] Carrier vendor, distance-limit, and multi-load branches pass mocked tests
-- [ ] Shopify API success and error branches pass mocked tests
+- [x] Carrier vendor, distance-limit, and multi-load branches pass mocked tests
+- [x] Shopify API success and error branches pass mocked tests
 - [ ] App configuration supports environment-specific Supabase URLs and keys
 - [ ] No production secret exists in source control or container images
 

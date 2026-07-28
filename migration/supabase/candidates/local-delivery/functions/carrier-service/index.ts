@@ -13,6 +13,11 @@ const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
+function getShopifyApiBaseUrl(domain: string): string {
+  const override = Deno.env.get("SHOPIFY_API_BASE_URL")?.trim();
+  return (override || `https://${domain}`).replace(/\/+$/, "");
+}
+
 // Settings loaded from DB at request time
 async function getSettings(): Promise<Record<string, string>> {
   const { data } = await supabaseAdmin
@@ -41,7 +46,7 @@ async function getShopifyAccessToken(): Promise<string | null> {
   if (!domain || !clientId || !clientSecret) return null;
 
   try {
-    const tokenRes = await fetch(`https://${domain}/admin/oauth/access_token`, {
+    const tokenRes = await fetch(`${getShopifyApiBaseUrl(domain)}/admin/oauth/access_token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, grant_type: "client_credentials" }),
@@ -61,7 +66,7 @@ async function getOriginFromProductVendor(variantId: number): Promise<string | n
 
   try {
     const gid = `gid://shopify/ProductVariant/${variantId}`;
-    const res = await fetch(`https://${domain}/admin/api/2024-10/graphql.json`, {
+    const res = await fetch(`${getShopifyApiBaseUrl(domain)}/admin/api/2024-10/graphql.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

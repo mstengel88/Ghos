@@ -16,14 +16,16 @@ scope where it was declared. The candidate:
 - clamps negative duration, distance, and rate inputs;
 - permits a local-only `GOOGLE_DISTANCE_MATRIX_URL` override for tests while
   retaining the official Google URL as the runtime default.
+- permits an explicit `SHOPIFY_API_BASE_URL` override for isolated acceptance
+  tests while retaining the official Shopify store URL as the runtime default.
 
 Candidate hashes:
 
 | Source | SHA-256 |
 |---|---|
-| `functions/carrier-service/index.ts` | `0a9c55eccebf35aca43ac34c866d95380cc00cba15b21100c07550a93c2cff27` |
+| `functions/carrier-service/index.ts` | `84f7ffcff70d1e2ec9194dd76c8e82aae416ecbf6447d82262c46352ac17a751` |
 | `functions/carrier-service/delivery-math.ts` | `b44a8388763900d61fb08ce5c760885530d989f5b5120629cf2f56e26872711f` |
-| `functions/shopify-api/index.ts` | `e8fde587e01520d9c87a6dafec30baa5f3b3730d1b43a5d196fcb68c7d940aee` |
+| `functions/shopify-api/index.ts` | `91f1799b33ba7f55630781e04ed7bdfaf762671b08072a5a8d0360c7bc4f301f` |
 | `functions/shopify-api/shipping-calc.ts` | `2d9384f4d5219b32515aa274986b8db04dc8665eaf7626eedb262f21ed68e407` |
 
 ## Acceptance
@@ -47,14 +49,43 @@ Run:
 
 ```bash
 tools/verify_local_delivery_edge_candidate.sh
-tools/verify_local_delivery_edge_functions.sh
 tools/verify_local_delivery_clean_room.sh
 ```
 
-The candidate test starts a temporary localhost-only route mock. It verifies
-that a 15-minute, 10-mile one-way route produces a 30-minute round trip and a
-`$62.40` carrier rate at `$2.08` per minute. The mock is stopped automatically.
+Then return the functions container to the captured secret-free baseline:
 
-This candidate is not approved for external callback cutover yet. Shopify API
-success/error behavior, vendor-origin selection, mileage rejection, multi-load
-pricing, and callback authentication still need mocked acceptance.
+```bash
+cd migration/supabase/runtime/stack
+
+docker compose \
+  --env-file .env \
+  -f docker-compose.yml \
+  -f docker-compose.pg17.yml \
+  -f ../../docker-compose.macos-storage.yml \
+  -f ../../docker-compose.mailpit.yml \
+  -f ../../docker-compose.edge-functions.yml \
+  up -d --no-deps --force-recreate functions
+
+cd ../../../..
+tools/verify_local_delivery_edge_functions.sh
+```
+
+The candidate test starts a temporary localhost-only Google and Shopify mock.
+It verifies:
+
+- a 15-minute, 10-mile one-way route produces a 30-minute round trip and a
+  `$62.40` carrier rate at `$2.08` per minute;
+- vendor-specific origins result in two route lookups and four loads totaling
+  `$291.20`;
+- routes beyond the 50-mile limit return no rate;
+- Shopify token exchange and product transformation;
+- a deterministic Shopify shipping quote totaling `$172.50`;
+- safe handling of a Shopify GraphQL error.
+
+The mock and all disposable origin rows are removed automatically. The
+documented acceptance workflow returns the lab to the captured, secret-free
+function baseline afterward.
+
+This candidate is not approved for external callback cutover yet. Callback
+authentication, real credential injection, public HTTPS, and Shopify callback
+registration remain separate gates.

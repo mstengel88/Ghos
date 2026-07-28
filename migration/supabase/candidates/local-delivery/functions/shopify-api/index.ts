@@ -12,6 +12,11 @@ const supabaseAdmin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
 );
 
+function getShopifyApiBaseUrl(domain: string): string {
+  const override = Deno.env.get("SHOPIFY_API_BASE_URL")?.trim();
+  return (override || `https://${domain}`).replace(/\/+$/, "");
+}
+
 async function getActiveOriginAddress(): Promise<string> {
   const { data } = await supabaseAdmin
     .from("origin_addresses")
@@ -55,7 +60,8 @@ serve(async (req) => {
   // Exchange client credentials for access token
   let accessToken: string;
   try {
-    const tokenRes = await fetch(`https://${SHOPIFY_STORE_DOMAIN}/admin/oauth/access_token`, {
+    const shopifyApiBaseUrl = getShopifyApiBaseUrl(SHOPIFY_STORE_DOMAIN);
+    const tokenRes = await fetch(`${shopifyApiBaseUrl}/admin/oauth/access_token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -85,7 +91,8 @@ serve(async (req) => {
     });
   }
 
-  const adminUrl = `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-10/graphql.json`;
+  const adminUrl =
+    `${getShopifyApiBaseUrl(SHOPIFY_STORE_DOMAIN)}/admin/api/2024-10/graphql.json`;
 
   async function adminQuery(query: string, variables?: Record<string, unknown>) {
     const res = await fetch(adminUrl, {
