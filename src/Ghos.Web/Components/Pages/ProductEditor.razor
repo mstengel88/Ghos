@@ -562,7 +562,10 @@ else
                 product.Id,
                 product.Name,
                 alternateNames);
-            ReconcileAlternateNames(product, alternateNames);
+            ReconcileAlternateNames(
+                dbContext,
+                product,
+                alternateNames);
 
             await dbContext.SaveChangesAsync();
 
@@ -596,9 +599,11 @@ else
         {
             SaveError = exception.Message;
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception)
         {
-            SaveError = "This product conflicts with an existing product name, code, or alternate name. Review the values and try again.";
+            SaveError = IsUniqueConstraintViolation(exception)
+                ? "This product conflicts with an existing product name, code, or alternate name. Review the values and try again."
+                : "The product could not be saved because of a database error. No changes were applied; try again or review the server log.";
         }
         catch (InvalidOperationException)
         {
@@ -674,6 +679,7 @@ else
     }
 
     private static void ReconcileAlternateNames(
+        ApplicationDbContext dbContext,
         Product product,
         IReadOnlyCollection<string> desiredNames)
     {
@@ -706,13 +712,22 @@ else
                 continue;
             }
 
-            product.AlternateNames.Add(new ProductAlternateName
+            var newAlternateName = new ProductAlternateName
             {
                 Name = alternateName,
                 NormalizedName = normalizedName
-            });
+            };
+            product.AlternateNames.Add(newAlternateName);
+            dbContext.ProductAlternateNames.Add(newAlternateName);
         }
     }
+
+    private static bool IsUniqueConstraintViolation(
+        DbUpdateException exception) =>
+        exception.InnerException is Npgsql.PostgresException
+        {
+            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation
+        };
 
     private static string NormalizeProductName(string name) =>
         name.Trim().ToUpperInvariant();
