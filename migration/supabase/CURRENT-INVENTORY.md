@@ -140,7 +140,10 @@ Only secret names were inventoried.
   PostgreSQL 17. The two managed `pg_cron`/`pg_net` migrations are replaced by
   a GHOS systemd timer. All seven Edge Functions pass secret-free local
   acceptance. Its browser/PWA client is environment-switchable on migration
-  branch `codex/self-hosted-supabase-config`. See
+  branch `codex/self-hosted-supabase-config`. All 92 private `work-photos`
+  objects (232,094,733 bytes) have been exported and SHA-256 inventoried on the
+  Mac; encrypted off-Mac retention and isolated byte-for-byte restore remain
+  gates. See
   `projects/winterwatch-pro.md`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
   Sandbox is the canonical dispatch application and must own the final dispatch

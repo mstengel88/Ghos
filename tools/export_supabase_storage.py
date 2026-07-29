@@ -224,6 +224,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--timeout", type=int, default=120)
+    parser.add_argument(
+        "--expected-count",
+        type=int,
+        help=(
+            "Require the private listing to contain this many objects. "
+            "A cached listing with another count is refreshed."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -263,6 +271,7 @@ def main() -> int:
     client = StorageClient(base_url, service_key, args.timeout)
     try:
         source_listing_path = export_root / "source-listing.json"
+        refresh_listing = False
         if source_listing_path.is_file():
             source_listing = json.loads(
                 source_listing_path.read_text(encoding="utf-8")
@@ -275,11 +284,22 @@ def main() -> int:
                     "The cached private source listing is incompatible"
                 )
             objects = source_listing["objects"]
-            print(
-                f"Reusing a private listing of {len(objects)} objects.",
-                flush=True,
+            refresh_listing = (
+                args.expected_count is not None
+                and len(objects) != args.expected_count
             )
-        else:
+            if refresh_listing:
+                print(
+                    "Refreshing a cached private listing whose object count "
+                    "does not match the expected inventory.",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"Reusing a private listing of {len(objects)} objects.",
+                    flush=True,
+                )
+        if not source_listing_path.is_file() or refresh_listing:
             objects = enumerate_objects(
                 client, args.bucket, args.page_size, args.workers
             )
@@ -306,6 +326,15 @@ def main() -> int:
                 temporary_listing.write("\n")
                 temporary_listing_name = temporary_listing.name
             Path(temporary_listing_name).replace(source_listing_path)
+        if (
+            args.expected_count is not None
+            and len(objects) != args.expected_count
+        ):
+            raise RuntimeError(
+                "The private listing contains "
+                f"{len(objects)} objects; expected {args.expected_count}. "
+                "Reconcile the live Storage inventory before exporting."
+            )
         print(
             f"Discovered {len(objects)} objects. Downloading privately...",
             flush=True,

@@ -106,4 +106,5 @@ fi
 python3 "$repo_root/tools/export_supabase_storage.py" \
   --env-file "$env_file" \
   --bucket work-photos \
-  --output "$output_dir"
+  --output "$output_dir" \
+  --expected-count 92

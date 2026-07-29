@@ -130,8 +130,20 @@ tools/export_winterwatch_storage.sh
 The wrapper refuses the wrong project URL, a missing key, or loose file
 permissions. The generic exporter does not print credentials or object names,
 resumes completed files, and writes an ignored SHA-256 manifest beside the
-downloaded bytes. Encrypt and copy that export off the Mac before marking the
-Storage backup gate complete.
+downloaded bytes.
+
+The initial private export completed on 2026-07-28:
+
+- 92 of 92 objects;
+- 232,094,733 bytes;
+- 92 locally verified files; and
+- valid manifest checksum
+  `382e8555cec5771f9a286e77c469795da84ac5548d9165e96103b7bd275db580`.
+
+The tracked, non-sensitive checkpoint is
+`migration/supabase/data/winterwatch-storage-manifest-20260728.md`. The ignored
+private export must still be encrypted, copied off the Mac, and restored
+byte-for-byte into an isolated WinterWatch lab.
 
 ## Managed scheduler replacement
 
@@ -183,8 +195,9 @@ remains retained as migration evidence.
 
 1. Capture an encrypted production database/Auth export without resetting the
    managed database password.
-2. Export and hash every private `work-photos` object and its metadata.
-3. Restore database, Auth, and Storage into the isolated lab and validate RLS.
+2. Encrypt and copy the verified private `work-photos` export off the Mac.
+3. Restore database, Auth, and Storage into the isolated lab and validate RLS
+   and all 92 object hashes.
 4. Test approved staging credentials for every external Edge Function service.
 5. Run the WinterWatch web/mobile client against the candidate backend through
    environment configuration. The environment-switchable client is committed
