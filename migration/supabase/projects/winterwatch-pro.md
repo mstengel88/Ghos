@@ -7,8 +7,9 @@ Canonical source: `/Users/mattstengel/winterwatch`
 Status: live inventory, exact PostgreSQL 17 application-schema rehearsal, and
 an isolated production database/Auth/Storage-metadata restore rehearsal passed.
 All private Storage objects have been exported, copied to the GHOS VM, restored
-into the isolated lab, and byte-verified. Secrets, Realtime client behavior,
-and external callbacks have not been migrated.
+into the isolated lab, and byte-verified. Full local PostgREST, Auth, and
+private Storage API recovery acceptance also passed. Secrets, Realtime client
+behavior, and external callbacks have not been migrated.
 
 ## Read-only managed inventory
 
@@ -158,11 +159,22 @@ Repeatable tooling now lives at:
 ```bash
 tools/rehearse_winterwatch_restore.sh
 tools/verify_winterwatch_restore.sh
+tools/import_winterwatch_storage_local.sh
+tools/verify_winterwatch_api_restore.sh
 ```
 
 Cluster-wide role settings are skipped by default in the shared compatibility
 lab. They can be applied only by explicitly setting
 `WINTERWATCH_APPLY_CLUSTER_ROLES=1` on a disposable target cluster.
+
+The API rehearsal creates a private safety dump, temporarily swaps only the
+local compatibility database, and restores the Local-Delivery database and
+services on success or failure. It verified PostgREST, a disposable
+administrator Auth lifecycle, the private `work-photos` bucket, and one
+authenticated object download against its recorded SHA-256. Supabase Storage's
+file backend also requires the restored binaries to retain the object
+`version` filename plus content-type and cache-control Linux extended
+attributes; the guarded importer applies and verifies that layout.
 
 ## PostgreSQL 17 rehearsal
 
@@ -311,12 +323,10 @@ remains retained as migration evidence.
 ## Remaining gates
 
 1. Store a sealed recovery copy of the database-export encryption password.
-2. Test Auth and Storage through the full self-hosted APIs against the restored
-   candidate, including a sample of the separately restored object binaries.
-3. Test approved staging credentials for every external Edge Function service.
-4. Run the WinterWatch web/mobile client against the candidate backend through
+2. Test approved staging credentials for every external Edge Function service.
+3. Run the WinterWatch web/mobile client against the candidate backend through
    environment configuration. The environment-switchable client is committed
    on WinterWatch branch `codex/self-hosted-supabase-config` at `337bf8f`.
-5. Complete a full database/Auth backup/restore drill and a rehearsed
+4. Complete a full database/Auth backup/restore drill and a rehearsed
    maintenance-window cutover.
-6. Keep managed Supabase intact through the rollback observation window.
+5. Keep managed Supabase intact through the rollback observation window.

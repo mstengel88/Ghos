@@ -151,6 +151,25 @@ tools/rehearse_winterwatch_restore.sh
 tools/verify_winterwatch_restore.sh
 ```
 
+Full local API recovery acceptance also passed on 2026-07-29. The guarded
+rehearsal temporarily activated the isolated WinterWatch clone, then verified:
+
+- PostgREST access to the restored application schema;
+- an administrator Auth create, read, and delete lifecycle;
+- the restored private `work-photos` bucket; and
+- an authenticated object download whose SHA-256 matched the private export.
+
+All 92 private objects were mapped to their restored Storage object versions,
+copied into the Docker named volume, assigned the file backend's required
+content-type and cache-control extended attributes, and verified before the API
+test. The Local-Delivery compatibility database and all 12 services were
+restored automatically after the rehearsal. Repeat with:
+
+```bash
+tools/import_winterwatch_storage_local.sh
+tools/verify_winterwatch_api_restore.sh
+```
+
 ## Dump Site isolated schema rehearsal
 
 The eight canonical Dump Site migrations now apply cleanly to a disposable

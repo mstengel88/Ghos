@@ -45,6 +45,9 @@ For each of the five production applications:
 - [x] WinterWatch database, Auth, and Storage metadata restored and verified in
       an isolated environment; 92 Storage binaries were restored separately
 - [x] WinterWatch restore validation results and repeatable tooling retained
+- [x] WinterWatch restored candidate passes full local PostgREST, Auth
+      administrator-lifecycle, private bucket, and byte-verified object
+      download acceptance
 - [ ] Off-host backup copy created
 
 ## Gate 3 — Local compatibility

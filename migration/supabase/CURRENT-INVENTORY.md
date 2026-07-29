@@ -154,7 +154,10 @@ Only secret names were inventoried.
   database/Auth/Storage-metadata export and isolated restore rehearsal now also
   pass: 20 public tables with RLS, 74 policies, 12 Auth users, 13 identities,
   92 Storage metadata rows, zero orphan identities/profiles, zero invalid
-  indexes, and zero unvalidated constraints. See
+  indexes, and zero unvalidated constraints. Full local API acceptance now
+  additionally passes PostgREST, an administrator Auth lifecycle, private
+  bucket access, and a byte-verified authenticated object download. The
+  rehearsal automatically restored the Local-Delivery lab afterward. See
   `projects/winterwatch-pro.md`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
   Sandbox is the canonical dispatch application and must own the final dispatch
