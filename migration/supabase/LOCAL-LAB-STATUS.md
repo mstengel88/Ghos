@@ -50,6 +50,13 @@ after the functions were mounted: 22 tables, 26 policies, eight functions,
 eight triggers, 106 indexes, 45 constraints, Storage metadata, Realtime
 publication, and all synthetic reconciliation classifications.
 
+The self-hosted baseline now also declares the standard Data API grants that
+managed Supabase normally installs outside application migrations. A
+disposable PostgreSQL 17 rebuild passed with 22 tables, 26 policies, and the
+expected anonymous, authenticated, and service-role object privileges. RLS
+remains enabled on all 22 tables. The running lab then passed password-session,
+invitation, password-recovery, RLS, Storage bucket, and Realtime acceptance.
+
 The captured carrier callback has a blocking scope defect: its route helper
 references `RATE_PER_MINUTE`, but that value is currently declared only inside
 the request handler. The deployed source remains unchanged as evidence. A

@@ -262,6 +262,26 @@ begin
     raise exception 'dispatch_notifications Realtime contract mismatch';
   end if;
 
+  if not has_schema_privilege('anon', 'public', 'usage')
+     or not has_schema_privilege('authenticated', 'public', 'usage')
+     or not has_schema_privilege('service_role', 'public', 'usage') then
+    raise exception 'Data API roles are missing public schema usage';
+  end if;
+
+  if not has_table_privilege('anon', 'public.app_settings', 'select')
+     or not has_table_privilege(
+       'authenticated',
+       'public.app_user_profiles',
+       'select'
+     )
+     or not has_table_privilege(
+       'service_role',
+       'public.dispatch_orders',
+       'select,insert,update,delete'
+     ) then
+    raise exception 'Data API roles are missing required table privileges';
+  end if;
+
   raise notice 'Local-Delivery schema contract verified.';
 end
 $$;

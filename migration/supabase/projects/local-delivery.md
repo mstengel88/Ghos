@@ -126,6 +126,13 @@ and V2 performs Storage administration and uploads through its server-side
 service-role client. This behavior must be reproduced intentionally rather than
 assuming the public bucket permits anonymous writes.
 
+The compatibility migration now explicitly recreates the standard Supabase
+Data API object privileges for `anon`, `authenticated`, and `service_role`.
+Managed Supabase normally supplies these outside application migrations, so
+they were previously an undeclared self-hosting dependency. RLS remains
+enabled on all 22 tables and continues to decide which rows each API role may
+access.
+
 ## Realtime and scheduled database work
 
 `dispatch_notifications` is the only public table currently included in the
@@ -262,3 +269,22 @@ This project requires:
 MCP is suitable for read-only discovery and controlled aggregate comparison. It
 does not replace logical database dumps, Auth configuration exports, Storage
 object transfer, secret inventory, or a cutover backup.
+
+## Local recovery acceptance
+
+The explicit Data API grants were applied to the local compatibility lab and
+verified on 2026-07-29. Acceptance passed:
+
+- the 22-table, 26-policy schema/RLS/reconciliation contract;
+- anonymous settings access and protected-table RLS behavior;
+- service-role access to the canonical dispatch schema;
+- complete password Auth create, sign-in, password-change, logout, refresh
+  revocation, and deletion lifecycle;
+- invitation and password-recovery email flows through the local mail catcher;
+- the `dispatch-photos` bucket contract; and
+- `dispatch_notifications` Realtime publication membership.
+
+The complete schema chain, including the explicit API grants, also rebuilt
+successfully in a disposable PostgreSQL 17 database cloned from the local
+Supabase platform. That database was removed afterward. Production rows,
+identities, sessions, object bytes, and secrets were not involved.

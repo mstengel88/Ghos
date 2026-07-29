@@ -68,6 +68,9 @@ For each of the five production applications:
 - [x] Shopify API success and error branches pass mocked tests
 - [x] Local-Delivery app candidates support environment-specific Supabase URLs
       and keys (Dispatch V2 directly; ShipCalc migration branch)
+- [x] Local-Delivery self-hosted Data API grants are explicit, enforced by the
+      contract verifier, and pass disposable PostgreSQL 17 rebuild plus local
+      Auth, invitation, recovery, RLS, Storage, and Realtime acceptance
 - [x] WinterWatch-Pro client candidate supports environment-specific Supabase
       URL/key and PWA caching through its migration branch
 - [x] GreenHills Quote Live already supports environment-specific Supabase

@@ -10,6 +10,12 @@ application SQL below. It is not yet the final production restore artifact.
 - `000_foundation.sql`
 - `850_live_indexes.sql`
 - `900_live_contract.sql`
+- `../../candidates/local-delivery/001_api_grants.sql`
+
+The API-grants candidate makes the Data API role privileges supplied
+implicitly by managed Supabase explicit for self-hosted recovery. All 22
+tables have RLS enabled, so the grants permit PostgREST policy evaluation
+without bypassing row security.
 
 ## Captured deployed Edge Functions
 
