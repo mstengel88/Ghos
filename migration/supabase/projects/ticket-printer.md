@@ -11,13 +11,33 @@ primary local source is `/Users/mattstengel/edit-my-ticket`.
 disposable PostgreSQL 17 database in the local Supabase lab. It never resets
 the Local-Delivery database and drops the disposable database on exit.
 
-The verified application contract is:
+The checked-in historical migration contract is:
 
 - 38 application schema migrations;
 - 12 public tables, all with RLS;
 - 53 public RLS policies;
 - eight public functions; and
 - five application triggers.
+
+Read-only Supabase MCP inspection of the managed project found two additional,
+empty dispatch-bridge tables that are not present in that history:
+
+- `dispatch_orders`
+- `dispatch_routes`
+
+The live managed contract is therefore:
+
+- 14 public tables, all with RLS;
+- 53 public RLS policies;
+- ten public functions; and
+- seven application triggers.
+
+Both dispatch tables have RLS enabled and no policies, so normal browser roles
+cannot access them. The local candidate at
+`migration/supabase/candidates/ticket-printer/000_live_dispatch_bridge.sql`
+preserves that privileged-service-only contract. It is applied only to the
+disposable PostgreSQL 17 rehearsal and has not been written to the managed
+project.
 
 The 39th migration is infrastructure-specific. It installs `pg_cron` and
 `pg_net`, then schedules `loadrite-sync` against the managed Supabase URL.
@@ -114,16 +134,65 @@ authoritative source, and no Storage bucket creation in its application
 migrations. Generated Capacitor `public/assets` bundles are excluded so an old
 mobile build cannot be mistaken for current source configuration.
 
-This narrows the expected cutover contract, but it does not prove that the
-managed project has no orphaned Storage objects or database-side Realtime
-publication settings. Those remain read-only live-export checks.
+Read-only managed-project inspection now confirms:
+
+- zero Storage buckets and zero Storage objects; and
+- no tables in the `supabase_realtime` publication.
+
+This agrees with the static inventory and closes the Storage/Realtime discovery
+gate for the current project state.
+
+## Managed-project inventory
+
+The 2026-07-28 read-only inventory recorded:
+
+- PostgreSQL 17.6;
+- approximately 31.9 MB total database size;
+- 39 managed migration-history entries;
+- nine Auth users and nine Auth identities;
+- 58 Auth sessions;
+- one active five-minute cron job; and
+- 17 active Edge Functions.
+
+No row contents, Auth secrets, cron command, or Edge Function secret values
+were retrieved.
+
+Public table row counts:
+
+| Table | Rows |
+| --- | ---: |
+| `agent_registry` | 2 |
+| `audit_logs` | 1,091 |
+| `customers` | 67 |
+| `dispatch_orders` | 0 |
+| `dispatch_routes` | 0 |
+| `feedback` | 17 |
+| `orders` | 12 |
+| `products` | 92 |
+| `profiles` | 9 |
+| `template_versions` | 48 |
+| `ticket_templates` | 3 |
+| `tickets` | 718 |
+| `trucks` | 9 |
+| `user_roles` | 9 |
+
+The Supabase security advisors also flag pre-existing issues that must be
+reviewed before cutover:
+
+- several mutable function `search_path` settings;
+- overly permissive RLS policies on existing application tables; and
+- `SECURITY DEFINER` functions executable by broad API roles.
+
+The dispatch candidate fixes only its own two function search paths. Existing
+authorization behavior is not being changed during inventory capture.
 
 ## Remaining gates
 
 - Obtain an exact production database/Auth export without resetting managed
   database passwords.
 - Reconcile the managed schema and row counts against the local contract.
-- Confirm the static no-Storage/no-Realtime finding against the managed project.
+- Design and approve any RLS/function privilege hardening separately from the
+  fidelity migration.
 - Inject secret values through root-only runtime configuration.
 - Test Loadrite, Resend, Google, and agent callbacks using approved test
   endpoints.

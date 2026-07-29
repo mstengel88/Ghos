@@ -3,6 +3,10 @@ set -Eeuo pipefail
 
 source_root="${TICKET_PRINTER_SOURCE_ROOT:-/Users/mattstengel/edit-my-ticket}"
 migration_dir="$source_root/supabase/migrations"
+candidate_migration="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")/.."
+  pwd
+)/migration/supabase/candidates/ticket-printer/000_live_dispatch_bridge.sql"
 db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 database_name="ghos_ticket_printer_rehearsal_$$"
 scheduler_migration="20260511173000_schedule_loadrite_sync_every_5_minutes.sql"
@@ -15,6 +19,11 @@ fi
 if [[ ! -d "$migration_dir" ]]; then
   printf 'Ticket Printer migration directory not found: %s\n' \
     "$migration_dir" >&2
+  exit 1
+fi
+if [[ ! -f "$candidate_migration" ]]; then
+  printf 'Ticket Printer live-schema candidate not found: %s\n' \
+    "$candidate_migration" >&2
   exit 1
 fi
 
@@ -99,6 +108,10 @@ if [[ "$migration_count" -ne 38 || "$infrastructure_migration_count" -ne 1 ]]; t
   exit 1
 fi
 
+docker exec -i "$db_container" \
+  psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" \
+  <"$candidate_migration" >/dev/null
+
 contract="$(
   docker exec "$db_container" \
     psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" -Atc \
@@ -115,7 +128,7 @@ contract="$(
         where n.nspname = 'public' and not t.tgisinternal);"
 )"
 
-if [[ "$contract" != "12|12|53|8|5" ]]; then
+if [[ "$contract" != "14|14|53|10|7" ]]; then
   printf 'Unexpected Ticket Printer schema contract: %s\n' \
     "$contract" >&2
   exit 1
@@ -123,5 +136,6 @@ fi
 
 printf '%s\n' \
   'Ticket Printer PostgreSQL 17 schema verification passed.' \
-  'Contract: 12 tables, 12 RLS tables, 53 policies, 8 functions, 5 triggers.' \
+  'Contract: 14 tables, 14 RLS tables, 53 policies, 10 functions, 7 triggers.' \
+  'The two empty live dispatch-bridge tables are supplied by a local candidate.' \
   'The Supabase pg_cron migration is intentionally deferred to GHOS scheduling.'
