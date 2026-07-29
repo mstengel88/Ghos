@@ -78,7 +78,9 @@ create schema storage;
 create table storage.buckets (
   id text primary key,
   name text not null unique,
-  public boolean not null default false
+  public boolean not null default false,
+  file_size_limit bigint,
+  allowed_mime_types text[]
 );
 create table storage.objects (
   id uuid primary key default gen_random_uuid(),
@@ -144,6 +146,31 @@ expected_contract="20|20|74|11|19"
 if [[ "$contract" != "$expected_contract" ]]; then
   printf 'WinterWatch contract mismatch: expected %s, got %s.\n' \
     "$expected_contract" "$contract" >&2
+  exit 1
+fi
+
+storage_contract="$(
+  docker exec "$db_container" \
+    psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" -Atc \
+    "select concat_ws('|',
+       coalesce((select id from storage.buckets
+                  where id = 'work-photos'), ''),
+       coalesce((select public::text from storage.buckets
+                  where id = 'work-photos'), ''),
+       coalesce((select file_size_limit::text from storage.buckets
+                  where id = 'work-photos'), ''),
+       coalesce((select array_to_string(allowed_mime_types, ',')
+                  from storage.buckets
+                 where id = 'work-photos'), ''),
+       (select count(*)::text
+          from pg_policies
+         where schemaname = 'storage'));"
+)"
+
+expected_storage_contract="work-photos|false|||6"
+if [[ "$storage_contract" != "$expected_storage_contract" ]]; then
+  printf 'WinterWatch Storage contract mismatch: expected %s, got %s.\n' \
+    "$expected_storage_contract" "$storage_contract" >&2
   exit 1
 fi
 
@@ -240,12 +267,19 @@ fingerprints="$(
             select array_agg(e.enumlabel order by e.enumsortorder) as labels
               from pg_enum e
              where e.enumtypid = t.oid
-          ) x
+         ) x
          where n.nspname = 'public'
-           and t.typtype = 'e'));"
+           and t.typtype = 'e'),
+       (select md5(coalesce(string_agg(
+          schemaname || '|' || tablename || '|' || policyname || '|' ||
+          permissive || '|' || array_to_string(roles, ',') || '|' || cmd ||
+          '|' || coalesce(qual, '') || '|' || coalesce(with_check, ''),
+          E'\n' order by tablename, policyname), ''))
+          from pg_policies
+         where schemaname = 'storage'));"
 )"
 
-expected_fingerprints="af255063b9bcca0dbb09068bbdd40cce|ffdc7efa258adff6e793410c893abe29|b0468a2f6b2809b48f5f8a974ae18413|7c498acbfa9b299df7f0d57c98521e3a|6d94e340996d83d8fdfe360dba202aae|82388cf87708f568986c16daece3d9c3|817be365087d37cb6289998376694943"
+expected_fingerprints="af255063b9bcca0dbb09068bbdd40cce|ffdc7efa258adff6e793410c893abe29|b0468a2f6b2809b48f5f8a974ae18413|7c498acbfa9b299df7f0d57c98521e3a|6d94e340996d83d8fdfe360dba202aae|82388cf87708f568986c16daece3d9c3|817be365087d37cb6289998376694943|a0937b9aabadcb006da6f84f04d1c8d9"
 if [[ "$fingerprints" != "$expected_fingerprints" ]]; then
   printf 'WinterWatch fingerprint mismatch.\nExpected: %s\nActual:   %s\n' \
     "$expected_fingerprints" "$fingerprints" >&2
@@ -255,7 +289,8 @@ fi
 printf '%s\n' \
   'WinterWatch PostgreSQL 17 schema verification passed.' \
   "Contract: $contract (tables|RLS tables|policies|functions|triggers)." \
-  "Fingerprints: $fingerprints (columns|constraints|indexes|functions|triggers|policies|enums)." \
+  "Storage contract: $storage_contract (bucket|public|size limit|MIME types|policies)." \
+  "Fingerprints: $fingerprints (columns|constraints|indexes|functions|triggers|policies|enums|Storage policies)." \
   "Tables: $table_names" \
   "Functions: $function_names" \
   "Triggers: $trigger_names" \

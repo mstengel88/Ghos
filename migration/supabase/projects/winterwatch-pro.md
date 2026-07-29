@@ -21,8 +21,10 @@ secret values:
 - 19 application triggers;
 - six public enum types, no public views, and no public sequences;
 - 12 Auth users, 13 identities, and 20 sessions;
-- one private Storage bucket, `work-photos`;
-- 92 Storage objects totaling 232,094,733 bytes;
+- one private Storage bucket, `work-photos`, with no size or MIME restriction;
+- six Storage object policies that reproduce exactly in the local rehearsal;
+- 92 Storage objects totaling 232,094,733 bytes: 89 JPEG and three PNG files,
+  created from 2026-01-17 through 2026-03-17;
 - one Realtime publication table: `public.employee_locations`;
 - three active managed cron jobs, scheduled every 15 minutes, every 5 minutes,
   and daily at 3:00 AM; and
@@ -81,7 +83,8 @@ the verified live contract is:
 - 11 public application functions; and
 - 19 application triggers.
 
-All seven normalized schema fingerprints match the managed project exactly:
+All eight normalized schema and Storage-policy fingerprints match the managed
+project exactly:
 
 | Surface | Fingerprint |
 |---|---|
@@ -92,6 +95,7 @@ All seven normalized schema fingerprints match the managed project exactly:
 | Triggers | `6d94e340996d83d8fdfe360dba202aae` |
 | Policies | `82388cf87708f568986c16daece3d9c3` |
 | Enums | `817be365087d37cb6289998376694943` |
+| Storage policies | `a0937b9aabadcb006da6f84f04d1c8d9` |
 
 The prior report of 47 public functions included 36 `pgcrypto` extension
 functions because the rehearsal installed that extension into `public`.
@@ -103,6 +107,31 @@ Run it with:
 ```bash
 tools/verify_winterwatch_schema.sh
 ```
+
+## Private Storage export
+
+The 92 `work-photos` objects require a server-side service-role credential;
+the Supabase MCP connection intentionally does not expose that secret. Put the
+existing WinterWatch service-role key in the ignored file
+`migration/supabase/secrets/winterwatch-storage.env`:
+
+```dotenv
+SUPABASE_URL=https://caegybyfdkmgjrygnavg.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=replace-with-existing-service-role-key
+```
+
+Protect and run it:
+
+```bash
+chmod 600 migration/supabase/secrets/winterwatch-storage.env
+tools/export_winterwatch_storage.sh
+```
+
+The wrapper refuses the wrong project URL, a missing key, or loose file
+permissions. The generic exporter does not print credentials or object names,
+resumes completed files, and writes an ignored SHA-256 manifest beside the
+downloaded bytes. Encrypt and copy that export off the Mac before marking the
+Storage backup gate complete.
 
 ## Managed scheduler replacement
 

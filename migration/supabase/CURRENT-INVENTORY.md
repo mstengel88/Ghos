@@ -131,11 +131,12 @@ Only secret names were inventoried.
 - WinterWatch-Pro: read-only MCP reconciliation confirms PostgreSQL 17.6,
   20 RLS-enabled public tables, 74 policies, 11 application functions,
   19 triggers, 12 Auth users, 92 private Storage objects totaling about
-  221.3 MiB, one Realtime table, and three active cron jobs. The 36-file local
+  221.3 MiB, six matching Storage policies, one Realtime table, and three
+  active cron jobs. The 36-file local
   history omits a managed migration that created `maintenance_logs`; an
   explicit live-contract reconciliation preserves that drift without rewriting
   history. Thirty-four portable application migrations plus the reconciliation
-  reproduce all seven live schema fingerprints exactly in disposable
+  reproduce all eight live schema/Storage-policy fingerprints exactly in disposable
   PostgreSQL 17. The two managed `pg_cron`/`pg_net` migrations are replaced by
   a GHOS systemd timer. All seven Edge Functions pass secret-free local
   acceptance. Its browser/PWA client is environment-switchable on migration
