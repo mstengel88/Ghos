@@ -84,6 +84,9 @@ For each of the five production applications:
 - [x] Ticket Printer browser and Loadrite migration candidates require
       environment-specific Supabase configuration and pass build/tests
 - [x] WinterWatch-Pro application migrations pass on disposable PostgreSQL 17
+- [x] WinterWatch-Pro live schema, row totals, Auth totals, Storage totals,
+      Realtime publication, cron schedules, and seven schema fingerprints
+      reconciled read-only
 - [x] WinterWatch-Pro managed overtime scheduler has a GHOS systemd replacement
 - [x] WinterWatch-Pro Edge Functions pass secret-free local acceptance
 - [ ] No production secret exists in source control or container images

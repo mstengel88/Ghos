@@ -128,14 +128,18 @@ Only secret names were inventoried.
   environment-switchable on migration branch
   `codex/self-hosted-supabase-config`; the production build and four tests
   pass. See `projects/ticket-printer.md`.
-- WinterWatch-Pro: 36 local migrations. Thirty-four portable application
-  migrations now pass in disposable PostgreSQL 17, producing 19 RLS-enabled
-  tables, 70 policies, 47 functions, and 18 triggers. Its two managed
-  `pg_cron`/`pg_net` migrations are replaced by a GHOS systemd timer.
-  Auth, private Storage, Realtime, seven Edge Functions, and external services
-  remain separate migration gates. All seven Edge Functions pass secret-free
-  local acceptance. Its browser/PWA client is environment-switchable on
-  migration branch `codex/self-hosted-supabase-config`. See
+- WinterWatch-Pro: read-only MCP reconciliation confirms PostgreSQL 17.6,
+  20 RLS-enabled public tables, 74 policies, 11 application functions,
+  19 triggers, 12 Auth users, 92 private Storage objects totaling about
+  221.3 MiB, one Realtime table, and three active cron jobs. The 36-file local
+  history omits a managed migration that created `maintenance_logs`; an
+  explicit live-contract reconciliation preserves that drift without rewriting
+  history. Thirty-four portable application migrations plus the reconciliation
+  reproduce all seven live schema fingerprints exactly in disposable
+  PostgreSQL 17. The two managed `pg_cron`/`pg_net` migrations are replaced by
+  a GHOS systemd timer. All seven Edge Functions pass secret-free local
+  acceptance. Its browser/PWA client is environment-switchable on migration
+  branch `codex/self-hosted-supabase-config`. See
   `projects/winterwatch-pro.md`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
   Sandbox is the canonical dispatch application and must own the final dispatch
