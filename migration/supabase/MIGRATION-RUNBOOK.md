@@ -38,7 +38,7 @@ For each of the five production applications:
 - [x] Local-Delivery Storage restored to the isolated lab with byte-for-byte verification
 - [x] WinterWatch private Storage objects and metadata exported and SHA-256 verified
 - [ ] WinterWatch private Storage export encrypted and retained off the Mac
-- [ ] WinterWatch private Storage restored to the isolated lab with byte-for-byte verification
+- [x] WinterWatch private Storage restored to the isolated lab with byte-for-byte verification
 - [ ] Edge Function source and secret-name manifest captured
 - [ ] Full database, Auth, and Storage restore completed in an isolated environment
 - [ ] Restore validation report retained

@@ -54,6 +54,21 @@ def sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_missing_object_error(error: urllib.error.HTTPError) -> bool:
+    """Handle hosted and self-hosted Storage missing-object responses."""
+    if error.code == 404:
+        return True
+    if error.code != 400:
+        return False
+    try:
+        payload = json.loads(error.read().decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    return payload.get("code") == "NoSuchKey" or payload.get("error") == (
+        "not_found"
+    )
+
+
 class LabStorage:
     def __init__(
         self, base_url: str, service_key: str, timeout: int, retries: int
@@ -97,7 +112,7 @@ class LabStorage:
                 "A destination object exists with different bytes"
             )
         except urllib.error.HTTPError as error:
-            if error.code != 404:
+            if not is_missing_object_error(error):
                 raise
 
         metadata = entry.get("metadata")

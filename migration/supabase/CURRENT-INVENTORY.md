@@ -141,9 +141,10 @@ Only secret names were inventoried.
   a GHOS systemd timer. All seven Edge Functions pass secret-free local
   acceptance. Its browser/PWA client is environment-switchable on migration
   branch `codex/self-hosted-supabase-config`. All 92 private `work-photos`
-  objects (232,094,733 bytes) have been exported and SHA-256 inventoried on the
-  Mac; encrypted off-Mac retention and isolated byte-for-byte restore remain
-  gates. See
+  objects (232,094,733 bytes) have been exported, SHA-256 inventoried, copied
+  to the GHOS VM with zero hash mismatches, and restored into the isolated lab
+  with byte-for-byte verification. A successful encrypted Backblaze B2 snapshot
+  containing the VM copy remains the Storage recovery gate. See
   `projects/winterwatch-pro.md`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
   Sandbox is the canonical dispatch application and must own the final dispatch

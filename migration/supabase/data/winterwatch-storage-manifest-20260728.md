@@ -38,6 +38,25 @@ Manifest SHA-256:
 
 `382e8555cec5771f9a286e77c469795da84ac5548d9165e96103b7bd275db580`
 
-The ignored export remains sensitive production data. It is not yet counted as
-durable recovery media until it is encrypted, copied off the Mac, and restored
-byte-for-byte into an isolated WinterWatch lab.
+## Recovery rehearsal
+
+The ignored export was copied to the GHOS VM over the encrypted Tailscale/SSH
+path on 2026-07-28. The VM copy independently verified:
+
+- 92 object files;
+- 232,094,733 object bytes;
+- the approved manifest SHA-256; and
+- zero per-object SHA-256 mismatches.
+
+The same export was restored into the isolated localhost Supabase lab and every
+restored object was downloaded again for SHA-256 comparison:
+
+- uploaded: 92;
+- reused: 0;
+- verified: 92;
+- hash mismatches: 0; and
+- verified bytes: 232,094,733.
+
+The off-Mac VM copy remains sensitive production data and is excluded from Git.
+It becomes durable off-site recovery media only after the root-only GHOS backup
+service includes it in a successful encrypted Backblaze B2 snapshot.

@@ -5,8 +5,10 @@ Managed project: WinterWatch-Pro (`caegybyfdkmgjrygnavg`)
 Canonical source: `/Users/mattstengel/winterwatch`
 
 Status: read-only live inventory and exact PostgreSQL 17 application-schema
-rehearsal passed. Production rows, Auth identities, Storage objects, secrets,
-Realtime behavior, and external callbacks have not been migrated.
+rehearsal passed. All private Storage objects have been exported, copied to the
+GHOS VM, restored into the isolated lab, and byte-verified. Production database
+rows, Auth identities, secrets, Realtime behavior, and external callbacks have
+not been migrated.
 
 ## Read-only managed inventory
 
@@ -142,8 +144,19 @@ The initial private export completed on 2026-07-28:
 
 The tracked, non-sensitive checkpoint is
 `migration/supabase/data/winterwatch-storage-manifest-20260728.md`. The ignored
-private export must still be encrypted, copied off the Mac, and restored
-byte-for-byte into an isolated WinterWatch lab.
+private export was copied to the GHOS VM and independently verified there with
+zero mismatches. It was also restored into the isolated localhost Supabase lab:
+92 objects and 232,094,733 bytes were uploaded and downloaded again with zero
+SHA-256 mismatches.
+
+The remaining Storage recovery gate is to register the VM copy with the
+root-only GHOS backup source list and complete an encrypted Backblaze B2
+snapshot. The guarded registration command is:
+
+```bash
+cd /opt/ghos
+sudo ./tools/register_winterwatch_storage_backup.sh
+```
 
 ## Managed scheduler replacement
 
@@ -195,9 +208,10 @@ remains retained as migration evidence.
 
 1. Capture an encrypted production database/Auth export without resetting the
    managed database password.
-2. Encrypt and copy the verified private `work-photos` export off the Mac.
-3. Restore database, Auth, and Storage into the isolated lab and validate RLS
-   and all 92 object hashes.
+2. Complete and verify an encrypted Backblaze B2 snapshot containing the
+   verified off-Mac `work-photos` export.
+3. Restore the production database and Auth into the isolated lab and validate
+   application RLS alongside the already verified 92 Storage object hashes.
 4. Test approved staging credentials for every external Edge Function service.
 5. Run the WinterWatch web/mobile client against the candidate backend through
    environment configuration. The environment-switchable client is committed
