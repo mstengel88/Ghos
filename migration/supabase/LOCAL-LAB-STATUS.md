@@ -187,8 +187,32 @@ temporary database on exit.
 - queue claim and completion behavior; and
 - rate-limit increment behavior.
 
-Production rows, exact managed-schema comparison, secret values, and external
-callbacks remain gated. See `projects/dump-site.md`.
+Exact managed-schema comparison and read-only aggregate production inventory
+are complete. Production row payloads, secret values, and external callbacks
+remain gated. See `projects/dump-site.md`.
+
+## Dump Site clean-room API recovery
+
+The Dump Site candidate now passes a full local API recovery rehearsal. The
+guarded verifier:
+
+- creates a private safety dump and disposable clone of the Supabase platform
+  database;
+- applies all eight canonical migrations;
+- validates the three-table, three-RLS-table, zero-policy service-only
+  contract;
+- confirms anonymous/browser access is denied;
+- creates a synthetic service-role submission through PostgREST;
+- verifies generated confirmation `201-D10000`;
+- claims and completes the CounterPoint bridge entry through its service-role
+  RPCs; and
+- deletes the fixture and restores Local-Delivery plus all local services
+  automatically.
+
+The successful 2026-07-29 rehearsal was followed by an independent check that
+Local-Delivery was restored with 22 public tables and 26 policies. No temporary
+candidate databases remained. Edge Function authorization and synchronized
+iOS/Android endpoint checks also passed afterward.
 
 ## Ticket Printer isolated compatibility rehearsal
 

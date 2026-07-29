@@ -6,9 +6,9 @@ Canonical source:
 `/Users/mattstengel/Documents/GreenHills APP/supabase`
 
 Status: local PostgreSQL 17 schema, exact managed-schema comparison,
-queue-workflow rehearsal, and both Edge Function authorization contracts pass.
-Production rows, production secrets, client cutover, and external callbacks
-are not migrated.
+queue-workflow rehearsal, clean-room PostgREST recovery, and both Edge
+Function authorization contracts pass. Production rows, production secrets,
+client cutover, and external callbacks are not migrated.
 
 ## Application contract
 
@@ -41,6 +41,34 @@ Run it with:
 
 ```bash
 tools/verify_dump_site_schema.sh
+```
+
+## Clean-room API recovery
+
+The Dump Site candidate also passes a guarded Supabase API recovery rehearsal.
+The verifier clones the local platform database, rebuilds only the clone's
+application schema, applies all eight migrations, and temporarily activates
+the clone while retaining a private safety dump.
+
+Acceptance proves:
+
+- the three-table, three-RLS-table, zero-policy service-only contract;
+- anonymous/browser access to `dump_site_entries` is rejected;
+- service-role PostgREST insert and read access;
+- the first generated confirmation number is `201-D10000`;
+- disabled Modern Retail submissions enter the CounterPoint queue;
+- the service-role RPC can claim and complete that queue entry; and
+- the completed entry records the expected CounterPoint ticket.
+
+The test deletes its synthetic entry, restores the Local-Delivery database and
+all local Supabase services through an exit trap, and removes the disposable
+candidate database. After the successful 2026-07-29 run, Local-Delivery was
+independently confirmed restored with 22 public tables and 26 policies.
+
+Run it with:
+
+```bash
+tools/verify_dump_site_api_recovery.sh
 ```
 
 ## Edge Function compatibility
@@ -184,7 +212,8 @@ reports, or command history.
 1. Capture an encrypted exact database export without resetting a production
    database password.
 2. Restore the encrypted data export into the isolated Dump Site database and
-   verify counts, constraints, and generated-number sequence state.
+   verify counts, constraints, and the two production generated-number
+   sequence positions. The empty clean-room API path already passes.
 3. Capture the Edge Function secret values through an authorized private
    handoff and test Shopify, email, QR, and bridge callbacks using staging
    credentials. The local authorization contract already passes with test-only

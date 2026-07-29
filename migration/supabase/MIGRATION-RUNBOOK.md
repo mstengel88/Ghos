@@ -87,6 +87,9 @@ For each of the five production applications:
       bridge-secret contracts pass in the isolated local Edge Runtime
 - [x] Dump Site iOS/Android endpoint parity has a cutover-safe verification
       command; both clients currently remain on managed Supabase
+- [x] Dump Site clean-room API recovery passes service-only PostgREST insert,
+      generated `201-D` numbering, CounterPoint RPC claim/completion, browser
+      denial, cleanup, and automatic Local-Delivery restoration
 - [x] Ticket Printer application migrations pass on disposable PostgreSQL 17
 - [x] Ticket Printer Edge Functions pass secret-free local acceptance
 - [x] Ticket Printer managed `pg_cron` task has a GHOS systemd replacement
