@@ -57,6 +57,52 @@ if [[ -z "$service_key_length" || "$service_key_length" -lt 20 ]]; then
   exit 1
 fi
 
+service_key="$(
+  awk -F= '
+    $1 == "SUPABASE_SERVICE_ROLE_KEY" {
+      value = substr($0, index($0, "=") + 1)
+      gsub(/^["'\'']|["'\'']$/, "", value)
+      print value
+      exit
+    }
+  ' "$env_file"
+)"
+
+if [[ "$service_key" == sb_secret_* ]]; then
+  :
+elif [[ "$service_key" == *.*.* ]]; then
+  jwt_payload="${service_key#*.}"
+  jwt_payload="${jwt_payload%%.*}"
+  while (( ${#jwt_payload} % 4 != 0 )); do
+    jwt_payload="${jwt_payload}="
+  done
+  jwt_payload="${jwt_payload//_//}"
+  jwt_payload="${jwt_payload//-/+}"
+  if base64 --help >/dev/null 2>&1; then
+    key_role="$(
+      printf '%s' "$jwt_payload" |
+        base64 --decode 2>/dev/null |
+        jq -r '.role // empty'
+    )"
+  else
+    key_role="$(
+      printf '%s' "$jwt_payload" |
+        base64 -D 2>/dev/null |
+        jq -r '.role // empty'
+    )"
+  fi
+  if [[ "$key_role" != "service_role" ]]; then
+    printf '%s\n' \
+      'Refusing a legacy Supabase key whose JWT role is not service_role.' \
+      'Use the project service_role key or a modern sb_secret_ key, not the anon/publishable key.' >&2
+    exit 1
+  fi
+else
+  printf '%s\n' \
+    'The configured key is neither a legacy service_role JWT nor a modern sb_secret_ key.' >&2
+  exit 1
+fi
+
 python3 "$repo_root/tools/export_supabase_storage.py" \
   --env-file "$env_file" \
   --bucket work-photos \
