@@ -7,6 +7,10 @@ candidate_migration="$(
   cd "$(dirname "${BASH_SOURCE[0]}")/.."
   pwd
 )/migration/supabase/candidates/ticket-printer/000_live_dispatch_bridge.sql"
+api_grants_migration="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")/.."
+  pwd
+)/migration/supabase/candidates/ticket-printer/001_api_grants.sql"
 db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 database_name="ghos_ticket_printer_rehearsal_$$"
 scheduler_migration="20260511173000_schedule_loadrite_sync_every_5_minutes.sql"
@@ -24,6 +28,11 @@ fi
 if [[ ! -f "$candidate_migration" ]]; then
   printf 'Ticket Printer live-schema candidate not found: %s\n' \
     "$candidate_migration" >&2
+  exit 1
+fi
+if [[ ! -f "$api_grants_migration" ]]; then
+  printf 'Ticket Printer API grants candidate not found: %s\n' \
+    "$api_grants_migration" >&2
   exit 1
 fi
 
@@ -111,6 +120,9 @@ fi
 docker exec -i "$db_container" \
   psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" \
   <"$candidate_migration" >/dev/null
+docker exec -i "$db_container" \
+  psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" \
+  <"$api_grants_migration" >/dev/null
 
 contract="$(
   docker exec "$db_container" \

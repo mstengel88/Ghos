@@ -92,6 +92,9 @@ For each of the five production applications:
 - [x] Ticket Printer managed `pg_cron` task has a GHOS systemd replacement
 - [x] Ticket Printer browser and Loadrite migration candidates require
       environment-specific Supabase configuration and pass build/tests
+- [x] Ticket Printer clean-room Supabase API recovery passes service-role
+      PostgREST, password Auth, profile/default-role provisioning, RLS-filtered
+      profile access, and cleanup; explicit self-hosted API grants are retained
 - [x] WinterWatch-Pro application migrations pass on disposable PostgreSQL 17
 - [x] WinterWatch-Pro live schema, row totals, Auth totals, Storage totals and
       policies, Realtime publication, cron schedules, and eight fingerprints

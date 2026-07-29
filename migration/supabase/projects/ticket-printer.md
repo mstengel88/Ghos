@@ -44,6 +44,38 @@ The 39th migration is infrastructure-specific. It installs `pg_cron` and
 That migration is intentionally excluded from the isolated schema rehearsal
 and must not be applied to the self-hosted application database.
 
+## Clean-room API recovery rehearsal
+
+`tools/verify_ticket_printer_api_recovery.sh` now clones the local Supabase
+platform database, replaces only the clone's application schema with Ticket
+Printer, and temporarily activates that clone for API acceptance. Before the
+swap it creates a private safety dump. A cleanup trap restores the canonical
+Local-Delivery database and all local Supabase services on success or failure.
+
+The rehearsal verifies:
+
+- the 14-table live schema contract and RLS on every public table;
+- service-role PostgREST access;
+- administrator creation of a disposable Auth user;
+- password login through GoTrue;
+- automatic profile and default-role provisioning;
+- authenticated, RLS-filtered access to the new user's own profile; and
+- deletion of the disposable user.
+
+The first clean-room run exposed a platform dependency absent from the
+historical application migrations: managed Supabase supplies Data API grants
+outside that migration chain. Without equivalent grants, PostgREST returned
+`403` even to the local service role. The reviewed candidate
+`migration/supabase/candidates/ticket-printer/001_api_grants.sql` now recreates
+the standard schema/table/sequence/function grants and default privileges.
+Because all 14 public tables have RLS enabled, those privileges allow policies
+to be evaluated; they do not independently grant browser roles row access.
+The two dispatch bridge tables still have no browser policies and remain
+service-role-only.
+
+The complete recovery rehearsal passed on 2026-07-29, after which the
+Local-Delivery lab was restored with its 22-table, 26-policy contract intact.
+
 ## Historical Auth coupling
 
 Two historical migrations directly reference three managed Auth user UUIDs.

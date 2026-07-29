@@ -423,6 +423,24 @@ quotes that intentionally have no owner, and marks any unmapped owner as not
 ready for import. The synthetic suite passed on 2026-07-28 and rolled back all
 fixtures.
 
+## Ticket Printer clean-room API recovery
+
+The Ticket Printer candidate now passes a full local API recovery rehearsal,
+not only a plain PostgreSQL schema test. The guarded verifier:
+
+- creates a private safety dump and disposable clone of the Supabase platform
+  database;
+- applies 38 portable migrations plus the two live-contract candidates;
+- validates the 14-table, 53-policy application contract;
+- tests service-role PostgREST access, password Auth, profile and default-role
+  provisioning, RLS-filtered profile access, and user deletion; and
+- restores the Local-Delivery database and all local services automatically.
+
+The rehearsal exposed and fixed the missing self-hosted Data API grants that
+managed Supabase normally supplies outside application migrations. After the
+successful 2026-07-29 run, Local-Delivery was independently confirmed restored
+with 22 public tables and 26 policies.
+
 ## Photo migration inventory
 
 A read-only Storage/reference inventory found 470 current objects totaling
