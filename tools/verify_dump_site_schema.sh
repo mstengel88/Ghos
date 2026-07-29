@@ -29,13 +29,20 @@ if [[ "$container_status" != "running|healthy" ]]; then
 fi
 
 cleanup() {
-  docker exec "$db_container" \
+  docker exec -i "$db_container" \
     dropdb -U postgres --if-exists "$database_name" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 docker exec "$db_container" \
   createdb -U postgres -T template0 "$database_name"
+
+docker exec -i "$db_container" \
+  psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" \
+  >/dev/null <<'SQL'
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+SQL
 
 migration_count=0
 for migration in "$migration_dir"/*.sql; do
@@ -234,5 +241,77 @@ end
 $verification$;
 SQL
 
+schema_fingerprints="$(
+  docker exec -i "$db_container" \
+    psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" -At <<'SQL'
+with columns_data as (
+  select table_name, ordinal_position, column_name, data_type, udt_name,
+         is_nullable, coalesce(column_default, '') as column_default,
+         coalesce(generation_expression, '') as generation_expression
+  from information_schema.columns
+  where table_schema = 'public'
+  order by table_name, ordinal_position
+), constraints_data as (
+  select c.relname as table_name, con.conname,
+         pg_get_constraintdef(con.oid, true) as definition
+  from pg_constraint con
+  join pg_class c on c.oid = con.conrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+  order by c.relname, con.conname
+), indexes_data as (
+  select tablename as table_name, indexname, indexdef
+  from pg_indexes
+  where schemaname = 'public'
+  order by tablename, indexname
+), functions_data as (
+  select p.proname, pg_get_function_identity_arguments(p.oid) as arguments,
+         pg_get_functiondef(p.oid) as definition
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+  order by p.proname, arguments
+), triggers_data as (
+  select c.relname as table_name, t.tgname,
+         pg_get_triggerdef(t.oid, true) as definition
+  from pg_trigger t
+  join pg_class c on c.oid = t.tgrelid
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public' and not t.tgisinternal
+  order by c.relname, t.tgname
+)
+select concat_ws(
+  '|',
+  (select md5(string_agg(row_to_json(columns_data)::text, E'\n'))
+   from columns_data),
+  (select md5(string_agg(row_to_json(constraints_data)::text, E'\n'))
+   from constraints_data),
+  (select md5(string_agg(row_to_json(indexes_data)::text, E'\n'))
+   from indexes_data),
+  (select md5(string_agg(row_to_json(functions_data)::text, E'\n'))
+   from functions_data),
+  (select md5(string_agg(row_to_json(triggers_data)::text, E'\n'))
+   from triggers_data)
+);
+SQL
+)"
+
+expected_fingerprints="$(
+  printf '%s' \
+    'f6464afaf39d2b4ec48629490de5edaa|' \
+    '41001e8debab49bf744c5f5d1a641cdc|' \
+    'e66b81388668af3f3f0606a34a797231|' \
+    '90d1ea47e1df769bbb8520e09a447663|' \
+    'f451626de7cb25eb6b0a4077e7b35aec'
+)"
+
+if [[ "$schema_fingerprints" != "$expected_fingerprints" ]]; then
+  printf 'Dump Site schema differs from the 2026-07-28 live contract.\n' >&2
+  printf 'Expected: %s\nActual:   %s\n' \
+    "$expected_fingerprints" "$schema_fingerprints" >&2
+  exit 1
+fi
+
 printf '%s\n' \
-  'Dump Site PostgreSQL 17 schema and queue workflow verification passed.'
+  'Dump Site PostgreSQL 17 schema and queue workflow verification passed.' \
+  'The disposable schema matches all five 2026-07-28 live fingerprints.'

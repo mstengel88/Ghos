@@ -72,6 +72,8 @@ For each of the five production applications:
       embedded database images, and unresolved photo payloads
 - [x] Dump Site eight-migration schema, RLS, generated order number, rate
       limit, and CounterPoint queue workflow pass in disposable PostgreSQL 17
+- [x] Dump Site live schema fingerprints, aggregate row counts, Auth, Storage,
+      Realtime, extensions, and sequence state reconciled read-only
 - [x] Dump Site Edge Function method, QR-token, submission-validation, and
       bridge-secret contracts pass in the isolated local Edge Runtime
 - [x] Dump Site iOS/Android endpoint parity has a cutover-safe verification

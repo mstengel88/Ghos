@@ -1,6 +1,6 @@
 # Current managed Supabase inventory
 
-Inventory date: 2026-07-27
+Inventory date: 2026-07-28
 
 This document combines local source inspection with read-only Supabase
 Management API metadata. No production rows, credentials, API keys, JWTs, or
@@ -152,8 +152,11 @@ Only secret names were inventoried.
   secret-free configuration acceptance. See
   `projects/greenhills-quote-live.md` for the MCP-backed inventory.
 - Dump Site: eight migrations, `pgcrypto`, queue/claim RPC functions, and two
-  Edge Functions. Its migrations and core queue workflow now pass in a
-  disposable PostgreSQL 17 database. Both Edge Functions also pass local
+  Edge Functions. Read-only MCP reconciliation confirms the live three-table
+  schema, all five schema fingerprints, eight-entry migration history, six
+  production entries, no Auth users, no Storage objects, and no Realtime
+  publication. Its migrations and core queue workflow pass in a disposable
+  PostgreSQL 17 database. Both Edge Functions also pass local
   authorization-contract acceptance with test-only credentials, and the iOS
   and Android managed-URL cutover points are documented; see
   `projects/dump-site.md`.

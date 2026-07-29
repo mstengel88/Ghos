@@ -5,10 +5,10 @@ Managed project: Dump Site (`bnethnlrhwcjgjgjvoxz`)
 Canonical source:
 `/Users/mattstengel/Documents/GreenHills APP/supabase`
 
-Status: local PostgreSQL 17 schema, queue-workflow rehearsal, and both Edge
-Function authorization contracts pass. Production rows, exact managed schema
-comparison, production secrets, client cutover, and external callbacks are not
-migrated.
+Status: local PostgreSQL 17 schema, exact managed-schema comparison,
+queue-workflow rehearsal, and both Edge Function authorization contracts pass.
+Production rows, production secrets, client cutover, and external callbacks
+are not migrated.
 
 ## Application contract
 
@@ -28,8 +28,14 @@ The source contains eight ordered migrations. Together they create:
 The local rehearsal applies all eight migrations to a disposable database
 inside the pinned Supabase PostgreSQL 17 container. It verifies table and
 column counts, RLS, role grants, order-number generation, automatic queueing,
-claim/completion behavior, and rate limiting. The disposable database is
-removed after every run.
+claim/completion behavior, and rate limiting. It also compares normalized
+column, constraint, index, function, and trigger fingerprints with the
+read-only live inventory. The disposable database is removed after every run.
+
+The rehearsal pre-installs `pgcrypto` in the `extensions` schema, matching
+managed Supabase. Without that bootstrap, a blank PostgreSQL database installs
+the extension into `public`, making platform functions look like false
+application-schema drift.
 
 Run it with:
 
@@ -116,6 +122,49 @@ the Supabase Management API. Managed versions were active at inventory time:
 `verify_jwt: false`; the API implements its own access checks, and the bridge
 requires a shared bearer secret.
 
+## Managed-project inventory
+
+Read-only Supabase MCP inspection on 2026-07-28 confirmed:
+
+- PostgreSQL 17.6.1.147;
+- approximately 10.8 MB total database size;
+- all eight managed migration-history entries exactly match local migration
+  names and ordering;
+- three public tables, all with RLS enabled;
+- zero public policies, matching the service-only access model;
+- nine public functions and two application triggers;
+- zero Auth users, identities, and sessions;
+- zero Storage buckets and objects;
+- no table in the `supabase_realtime` publication; and
+- the same two active Edge Functions already captured in source inventory.
+
+No row payloads, credentials, secret values, or API keys were retrieved.
+
+Aggregate application state:
+
+| Object | Count |
+|---|---:|
+| `dump_site_sessions` | 17 |
+| `dump_site_entries` | 6 |
+| `dump_site_rate_limits` | 16 |
+
+The six entries span 2026-07-24. Four are not requested for the CounterPoint
+bridge and two are queued. Four retain the historical Modern Retail `sent`
+state and two use the current `disabled` state. The two order-number sequence
+positions were captured so restore validation can prevent duplicate numbers:
+
+- `dump_site_order_number_seq`: last value `10001`;
+- `dump_site_201_d_order_number_seq`: last value `10002`.
+
+The normalized live fingerprints are now enforced by
+`tools/verify_dump_site_schema.sh`. Columns, constraints, indexes, all nine
+application functions, and both triggers match the local source.
+
+The security advisor reports only the three intentional “RLS enabled, no
+policy” notices. These tables are service-only, and browser roles have no table
+privileges. The performance advisor reports unused indexes, which is expected
+with six rows and is not sufficient reason to remove them.
+
 ## Secret-name inventory
 
 Secret values were not retrieved. The deployed functions depend on:
@@ -134,18 +183,14 @@ reports, or command history.
 
 1. Capture an encrypted exact database export without resetting a production
    database password.
-2. Compare the exact managed schema and migration history to the eight local
-   migrations.
-3. Inventory row counts and primary-key ranges without retaining customer
-   payloads in Git.
-4. Restore the encrypted data export into the isolated Dump Site database and
+2. Restore the encrypted data export into the isolated Dump Site database and
    verify counts, constraints, and generated-number sequence state.
-5. Capture the Edge Function secret values through an authorized private
+3. Capture the Edge Function secret values through an authorized private
    handoff and test Shopify, email, QR, and bridge callbacks using staging
    credentials. The local authorization contract already passes with test-only
    credentials.
-6. Deploy behind HTTPS because the Shopify and QR workflows cannot use a
+4. Deploy behind HTTPS because the Shopify and QR workflows cannot use a
    Tailscale-only callback.
-7. Run the GHOS queue and the standalone Dump Site client against the same
+5. Run the GHOS queue and the standalone Dump Site client against the same
    candidate backend before the managed-project cutover.
-8. Keep managed Supabase intact through the rollback observation window.
+6. Keep managed Supabase intact through the rollback observation window.
