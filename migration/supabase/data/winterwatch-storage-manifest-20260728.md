@@ -58,5 +58,14 @@ restored object was downloaded again for SHA-256 comparison:
 - verified bytes: 232,094,733.
 
 The off-Mac VM copy remains sensitive production data and is excluded from Git.
-It becomes durable off-site recovery media only after the root-only GHOS backup
-service includes it in a successful encrypted Backblaze B2 snapshot.
+The root-only GHOS backup service included it in encrypted Backblaze B2
+snapshot `39e3ff2d` on 2026-07-28:
+
+- service result: success;
+- process exit status: 0;
+- snapshot size: approximately 320.2 MiB; and
+- backup run: `20260729T020300Z`.
+
+This completes the private Storage export, off-Mac encrypted retention, and
+isolated byte-for-byte restore gates. The full WinterWatch database/Auth restore
+remains separate work.

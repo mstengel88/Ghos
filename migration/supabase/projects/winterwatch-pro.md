@@ -149,9 +149,9 @@ zero mismatches. It was also restored into the isolated localhost Supabase lab:
 92 objects and 232,094,733 bytes were uploaded and downloaded again with zero
 SHA-256 mismatches.
 
-The remaining Storage recovery gate is to register the VM copy with the
-root-only GHOS backup source list and complete an encrypted Backblaze B2
-snapshot. The guarded registration command is:
+The VM copy is registered with the root-only GHOS backup source list. Encrypted
+Backblaze B2 snapshot `39e3ff2d` completed successfully on 2026-07-28 with
+process exit status zero. The registration remains idempotent and guarded by:
 
 ```bash
 cd /opt/ghos
@@ -208,13 +208,12 @@ remains retained as migration evidence.
 
 1. Capture an encrypted production database/Auth export without resetting the
    managed database password.
-2. Complete and verify an encrypted Backblaze B2 snapshot containing the
-   verified off-Mac `work-photos` export.
-3. Restore the production database and Auth into the isolated lab and validate
+2. Restore the production database and Auth into the isolated lab and validate
    application RLS alongside the already verified 92 Storage object hashes.
-4. Test approved staging credentials for every external Edge Function service.
-5. Run the WinterWatch web/mobile client against the candidate backend through
+3. Test approved staging credentials for every external Edge Function service.
+4. Run the WinterWatch web/mobile client against the candidate backend through
    environment configuration. The environment-switchable client is committed
    on WinterWatch branch `codex/self-hosted-supabase-config` at `337bf8f`.
-6. Complete a backup/restore drill and a rehearsed maintenance-window cutover.
-7. Keep managed Supabase intact through the rollback observation window.
+5. Complete a full database/Auth backup/restore drill and a rehearsed
+   maintenance-window cutover.
+6. Keep managed Supabase intact through the rollback observation window.
