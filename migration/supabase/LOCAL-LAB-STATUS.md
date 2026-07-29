@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-28
+Last verified: 2026-07-29
 
 ## Baseline
 
@@ -122,6 +122,34 @@ Post-test cleanup was verified:
 - Auth users: 0
 - Storage buckets: 0
 - Storage objects: 0
+
+## WinterWatch production restore rehearsal
+
+The encrypted 2026-07-29 production database/Auth export restored successfully
+to an isolated clone in the pinned PostgreSQL 17 compatibility lab. The
+existing Local-Delivery `postgres` database was not reset or overwritten.
+
+Verification passed:
+
+- all expected rows across 20 public tables;
+- 20 of 20 public tables with RLS and 74 policies;
+- 12 Auth users, 13 identities, and zero orphan identities;
+- 12 profiles and zero orphan profiles;
+- one Storage bucket and 92 object metadata rows;
+- zero invalid or unready indexes; and
+- zero unvalidated constraints.
+
+The signed export remains unchanged. A rehearsal-only schema copy skips
+`pg_cron`, which cannot be installed in a clone database, and a rehearsal-only
+data copy removes the empty managed-only
+`auth.custom_oauth_providers.custom_claims_allowlist` COPY header column. The
+tool aborts if that table contains any rows. See `projects/winterwatch-pro.md`
+and:
+
+```bash
+tools/rehearse_winterwatch_restore.sh
+tools/verify_winterwatch_restore.sh
+```
 
 ## Dump Site isolated schema rehearsal
 

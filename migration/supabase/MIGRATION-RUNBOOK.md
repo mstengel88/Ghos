@@ -31,17 +31,20 @@ For each of the five production applications:
 
 - [x] GHOS logical backup, encrypted dual-repository snapshot, retention,
       integrity-check, and automated PostgreSQL restore-drill tooling committed
-- [ ] Encrypted managed database export created
+- [x] WinterWatch encrypted managed database/Auth export created without a
+      managed database password reset
 - [ ] Managed database password reset impact gate passes for each project
-- [ ] Auth schema recovery approach tested
+- [x] WinterWatch Auth schema and identity recovery approach tested in an
+      isolated PostgreSQL 17 restore
 - [x] Local-Delivery Storage objects and metadata exported and SHA-256 verified
 - [x] Local-Delivery Storage restored to the isolated lab with byte-for-byte verification
 - [x] WinterWatch private Storage objects and metadata exported and SHA-256 verified
 - [x] WinterWatch private Storage export encrypted and retained off the Mac
 - [x] WinterWatch private Storage restored to the isolated lab with byte-for-byte verification
 - [ ] Edge Function source and secret-name manifest captured
-- [ ] Full database, Auth, and Storage restore completed in an isolated environment
-- [ ] Restore validation report retained
+- [x] WinterWatch database, Auth, and Storage metadata restored and verified in
+      an isolated environment; 92 Storage binaries were restored separately
+- [x] WinterWatch restore validation results and repeatable tooling retained
 - [ ] Off-host backup copy created
 
 ## Gate 3 — Local compatibility
@@ -92,6 +95,10 @@ For each of the five production applications:
       reconciled read-only
 - [x] WinterWatch-Pro managed overtime scheduler has a GHOS systemd replacement
 - [x] WinterWatch-Pro Edge Functions pass secret-free local acceptance
+- [x] WinterWatch-Pro application-owned collation indexes and main `postgres`
+      database collation repaired and verified with zero invalid indexes
+- [ ] Supabase platform owner refreshes WinterWatch-Pro `template1` collation
+      metadata; this platform-only warning does not block application migration
 - [ ] No production secret exists in source control or container images
 
 ## Gate 4 — GHSSERVER deployment

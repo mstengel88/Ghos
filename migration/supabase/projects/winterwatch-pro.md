@@ -4,11 +4,11 @@ Managed project: WinterWatch-Pro (`caegybyfdkmgjrygnavg`)
 
 Canonical source: `/Users/mattstengel/winterwatch`
 
-Status: read-only live inventory and exact PostgreSQL 17 application-schema
-rehearsal passed. All private Storage objects have been exported, copied to the
-GHOS VM, restored into the isolated lab, and byte-verified. Production database
-rows, Auth identities, secrets, Realtime behavior, and external callbacks have
-not been migrated.
+Status: live inventory, exact PostgreSQL 17 application-schema rehearsal, and
+an isolated production database/Auth/Storage-metadata restore rehearsal passed.
+All private Storage objects have been exported, copied to the GHOS VM, restored
+into the isolated lab, and byte-verified. Secrets, Realtime client behavior,
+and external callbacks have not been migrated.
 
 ## Read-only managed inventory
 
@@ -37,8 +37,8 @@ Public-table row counts:
 | Table | Rows |
 |---|---:|
 | `accounts` | 24 |
-| `audit_logs` | 838 |
-| `employee_locations` | 1 |
+| `audit_logs` | 840 |
+| `employee_locations` | 3 |
 | `employees` | 15 |
 | `equipment` | 14 |
 | `maintenance_logs` | 1 |
@@ -59,6 +59,110 @@ Public-table row counts:
 
 These are reconciliation counts, not a data export. They will be captured
 again immediately before and after the isolated restore.
+
+## Managed collation repair
+
+On 2026-07-28, the live application database reported a stored collation
+version of `153.120` while the operating-system collation provider reported
+`153.121`. The same production-safe repair already proven on Local Delivery
+and Ticket Printer was applied:
+
+- all eight valid, ready, application-owned indexes with collation
+  dependencies were reindexed;
+- `ALTER DATABASE postgres REFRESH COLLATION VERSION` completed successfully;
+- the live `postgres` database now reports `153.121` for both the stored and
+  actual collation versions; and
+- post-repair verification found zero invalid or unready indexes.
+
+The Supabase-owned `template1` database still reports stored version `153.120`
+and actual version `153.121`. The temporary-access `postgres` role does not own
+`template1` and is not a member of its `supabase_admin` owner, so refreshing it
+requires Supabase platform ownership. This does not block WinterWatch traffic,
+the production export, or the isolated restore.
+
+Post-repair reconciliation preserved the schema fingerprints and current
+application totals. The only count changes from the earlier read-only snapshot
+were normal live activity: `audit_logs` increased from 838 to 840 and
+`employee_locations` increased from one to three. Auth remains at 12 users and
+13 identities, Storage remains at 92 verified objects, and all seven Edge
+Functions remain active. Both local verification commands pass:
+
+```bash
+tools/verify_winterwatch_schema.sh
+tools/verify_winterwatch_edge_functions.sh
+```
+
+## Encrypted database and Auth export
+
+An encrypted production export was captured on 2026-07-29 through Supabase
+temporary database access without resetting the managed database password. It
+contains:
+
+- the filtered role settings produced by Supabase's official migration script;
+- the application schema;
+- all application rows;
+- 12 Auth users and 13 Auth identities; and
+- one Storage bucket plus metadata for 92 private objects.
+
+The official Supabase dump scripts are pinned to CLI commit
+`ac24960aeccfd7b2cfc0e59629c732f03f1a55a8` and verified by SHA-256 before
+execution. Unencrypted SQL exists only in a private temporary directory. The
+final AES-256-CBC/PBKDF2 archive is ignored by Git at:
+
+```text
+migration/supabase/exports/winterwatch-pro/20260729T115619Z/
+```
+
+Its encryption password is stored in macOS Keychain under service
+`GHOS Migration Export Encryption`, account `winterwatch-pro`; it is not in
+source control or this document. A sealed recovery copy of that password is
+still required.
+
+Future exports use:
+
+```bash
+tools/export_winterwatch_database.sh
+```
+
+## Isolated production restore rehearsal
+
+The encrypted export was decrypted locally and restored into the isolated
+database `winterwatch_rehearsal_20260729` in the pinned self-hosted Supabase
+PostgreSQL 17 lab. The existing Local-Delivery `postgres` database and its data
+were not reset or overwritten.
+
+The rehearsal verified:
+
+- all 20 public tables and their expected production row counts;
+- RLS enabled on all 20 public tables and all 74 public policies;
+- 12 Auth users and 13 identities with zero orphan identities;
+- 12 profiles with zero orphan profiles;
+- one Storage bucket and metadata for all 92 objects;
+- zero invalid or unready indexes; and
+- zero unvalidated application/Auth/Storage constraints.
+
+Two managed-schema compatibility differences were handled only in temporary
+rehearsal copies; the signed production export was never edited:
+
+- `pg_cron` can only be installed in the self-hosted stack's configured
+  `postgres` database, so extension creation is skipped in the isolated clone.
+  GHOS already has the reviewed systemd scheduler replacement.
+- managed Auth has
+  `auth.custom_oauth_providers.custom_claims_allowlist`, while the pinned
+  self-hosted Auth schema does not. The production table contains zero rows.
+  The rehearsal removes only that empty COPY header column and refuses to
+  continue if the table ever contains rows.
+
+Repeatable tooling now lives at:
+
+```bash
+tools/rehearse_winterwatch_restore.sh
+tools/verify_winterwatch_restore.sh
+```
+
+Cluster-wide role settings are skipped by default in the shared compatibility
+lab. They can be applied only by explicitly setting
+`WINTERWATCH_APPLY_CLUSTER_ROLES=1` on a disposable target cluster.
 
 ## PostgreSQL 17 rehearsal
 
@@ -206,10 +310,9 @@ remains retained as migration evidence.
 
 ## Remaining gates
 
-1. Capture an encrypted production database/Auth export without resetting the
-   managed database password.
-2. Restore the production database and Auth into the isolated lab and validate
-   application RLS alongside the already verified 92 Storage object hashes.
+1. Store a sealed recovery copy of the database-export encryption password.
+2. Test Auth and Storage through the full self-hosted APIs against the restored
+   candidate, including a sample of the separately restored object binaries.
 3. Test approved staging credentials for every external Edge Function service.
 4. Run the WinterWatch web/mobile client against the candidate backend through
    environment configuration. The environment-switchable client is committed

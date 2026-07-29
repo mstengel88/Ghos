@@ -144,7 +144,17 @@ Only secret names were inventoried.
   objects (232,094,733 bytes) have been exported, SHA-256 inventoried, copied
   to the GHOS VM with zero hash mismatches, and restored into the isolated lab
   with byte-for-byte verification. The VM copy is now retained in successful
-  encrypted Backblaze B2 snapshot `39e3ff2d`. See
+  encrypted Backblaze B2 snapshot `39e3ff2d`. On 2026-07-28 its eight
+  application-owned collation-dependent indexes were reindexed and the live
+  `postgres` database collation was refreshed from `153.120` to `153.121`;
+  verification found zero invalid indexes and both local schema and Edge
+  Function acceptance suites pass. Supabase-owned `template1` retains the
+  platform-level version warning because the temporary-access role does not
+  own it; this does not block application traffic or export. An encrypted
+  database/Auth/Storage-metadata export and isolated restore rehearsal now also
+  pass: 20 public tables with RLS, 74 policies, 12 Auth users, 13 identities,
+  92 Storage metadata rows, zero orphan identities/profiles, zero invalid
+  indexes, and zero unvalidated constraints. See
   `projects/winterwatch-pro.md`.
 - Local-Delivery/ShipCalc: four local migrations in `shipcalc2`; Dispatch V2
   Sandbox is the canonical dispatch application and must own the final dispatch
