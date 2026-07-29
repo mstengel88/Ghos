@@ -82,7 +82,16 @@ KNOWN_AUTH_METHODS = {
 
 
 def is_included(path: Path) -> bool:
-    return not any(part in EXCLUDED_PARTS for part in path.parts)
+    if any(part in EXCLUDED_PARTS for part in path.parts):
+        return False
+
+    # Capacitor and similar web wrappers copy compiled Vite bundles into
+    # public/assets. Those files are deployment output, not authoritative
+    # source, and can retain endpoints from an older build.
+    return not any(
+        path.parts[index : index + 2] == ("public", "assets")
+        for index in range(len(path.parts) - 1)
+    )
 
 
 def read_text(path: Path) -> str:

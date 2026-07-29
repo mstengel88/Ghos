@@ -106,12 +106,24 @@ The verifier rejects managed project URLs in tracked browser or Edge Function
 runtime source. The historical cron migration still contains the managed URL
 as immutable history and remains excluded from self-hosted deployment.
 
+## Storage and Realtime static inventory
+
+The corrected secret-safe source inventory finds no Ticket Printer
+`storage.from(...)`, Realtime channel, or `postgres_changes` usage in
+authoritative source, and no Storage bucket creation in its application
+migrations. Generated Capacitor `public/assets` bundles are excluded so an old
+mobile build cannot be mistaken for current source configuration.
+
+This narrows the expected cutover contract, but it does not prove that the
+managed project has no orphaned Storage objects or database-side Realtime
+publication settings. Those remain read-only live-export checks.
+
 ## Remaining gates
 
 - Obtain an exact production database/Auth export without resetting managed
   database passwords.
 - Reconcile the managed schema and row counts against the local contract.
-- Inventory Storage and Realtime usage.
+- Confirm the static no-Storage/no-Realtime finding against the managed project.
 - Inject secret values through root-only runtime configuration.
 - Test Loadrite, Resend, Google, and agent callbacks using approved test
   endpoints.
