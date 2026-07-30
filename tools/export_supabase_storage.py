@@ -94,6 +94,7 @@ class StorageClient:
         object_name: str,
         destination: Path,
         retries: int,
+        expected_size: int | None = None,
     ) -> None:
         encoded_bucket = urllib.parse.quote(bucket, safe="")
         encoded_name = "/".join(
@@ -120,6 +121,15 @@ class StorageClient:
                             output.write(chunk)
                         output.flush()
                         os.fsync(output.fileno())
+                actual_size = temporary.stat().st_size
+                if (
+                    expected_size is not None
+                    and actual_size != expected_size
+                ):
+                    raise OSError(
+                        "Downloaded object size did not match its private "
+                        "Storage listing"
+                    )
                 temporary.replace(destination)
                 return
             except (
@@ -359,11 +369,14 @@ def main() -> int:
                     object_name,
                     destination,
                     args.retries,
+                    expected,
                 )
 
             actual_size = destination.stat().st_size
             if expected is not None and actual_size != expected:
-                raise RuntimeError("A downloaded object has an unexpected size")
+                raise RuntimeError(
+                    "A downloaded object has an unexpected size after retries"
+                )
             digest = file_sha256(destination)
             return (
                 {

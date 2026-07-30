@@ -108,6 +108,20 @@ The restore tool refuses non-localhost destinations, requires the bucket to
 exist, verifies the private source manifest before uploading, resumes matching
 objects, and downloads every restored object again for SHA-256 comparison.
 
+After the local restore report passes, create and independently decrypt-check
+an encrypted archive using the migration password already held in macOS
+Keychain:
+
+```bash
+./tools/package_supabase_storage_export.sh \
+  migration/supabase/exports/storage/local-delivery/verified-TIMESTAMP
+```
+
+The packager rehashes every object, requires the local restore report to match
+the manifest with zero hash mismatches, uses AES-256-CBC with PBKDF2, verifies
+the encrypted archive by decrypting and opening it, and writes a separate
+SHA-256 checksum. Both files remain excluded from Git.
+
 ## Prepare the self-hosted compatibility lab
 
 ```bash

@@ -109,3 +109,23 @@ be transferred by copying the Storage bucket alone.
 
 No image bytes, paths, customer data, or secret values were exported during
 this inventory.
+
+## 2026-07-29 refreshed byte snapshot
+
+This document's earlier sections preserve the 2026-07-28 point-in-time
+inventory. Because Local-Delivery remained writable, the private export was
+refreshed on 2026-07-29:
+
+- 475 objects;
+- 643,127,719 bytes;
+- private manifest SHA-256
+  `76370e8e14d248ba915eabac0b4904ec40a155f011a58d44ef4a3440dbbe428e`;
+- five new local uploads and 470 matching objects reused; and
+- zero SHA-256 mismatches after downloading all 475 restored objects.
+
+The exporter rejected and retried one transient short HTTP response before
+creating the manifest. The verified export was then encrypted with
+AES-256-CBC/PBKDF2, independently decrypted and opened, and protected by a
+separate archive checksum. All object-level evidence and archive files remain
+in Git-ignored private directories. A final delta is still required after
+production writes are paused.

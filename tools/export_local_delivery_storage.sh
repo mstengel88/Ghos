@@ -97,4 +97,4 @@ python3 "$repo_root/tools/export_supabase_storage.py" \
   --env-file "$env_file" \
   --bucket dispatch-photos \
   --output "$output_dir" \
-  --expected-count "${LOCAL_DELIVERY_STORAGE_EXPECTED_COUNT:-470}"
+  --expected-count "${LOCAL_DELIVERY_STORAGE_EXPECTED_COUNT:-475}"

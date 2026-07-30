@@ -561,3 +561,12 @@ Photo migration is not limited to Supabase Storage:
 The Storage metadata manifest, reference counts, and migration requirements are
 recorded in `data/storage-manifest-20260728.md`. No object bytes or paths were
 exported.
+
+The writable source advanced after that inventory. On 2026-07-29, a fresh
+private export captured 475 objects totaling 643,127,719 bytes. Local Storage
+API restore acceptance uploaded five new objects, reused 470 byte-identical
+objects, and downloaded all 475 back with zero SHA-256 mismatches. The export
+was then rehashed, encrypted with AES-256-CBC/PBKDF2 using the existing
+Keychain-held migration password, decrypted, opened, and checksum-verified.
+Object paths, bytes, restore evidence, and the encrypted archive remain ignored
+by Git. The remaining backup gate is an independent encrypted off-Mac copy.

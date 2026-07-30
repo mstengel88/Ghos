@@ -2,7 +2,7 @@
 
 Inventory date: 2026-07-27
 
-Follow-up data and Storage snapshot: 2026-07-28
+Follow-up data and Storage snapshots: 2026-07-28 and 2026-07-29
 
 Project ref: `mtntrlbuhcbdrngiubdu`
 
@@ -115,6 +115,10 @@ The read-only migration tooling now includes:
 - `tools/export_local_delivery_storage.sh`, which validates the project URL and
   service-role credential before privately downloading `dispatch-photos` with
   resumable object and SHA-256 manifests.
+- `tools/package_supabase_storage_export.sh`, which requires a successful local
+  restore report, rehashes every object, encrypts the verified export with the
+  existing migration key in macOS Keychain, and performs a decrypt-and-open
+  acceptance check.
 
 The database exporter never needs the long-lived database password. It uses
 Supabase temporary database access, which must be enabled for this project and
@@ -139,6 +143,25 @@ remains in macOS Keychain under service
 The export directory is intentionally ignored by Git. It still requires an
 independent encrypted off-host copy before the migration backup gate is
 complete.
+
+### Refreshed Storage-byte snapshot
+
+Production remained writable after the initial 2026-07-28 photo inventory. A
+fresh read-only inventory on 2026-07-29 found 475 objects totaling 643,127,719
+bytes. The guarded exporter downloaded and SHA-256 verified all 475 objects.
+One transient short HTTP download was rejected and retried rather than entering
+the manifest.
+
+The refreshed export then passed local Storage API recovery acceptance:
+
+- 475 objects and 643,127,719 bytes represented;
+- five new objects uploaded and 470 matching objects safely reused; and
+- all 475 objects downloaded back with zero SHA-256 mismatches.
+
+The verified private export was packaged as an AES-256-CBC/PBKDF2 archive,
+decrypted into a disposable verification file, opened successfully, and given
+an independent SHA-256 checksum. The archive and its object-level evidence are
+ignored by Git. An independent encrypted off-Mac copy remains required.
 
 ### Isolated production restore rehearsal
 
@@ -327,7 +350,7 @@ This project requires:
 1. PostgreSQL schema and data migration.
 2. Supabase Auth migration for 13 users.
 3. RLS, function, trigger, index, and Realtime verification.
-4. Transfer and validation of 470 Storage objects.
+4. Final-delta transfer and validation of at least 475 Storage objects.
 5. Recreation of Edge Functions and secret values.
 6. Shopify, Google, and public callback testing.
 7. Dispatch V2 and ShipCalc application integration testing.
