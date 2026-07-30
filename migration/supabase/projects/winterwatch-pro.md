@@ -17,7 +17,7 @@ The deployable application package is committed in the WinterWatch repository:
 
 ```text
 branch: codex/ghos-managed-supabase-package
-commit: cf46df4
+commit: d2b4808
 compose: compose.ghos.yml
 ```
 
@@ -46,12 +46,20 @@ The application package was installed on GHOS on 2026-07-30 at:
 /opt/ghos/apps/winterwatch-pro
 ```
 
-Commit `cf46df4` built successfully on the VM. The
+Commit `d2b4808` built successfully on the VM. The
 `winterwatch-pro-web` container is healthy on port `8083`, recovered cleanly
 from a container restart, and is reachable over both the GHOS LAN and Tailscale
 addresses. Its managed Supabase Auth endpoint passed an authenticated
 publishable-key connectivity check. Cloudflare Tunnel and public DNS were
 deliberately not configured during this deployment.
+
+Dependency remediation was deployed with commit `d2b4808`. The npm audit
+count fell from 29 findings (including three critical) to two package entries
+for one React Server Components advisory. WinterWatch is a static
+`BrowserRouter` application served by Nginx and has no React Server Components
+or Node.js runtime, so the remaining server-action path is not reachable.
+The reviewed exception and upgrade policy are documented in
+`docs/security-advisories.md` in the WinterWatch repository.
 
 ## Read-only managed inventory
 
