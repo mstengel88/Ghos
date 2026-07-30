@@ -88,6 +88,46 @@ as $$
   where right_payload ? item.key
 $$;
 
+create or replace function migration_reconcile.public_table_row_count(
+  requested_table_name text
+)
+returns bigint
+language plpgsql
+set search_path = ''
+as $$
+declare
+  rows bigint;
+begin
+  if not exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = requested_table_name
+      and table_type = 'BASE TABLE'
+  ) then
+    raise exception 'Unknown public base table: %', requested_table_name;
+  end if;
+
+  execute format(
+    'select count(*) from public.%I',
+    requested_table_name
+  )
+  into rows;
+
+  return rows;
+end
+$$;
+
+revoke all on function
+  migration_reconcile.public_table_row_count(text)
+from public;
+revoke all on function
+  migration_reconcile.public_table_row_count(text)
+from anon;
+revoke all on function
+  migration_reconcile.public_table_row_count(text)
+from authenticated;
+
 create or replace function migration_reconcile.rewrite_quote_creator(
   quote_payload jsonb
 )
@@ -285,3 +325,6 @@ comment on view migration_reconcile.identity_map_candidates is
 
 comment on view migration_reconcile.legacy_notification_import_candidates is
   'Legacy-only notifications with fail-closed canonical reference checks.';
+
+comment on function migration_reconcile.public_table_row_count(text) is
+  'Private reconciliation helper for disposable-clone table count verification.';

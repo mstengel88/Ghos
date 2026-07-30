@@ -10,6 +10,7 @@ db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 database_admin="${SUPABASE_DATABASE_ADMIN:-supabase_admin}"
 use_existing="${GHOS_RECONCILE_USE_EXISTING_DATABASES:-0}"
 retain_databases="${GHOS_RECONCILE_RETAIN_DATABASES:-0}"
+apply_owner_quote_disposition="${GHOS_RECONCILE_APPLY_OWNER_QUOTE_DISPOSITION:-0}"
 run_id="$(date -u +%Y%m%d_%H%M%S)"
 canonical_database="${GHOS_RECONCILE_CANONICAL_DATABASE:-ghos_reconcile_local_$run_id}"
 legacy_database="${GHOS_RECONCILE_LEGACY_DATABASE:-ghos_reconcile_quote_$run_id}"
@@ -88,6 +89,11 @@ if [[ "$use_existing" != "0" && "$use_existing" != "1" ]]; then
 fi
 if [[ "$retain_databases" != "0" && "$retain_databases" != "1" ]]; then
   printf 'GHOS_RECONCILE_RETAIN_DATABASES must be 0 or 1.\n' >&2
+  exit 1
+fi
+if [[ "$apply_owner_quote_disposition" != "0" &&
+  "$apply_owner_quote_disposition" != "1" ]]; then
+  printf 'GHOS_RECONCILE_APPLY_OWNER_QUOTE_DISPOSITION must be 0 or 1.\n' >&2
   exit 1
 fi
 if [[ ! -s "$canonical_archive" || ! -s "$legacy_archive" ]]; then
@@ -587,6 +593,31 @@ begin
 end
 $$;
 SQL
+
+if [[ "$apply_owner_quote_disposition" == "1" ]]; then
+  docker exec -i "$db_container" \
+    psql -X -v ON_ERROR_STOP=1 -U "$database_admin" \
+      -d "$canonical_database" \
+    < "$repo_root/migration/supabase/sql/seed_owner_quote_disposition.sql" \
+    >/dev/null
+
+  printf '\nOwner quote disposition\n'
+  printf '%s\n' '======================='
+  docker exec "$db_container" \
+    psql -X -v ON_ERROR_STOP=1 -U "$database_admin" \
+      -d "$canonical_database" -P pager=off -c "
+        select decision, count(*) as records
+        from migration_reconcile.merge_decisions
+        where decided_by = 'owner-direction-no-quote-import'
+        group by decision
+        order by decision;
+      "
+
+  docker exec -i "$db_container" \
+    psql -X -v ON_ERROR_STOP=1 -U "$database_admin" \
+      -d "$canonical_database" \
+    < "$repo_root/migration/supabase/sql/verify_reconciliation_ready.sql"
+fi
 
 printf '\nReconciliation staging verification\n'
 printf '%s\n' '==================================='

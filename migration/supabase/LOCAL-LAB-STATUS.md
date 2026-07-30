@@ -52,10 +52,11 @@ promoted: 23 tables, 26 policies, eight functions, eight triggers, 109 indexes,
 reconciliation classifications.
 
 The exact Local-Delivery/Quote Live reconciliation policy rehearsal also
-passes. It verifies both full source manifests, records 412 deterministic
-ownership decisions, and leaves exactly four business quote records
-fail-closed for human review. No identity mapping is auto-approved and no
-production database is written.
+passes. It verifies both full source manifests and records 412 deterministic
+ownership decisions. The owner directed that the three legacy-only quotes be
+archived without import and that the canonical Local-Delivery row win the one
+quote-total conflict. The selected merge therefore requires no identity map
+and imports no Quote Live quote. No production database is written.
 
 The self-hosted baseline now also declares the standard Data API grants that
 managed Supabase normally installs outside application migrations. A
@@ -613,8 +614,12 @@ has one substantive total conflict. No Quote Live quote creator is unmapped in
 the exact snapshot.
 
 Full aggregate results and the resulting ownership decisions are documented in
-`data/exact-reconciliation-20260730.md`. Conflict decisions, final delta
-rehearsal, and production cutover remain pending.
+`data/exact-reconciliation-20260730.md`. The selected notification-only merge
+was rehearsed against a freshly restored disposable Local-Delivery clone: 40
+verified notifications were inserted, notifications reached 85 rows, quotes
+remained at 212, orders remained at 970, and no non-notification table count
+changed. Both disposable databases were removed. Final delta rehearsal and
+production cutover remain pending.
 
 ## Photo migration inventory
 

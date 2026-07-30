@@ -1,8 +1,8 @@
 # Local-Delivery data reconciliation plan
 
-Status: exact encrypted-snapshot classification and deterministic ownership
-policy complete; four quote decisions, identity-map approval, and final delta
-rehearsal pending
+Status: exact encrypted-snapshot classification, owner quote disposition, and
+notification-only clone merge rehearsal complete; final delta rehearsal
+pending
 
 Canonical target: Local-Delivery / Dispatch V2 Sandbox
 
@@ -48,11 +48,13 @@ Nothing in `conflict` is auto-merged. A reviewed decision is recorded in
 `migration_reconcile.merge_decisions` before a production migration can be
 generated.
 
-The documented ownership policy is now encoded by
+The documented ownership policy is encoded by
 `seed_reconciliation_policy_decisions.sql`. It records 412 deterministic
-decisions while leaving all three legacy-only quotes and the one quote-total
-conflict unresolved. It does not approve the Auth identity map and does not
-write to production.
+decisions. `seed_owner_quote_disposition.sql` then records the owner's
+direction to archive the three legacy-only quotes and keep the canonical side
+of the one quote-total conflict. No Quote Live quote is imported, no Auth
+identity map is required for this selected merge, and neither script writes to
+production.
 
 The classification and decision rules are exercised repeatably by
 `migration/supabase/sql/verify_reconciliation_classification.sql`. The test
@@ -158,8 +160,9 @@ conflict, and one quote-total conflict.
 The exact policy rehearsal resolves every non-quote review row plus the 16
 duplicate quote records that differ only by creator UUID. It creates 371
 `keep_canonical`, 40 `import_legacy`, and one
-`exclude_environment_state` decision. The only remaining review queue is three
-legacy-only quotes and one duplicate quote with a differing total.
+`exclude_environment_state` decision. The owner disposition then archives the
+three legacy-only quotes and keeps the existing canonical row for the one
+duplicate quote with a differing total. No Quote Live quote is imported.
 
 Create the private customer-level review packet with:
 
@@ -172,6 +175,17 @@ boundary, writes a local-only HTML comparison and CSV decision worksheet under
 the Git-ignored `migration/supabase/secrets/reconciliation-review/` directory,
 and removes both disposable databases. The packet contains customer data and
 must not be committed, emailed, or pasted into chat.
+
+Rehearse the selected notification-only merge with:
+
+```bash
+./tools/rehearse_local_delivery_quote_merge.sh
+```
+
+The disposable-clone rehearsal inserted the 40 verified legacy notifications,
+left `custom_delivery_quotes` at 212 rows and `dispatch_orders` at 970 rows,
+changed no non-notification table count, and removed both temporary databases.
+No production database was written.
 
 The read-only photo inventory is recorded in
 `storage-manifest-20260728.md`. At inventory time the bucket held 470 objects,
@@ -192,11 +206,13 @@ When database access is available:
 
 - [x] Exact production exports retained and checksummed
 - [x] All 22 Quote Live tables classified by primary/natural key
-- [ ] Every conflict reviewed
-- [ ] Auth identity map approved
+- [x] Every legacy-only or conflicting row has a deterministic policy or owner
+      disposition
+- [x] Auth identity map is not required because no Quote Live quote or creator
+      identity crosses the selected merge boundary
 - [ ] Foreign-key orphan report is empty
-- [ ] Active orders and routes match Local-Delivery
-- [ ] Quote totals and source breakdowns sample-tested
+- [x] Active order and route rows remain unchanged in the disposable merge
+- [x] Quote rows remain unchanged and no Quote Live quote is imported
 - [ ] Product and material calculator configuration tested
 - [ ] Every Storage object at extraction time restored with matching SHA-256
 - [ ] Embedded and unclassified `dispatch_orders.photo_urls` payloads retained

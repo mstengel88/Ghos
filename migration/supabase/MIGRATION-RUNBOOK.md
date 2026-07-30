@@ -102,6 +102,11 @@ For each of the five production applications:
 - [x] Deterministic Local-Delivery/Quote Live ownership policy records 412
       safe decisions and leaves only three legacy-only quotes plus one
       quote-total conflict for human review
+- [x] Owner disposition archives the three legacy-only quotes, keeps the
+      canonical duplicate quote, and permits no Quote Live quote import
+- [x] Notification-only merge rehearsed in a disposable clone: 40 exact
+      notifications imported with quotes, orders, and all other table counts
+      unchanged
 - [x] Local-Delivery Storage/reference manifest records bucket objects,
       embedded database images, and unresolved photo payloads
 - [x] Dump Site eight-migration schema, RLS, generated order number, rate

@@ -2,9 +2,9 @@
 
 Date: 2026-07-30 UTC
 
-Status: exact encrypted snapshots loaded, classified, and deterministic
-non-business ownership decisions seeded in an isolated local rehearsal; four
-quotes remain for human review; no production writes
+Status: exact encrypted snapshots loaded, classified, owner disposition
+recorded, and the selected notification-only merge rehearsed successfully in
+an isolated clone; no production writes
 
 Canonical target: Local-Delivery / Dispatch V2 Sandbox
 
@@ -115,8 +115,11 @@ Important field-level findings:
 | Quote creators unmapped | 0 |
 | Quote creator not present/not required | 50 |
 
-The three legacy-only quotes still require explicit import/archive decisions,
-even though none is blocked by an unmapped creator in this snapshot.
+The owner directed that no Quote Live quote be imported. The three legacy-only
+quotes remain only in the encrypted rollback archive, and the legacy side of
+the duplicate quote-total conflict is discarded while the existing canonical
+Local-Delivery quote remains unchanged. No identity rewrite is therefore
+required for the selected merge.
 
 ## Reconciliation policy consequence
 
@@ -124,9 +127,9 @@ even though none is blocked by an unmapped creator in this snapshot.
   stop-metric, and proof-of-delivery conflict.
 - Quote Live's 40 legacy-only read notifications may be imported only after
   their referenced canonical entities are reverified.
-- The three legacy-only quotes are the only candidate business records for a
-  reviewed import.
-- The one duplicate quote-total conflict requires manual review.
+- The three legacy-only quotes are archived and are not imported.
+- The existing Local-Delivery row wins the one duplicate quote-total conflict;
+  the Quote Live version is not imported.
 - Product maps must be refreshed from Shopify rather than copied from Quote
   Live.
 - Shopify sessions and push subscriptions are environment state and are not
@@ -147,18 +150,41 @@ The 371 canonical decisions include the 16 duplicate quotes whose only shared
 field difference is the creator UUID. They retain the canonical quote and do
 not rewrite business values.
 
-The fail-closed human review queue contains exactly four records:
+The original fail-closed human review queue contained exactly four records:
 
 | Quote classification | Records |
 |---|---:|
 | Legacy-only quote | 3 |
 | Duplicate quote with a differing total | 1 |
 
-The policy script refuses to decide legacy-only quotes, refuses notification
-imports with invalid canonical references, and the exact runner aborts if any
-non-quote row remains unresolved or if the 412/4 baseline changes. The Auth
-identity candidates are visible only inside the disposable reconciliation
-database and are not automatically approved or loaded into the identity map.
+The owner-disposition script records `archive_legacy` for the three
+legacy-only quotes and `keep_canonical` for the duplicate conflict. It refuses
+to run unless the exact 412/4 baseline is present and then verifies that all
+four decisions exist, no unresolved row remains, and no quote is eligible for
+import. The legacy records are retained in the encrypted rollback archive; no
+live production row is deleted.
+
+The policy and merge scripts also refuse notification imports with invalid
+canonical references. Auth identity candidates remain private and are not
+loaded because the selected merge imports no quote or creator identity.
+
+## Disposable merge rehearsal
+
+The selected merge was applied to a newly restored disposable
+Local-Delivery clone and verified:
+
+| Result | Count |
+|---|---:|
+| Verified legacy notifications inserted | 40 |
+| Final notifications | 85 |
+| Final quotes | 212 |
+| Final dispatch orders | 970 |
+| Quote imports | 0 |
+| Non-notification tables with changed row counts | 0 |
+
+Every inserted notification matched the exact staged source JSON, all
+constraints passed, and the canonical quote count remained unchanged. Both
+temporary databases were removed after the rehearsal.
 
 ## Reproduction
 
@@ -173,3 +199,14 @@ verifies every source-table manifest, streams JSON projections directly between
 local PostgreSQL processes, seeds the documented deterministic decisions,
 prints aggregate reports only, verifies the exact decision boundary, and drops
 the temporary databases on exit.
+
+Rehearse the owner-approved notification-only merge against a disposable clone:
+
+```bash
+./tools/rehearse_local_delivery_quote_merge.sh
+```
+
+This command restores and verifies both exact snapshots, applies the
+owner-directed quote disposition, imports only the 40 verified notifications,
+checks that no quote or other table count changed, and removes both disposable
+databases on exit.
