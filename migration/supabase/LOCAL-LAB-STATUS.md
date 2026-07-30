@@ -472,6 +472,45 @@ managed Supabase normally supplies outside application migrations. After the
 successful 2026-07-29 run, Local-Delivery was independently confirmed restored
 with 22 public tables and 26 policies.
 
+## Quote Live consolidation compatibility
+
+The continuing GreenHills Quote Live server workflow now has a local Data API
+acceptance test against the newer Local-Delivery target:
+
+```bash
+tools/verify_quote_live_client_config.sh
+tools/verify_quote_live_compatibility.sh
+```
+
+Both passed on 2026-07-29. The compatibility test covered quote
+create/read/update/delete, product pricing and contractor tiers, vendor origins,
+material rules, B2B terms, Shopify settings, RLS, and anonymous isolation. It
+used unique local-only fixtures, removed them automatically, and verified zero
+leftovers.
+
+This supports consolidating the quote tool into the Local-Delivery-owned schema
+without reviving Quote Live's legacy dispatch implementation. No production
+customer row, Auth identity, Shopify token, or managed-project setting was
+changed.
+
+## Local-Delivery encrypted database/Auth snapshot
+
+Supabase temporary database access was enabled for the current operator and
+the guarded read-only export completed on 2026-07-29:
+
+```text
+migration/supabase/exports/local-delivery/20260730T005031Z/
+```
+
+The approximately 187 MiB encrypted archive contains role settings, application
+schema, database rows, Auth/Storage metadata, and exact reconciliation counts.
+The exporter verified every plaintext component and the encrypted archive
+checksum before removing plaintext work files. The encryption password remains
+in macOS Keychain and the private export stays excluded from Git.
+
+An independent encrypted off-host copy remains required before the backup gate
+can be marked complete.
+
 ## Photo migration inventory
 
 A read-only Storage/reference inventory found 470 current objects totaling

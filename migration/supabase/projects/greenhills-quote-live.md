@@ -210,3 +210,27 @@ The production application build passes. The broader repository type-check
 still reports pre-existing errors across legacy dispatch code and several
 application types. Those errors are an independent cleanup gate; the dispatch
 portion must not become authoritative again while fixing them.
+
+## Local consolidation compatibility
+
+The continuing Quote Live workflow is server-side and uses the service role
+for quotes, products, origins, delivery rules, B2B companies, and Shopify
+settings. It does not require preserving the older Quote Live dispatch schema
+as a separate final runtime.
+
+`tools/verify_quote_live_compatibility.sh` now exercises that contract against
+the local Local-Delivery target through the local Supabase Data API. The
+verifier:
+
+- confirms the newer quote, company, product, origin, material-rule, and
+  Shopify-setting columns exist with RLS enabled;
+- proves anonymous clients cannot read server-managed quote data;
+- creates isolated service-role fixtures for all quote dependencies;
+- creates, reads, updates, and deletes a representative quote;
+- confirms the intentionally public active-origin read still works; and
+- removes every fixture and verifies that no test rows remain.
+
+The acceptance passed on 2026-07-29. This establishes the newer
+Local-Delivery schema as the clean-room compatibility target for the continuing
+quote tool. Production Quote Live rows, Auth identities, and Shopify sessions
+remain separate cutover inputs and were not copied by this test.

@@ -121,6 +121,25 @@ Supabase temporary database access, which must be enabled for this project and
 must map the operator to the `postgres` role. The exporter fails closed when
 that mapping is absent; it does not reset credentials or alter production data.
 
+Temporary access was enabled for the current operator on 2026-07-29. The
+read-only exporter then completed successfully and created the verified,
+encrypted snapshot:
+
+```text
+migration/supabase/exports/local-delivery/20260730T005031Z/
+```
+
+The encrypted archive is about 187 MiB. It contains the role settings,
+application schema, database rows, Auth/Storage metadata, and exact
+reconciliation counts captured from the same snapshot. The archive checksum
+was verified before plaintext working files were removed. Its encryption key
+remains in macOS Keychain under service
+`GHOS Migration Export Encryption`, account `local-delivery`.
+
+The export directory is intentionally ignored by Git. It still requires an
+independent encrypted off-host copy before the migration backup gate is
+complete.
+
 ## Security model
 
 The 26 public RLS policies use four main patterns:

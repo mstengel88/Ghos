@@ -41,9 +41,9 @@ For each of the five production applications:
 - [x] Local-Delivery database/Auth encrypted-export tooling validates the exact
       project and pooler, captures live reconciliation counts, hashes artifacts,
       and removes plaintext working files
-- [ ] Local-Delivery temporary database access enabled for the current operator
-      with the `postgres` role; the live encrypted database/Auth export remains
-      blocked until this reversible access rule exists
+- [x] Local-Delivery temporary database access enabled for the current operator
+      with the `postgres` role; the encrypted database/Auth export completed
+      and was verified on 2026-07-29
 - [x] WinterWatch private Storage objects and metadata exported and SHA-256 verified
 - [x] WinterWatch private Storage export encrypted and retained off the Mac
 - [x] WinterWatch private Storage restored to the isolated lab with byte-for-byte verification
@@ -82,6 +82,10 @@ For each of the five production applications:
 - [x] GreenHills Quote Live already supports environment-specific Supabase
       configuration; its migration branch protects runtime secrets and passes
       secret-free configuration acceptance
+- [x] GreenHills Quote Live's continuing server-side quote workflow passes
+      local Data API create/read/update/delete acceptance against the newer
+      Local-Delivery target, including product, origin, material-rule, B2B,
+      Shopify-setting, and anonymous-isolation contracts
 - [x] Sanitized Local-Delivery/Quote Live key and row reconciliation completed
       without exporting customer data or secrets
 - [x] Quote creator UUID rewrite and unmapped-owner quarantine behavior pass
