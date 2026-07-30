@@ -511,6 +511,23 @@ in macOS Keychain and the private export stays excluded from Git.
 An independent encrypted off-host copy remains required before the backup gate
 can be marked complete.
 
+The encrypted production snapshot also passed a complete disposable restore
+rehearsal on 2026-07-29. Archive and component checksums, schema, Auth, Storage
+metadata, exact row counts, constraints, indexes, RLS, policies, functions,
+triggers, and key relationships were verified. Results included 23
+RLS-enabled public tables, 26 policies, 13 Auth users and identities, 970
+orders, 212 quotes, and 475 Storage metadata rows. The disposable database and
+plaintext working directory were removed automatically.
+
+The restore exposed one valid production addition beyond the standing
+22-table candidate lab: `public.quote_tax_rate_cache`, with four rows in the
+signed snapshot. The future export count query now includes it. The existing
+encrypted snapshot is handled deterministically by counting only that known
+table's COPY block from the checksum-verified data dump before verification.
+
+After the rehearsal, `tools/verify_local_delivery_clean_room.sh` independently
+passed again against the unchanged standing lab.
+
 ## Photo migration inventory
 
 A read-only Storage/reference inventory found 470 current objects totaling

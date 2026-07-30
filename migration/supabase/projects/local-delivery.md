@@ -140,6 +140,36 @@ The export directory is intentionally ignored by Git. It still requires an
 independent encrypted off-host copy before the migration backup gate is
 complete.
 
+### Isolated production restore rehearsal
+
+The encrypted snapshot was restored into a disposable database cloned from the
+local Supabase platform database on 2026-07-29. The guarded rehearsal:
+
+- verified the encrypted archive and every internal SHA-256 checksum;
+- kept decrypted files in a private temporary directory;
+- restored the application schema, production rows, Auth identities, and
+  Storage metadata without replacing the standing local lab;
+- verified 23 RLS-enabled public tables, 26 policies, eight functions, eight
+  triggers, valid indexes and constraints, referential integrity, and exact
+  captured row counts; and
+- dropped the disposable database and removed all plaintext working files.
+
+The rehearsal identified one legitimate change since the earlier 22-table
+candidate baseline: `public.quote_tax_rate_cache`, used by Dispatch V2's newer
+Shopify tax calculation. The signed snapshot contains four cache rows. Future
+exports now include this table in the exact-count manifest; the rehearsal
+derives and verifies its count from the signed data stream for the already
+captured archive.
+
+Run the fail-closed rehearsal with:
+
+```bash
+./tools/rehearse_local_delivery_production_restore.sh
+```
+
+The process pauses only local Supabase service containers long enough to clone
+the platform database. It does not connect to or modify managed Supabase.
+
 ## Security model
 
 The 26 public RLS policies use four main patterns:
@@ -167,8 +197,9 @@ The compatibility migration now explicitly recreates the standard Supabase
 Data API object privileges for `anon`, `authenticated`, and `service_role`.
 Managed Supabase normally supplies these outside application migrations, so
 they were previously an undeclared self-hosting dependency. RLS remains
-enabled on all 22 tables and continues to decide which rows each API role may
-access.
+enabled on all 23 production tables and continues to decide which rows each
+API role may access. The standing clean-room candidate remains at 22 tables
+until the tax-cache migration is promoted into that baseline.
 
 ## Realtime and scheduled database work
 

@@ -20,6 +20,7 @@ union all select 'public.dispatch_trucks', count(*) from public.dispatch_trucks
 union all select 'public.dispatch_user_roles', count(*) from public.dispatch_user_roles
 union all select 'public.origin_addresses', count(*) from public.origin_addresses
 union all select 'public.product_source_map', count(*) from public.product_source_map
+union all select 'public.quote_tax_rate_cache', count(*) from public.quote_tax_rate_cache
 union all select 'public.shipping_material_rules', count(*) from public.shipping_material_rules
 union all select 'public.shopify_app_settings', count(*) from public.shopify_app_settings
 union all select 'storage.buckets', count(*) from storage.buckets

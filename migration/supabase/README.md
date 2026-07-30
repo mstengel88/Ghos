@@ -64,6 +64,19 @@ The script follows Supabase's platform-to-self-hosted process by creating
 separate role, schema, and data dumps. Exports are ignored, permission-restricted,
 and checksummed. They still need encryption and an off-Mac backup.
 
+After creating the guarded encrypted Local Delivery snapshot, rehearse it in a
+disposable local database with:
+
+```bash
+./tools/rehearse_local_delivery_production_restore.sh
+```
+
+The rehearsal verifies outer and inner checksums, decrypts only into a private
+temporary workspace, restores schema plus database/Auth/Storage metadata,
+checks exact row counts and integrity, and removes the disposable database and
+plaintext files after success or failure. It never targets managed Supabase or
+the standing local lab.
+
 ## Export managed Storage
 
 Storage object bytes can be exported independently while the exact database
