@@ -40,6 +40,7 @@ declare
     'dispatch_user_roles',
     'origin_addresses',
     'product_source_map',
+    'quote_tax_rate_cache',
     'shipping_material_rules',
     'shopify_app_settings'
   ];
@@ -110,6 +111,7 @@ drop table if exists
   public.dispatch_user_roles,
   public.origin_addresses,
   public.product_source_map,
+  public.quote_tax_rate_cache,
   public.shipping_material_rules,
   public.shopify_app_settings
 cascade;

@@ -24,6 +24,7 @@ sources=(
   "$baseline_root/850_live_indexes.sql"
   "$baseline_root/900_live_contract.sql"
   "$repo_root/migration/supabase/candidates/local-delivery/001_api_grants.sql"
+  "$repo_root/migration/supabase/candidates/local-delivery/002_quote_tax_rate_cache.sql"
 )
 
 for source_file in "${sources[@]}"; do

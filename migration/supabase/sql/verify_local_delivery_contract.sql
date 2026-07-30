@@ -96,8 +96,8 @@ begin
   join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public'
     and c.relkind = 'r';
-  if actual_count <> 22 then
-    raise exception 'Expected 22 public tables, found %', actual_count;
+  if actual_count <> 23 then
+    raise exception 'Expected 23 public tables, found %', actual_count;
   end if;
 
   select count(*) into actual_count
@@ -106,8 +106,8 @@ begin
   where n.nspname = 'public'
     and c.relkind = 'r'
     and c.relrowsecurity;
-  if actual_count <> 22 then
-    raise exception 'Expected RLS on 22 public tables, found %', actual_count;
+  if actual_count <> 23 then
+    raise exception 'Expected RLS on 23 public tables, found %', actual_count;
   end if;
 
   select count(*) into actual_count
@@ -138,8 +138,8 @@ begin
   select count(*) into actual_count
   from pg_indexes
   where schemaname = 'public';
-  if actual_count <> 106 then
-    raise exception 'Expected 106 public indexes, found %', actual_count;
+  if actual_count <> 109 then
+    raise exception 'Expected 109 public indexes, found %', actual_count;
   end if;
 
   with expected(table_name, column_count, semantic_hash) as (
@@ -164,6 +164,7 @@ begin
       ('dispatch_user_roles', 8, '8be6433d84ef851b998999093a8d8544'),
       ('origin_addresses', 6, '51dc95262d21620009acc9b8ab79d396'),
       ('product_source_map', 12, '2262d53642604e2958ada9b371147520'),
+      ('quote_tax_rate_cache', 16, '10dfac72571a1bb93c59d953e97df8eb'),
       ('shipping_material_rules', 7, '547e972be8ad652fcfbdc4576ee4fce2'),
       ('shopify_app_settings', 8, '8fdf72d278699a97bf16b85d1326658e')
   ),
@@ -226,8 +227,8 @@ begin
   join pg_namespace n on n.oid = c.connamespace
   where n.nspname = 'public';
 
-  if actual_count <> 45
-     or actual_hash <> '0eac4add1988bf3f795f78b785f98e1b' then
+  if actual_count <> 47
+     or actual_hash <> 'a0b48c4e5defa2c40c4b1b5330fc4ea9' then
     raise exception
       'Constraint contract mismatch: count %, hash %',
       actual_count,

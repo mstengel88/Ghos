@@ -2,7 +2,7 @@
 -- Declare them explicitly so a clean self-hosted restore does not depend on
 -- project-level defaults that are absent from a new PostgreSQL database.
 --
--- All 22 application tables have RLS enabled. These object privileges allow
+-- All application tables have RLS enabled. These object privileges allow
 -- PostgREST to evaluate the existing policies; they do not bypass RLS or make
 -- protected rows public.
 

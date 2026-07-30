@@ -82,6 +82,14 @@ ALLOW_LOCAL_REHEARSAL_RESET=yes tools/reset_local_delivery_rehearsal.sh
 tools/rehearse_local_delivery_schema.sh
 ```
 
+The rehearsal chain also applies the tracked self-hosting candidates in order:
+
+1. `candidates/local-delivery/001_api_grants.sql`
+2. `candidates/local-delivery/002_quote_tax_rate_cache.sql`
+
+The second candidate brings the schema to the current 23-table production
+contract while keeping the tax cache server-owned behind RLS.
+
 The reset script refuses to run against any container name other than
 `supabase-db` and aborts if application rows, Auth users, or dispatch photo
 objects exist.

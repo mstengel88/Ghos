@@ -5,6 +5,17 @@ Status: local compatibility acceptance
 This candidate starts from the byte-for-byte deployed source preserved under
 `baselines/local-delivery/functions`. It does not replace that evidence.
 
+## Database self-hosting candidates
+
+- `001_api_grants.sql` recreates the managed platform's Data API privileges
+  while leaving row access controlled by RLS.
+- `002_quote_tax_rate_cache.sql` adds the server-owned Shopify tax-rate cache
+  now present in Dispatch V2 production.
+
+The tax cache has RLS enabled and intentionally defines no `anon` or
+`authenticated` policies. The service-role workflow remains able to manage it.
+The full contract and transaction-only RLS suite verify those boundaries.
+
 ## Reviewed carrier-service correction
 
 The deployed carrier helper referenced `RATE_PER_MINUTE` outside the request

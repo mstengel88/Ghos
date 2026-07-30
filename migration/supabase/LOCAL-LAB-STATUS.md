@@ -46,9 +46,10 @@ while forcing Shopify, Google, and administrator credentials to empty values.
 - verification that no external Shopify call is attempted without credentials.
 
 The complete Local-Delivery schema, RLS, and reconciliation suite passed again
-after the functions were mounted: 22 tables, 26 policies, eight functions,
-eight triggers, 106 indexes, 45 constraints, Storage metadata, Realtime
-publication, and all synthetic reconciliation classifications.
+after the functions were mounted and the current tax-cache migration was
+promoted: 23 tables, 26 policies, eight functions, eight triggers, 109 indexes,
+47 constraints, Storage metadata, Realtime publication, and all synthetic
+reconciliation classifications.
 
 The self-hosted baseline now also declares the standard Data API grants that
 managed Supabase normally installs outside application migrations. A
@@ -56,6 +57,22 @@ disposable PostgreSQL 17 rebuild passed with 22 tables, 26 policies, and the
 expected anonymous, authenticated, and service-role object privileges. RLS
 remains enabled on all 22 tables. The running lab then passed password-session,
 invitation, password-recovery, RLS, Storage bucket, and Realtime acceptance.
+
+After production drift discovery, the tracked
+`002_quote_tax_rate_cache.sql` candidate advanced the standing lab to 23
+RLS-enabled tables. The cache has no client policies: anonymous and
+authenticated test identities see zero rows, while the server-side
+`service_role` can manage it. The clean-room contract/RLS/reconciliation suite
+and Quote Live compatibility test both passed after promotion.
+
+The guarded full reset correctly refused to erase the standing lab because its
+Storage bucket currently contains objects. Those objects were preserved. A
+pre-change custom-format database backup remains at:
+
+```text
+/tmp/ghos-local-delivery-before-tax-cache-20260730T010943Z.dump
+SHA-256: 041aa345674028f7f0f80de52a5c67969ef069a9b1a723338e27609b5fae3663
+```
 
 The captured carrier callback has a blocking scope defect: its route helper
 references `RATE_PER_MINUTE`, but that value is currently declared only inside
@@ -319,14 +336,14 @@ dispatch runtime; the older dispatch implementation will be retired after data
 reconciliation, while its quote tool remains in migration scope.
 
 A schema-only Local-Delivery compatibility baseline has been restored into the
-lab without production rows, Auth identities, secrets, or Storage objects. The
-rehearsal matches the managed project contract:
+lab without production rows, Auth identities, secrets, or production Storage
+objects. The rehearsal matches the current managed project contract:
 
-- 22 public tables, all with RLS enabled;
+- 23 public tables, all with RLS enabled;
 - 26 public policies;
 - eight public functions and eight active application triggers;
-- 106 public indexes;
-- exact column names, types, nullability, and defaults for all 22 tables;
+- 109 public indexes;
+- exact column names, types, nullability, and defaults for all 23 tables;
 - matching primary, foreign-key, and check constraints;
 - `dispatch_notifications` in the Supabase Realtime publication;
 - public `dispatch-photos` bucket metadata, without production objects.

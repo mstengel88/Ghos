@@ -179,6 +179,15 @@ values (
   'RLS Rehearsal Company'
 );
 
+insert into public.quote_tax_rate_cache (
+  cache_key,
+  rate
+)
+values (
+  'rls-rehearsal',
+  0.055000
+);
+
 set local role anon;
 select set_config(
   'request.jwt.claims',
@@ -194,6 +203,11 @@ select pg_temp.assert_count(
   (select count(*) from public.origin_addresses),
   1,
   'anonymous origin read'
+);
+select pg_temp.assert_count(
+  (select count(*) from public.quote_tax_rate_cache),
+  0,
+  'anonymous tax cache isolation'
 );
 
 reset role;
@@ -227,6 +241,11 @@ select pg_temp.assert_count(
   (select count(*) from public.dispatch_notifications),
   1,
   'active dispatch user notification read'
+);
+select pg_temp.assert_count(
+  (select count(*) from public.quote_tax_rate_cache),
+  0,
+  'authenticated tax cache isolation'
 );
 
 reset role;
@@ -276,6 +295,11 @@ select pg_temp.assert_count(
   (select count(*) from public.app_user_profiles),
   3,
   'service role profile management visibility'
+);
+select pg_temp.assert_count(
+  (select count(*) from public.quote_tax_rate_cache),
+  1,
+  'service role tax cache visibility'
 );
 
 reset role;

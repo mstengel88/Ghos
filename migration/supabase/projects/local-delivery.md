@@ -198,8 +198,8 @@ Data API object privileges for `anon`, `authenticated`, and `service_role`.
 Managed Supabase normally supplies these outside application migrations, so
 they were previously an undeclared self-hosting dependency. RLS remains
 enabled on all 23 production tables and continues to decide which rows each
-API role may access. The standing clean-room candidate remains at 22 tables
-until the tax-cache migration is promoted into that baseline.
+API role may access. The standing clean-room candidate now matches that
+23-table contract.
 
 ## Realtime and scheduled database work
 
@@ -268,7 +268,7 @@ Dispatch V2 directly depends on:
 
 - Supabase Auth administration and login;
 - Realtime;
-- the 22-table public schema;
+- the 23-table public schema;
 - public `dispatch-photos` Storage;
 - Shopify import and update workflows;
 - Google distance calculations;
@@ -343,7 +343,7 @@ object transfer, secret inventory, or a cutover backup.
 The explicit Data API grants were applied to the local compatibility lab and
 verified on 2026-07-29. Acceptance passed:
 
-- the 22-table, 26-policy schema/RLS/reconciliation contract;
+- the current 23-table, 26-policy schema/RLS/reconciliation contract;
 - anonymous settings access and protected-table RLS behavior;
 - service-role access to the canonical dispatch schema;
 - complete password Auth create, sign-in, password-change, logout, refresh
@@ -356,3 +356,10 @@ The complete schema chain, including the explicit API grants, also rebuilt
 successfully in a disposable PostgreSQL 17 database cloned from the local
 Supabase platform. That database was removed afterward. Production rows,
 identities, sessions, object bytes, and secrets were not involved.
+
+The later tax-cache candidate was applied independently after a local backup.
+Its column, constraint, index, privilege, and RLS behavior matches the
+production snapshot. The upgraded standing lab passed the full clean-room and
+Quote Live compatibility suites. A complete destructive reset was not used
+because its fail-closed guard detected and preserved existing local Storage
+objects.
