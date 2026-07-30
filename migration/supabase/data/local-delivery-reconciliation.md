@@ -81,6 +81,19 @@ The approved mapping is loaded only into the private local
 only rows with `ready_for_import = true` may feed a generated quote migration.
 An unmapped creator never falls back to another user or to a null owner.
 
+Create the private identity-map review packet with:
+
+```bash
+./tools/create_private_identity_reconciliation_review.sh
+```
+
+The command repeats the exact signed restore and policy checks, then creates an
+owner-only HTML comparison and blank CSV approval worksheet under the
+Git-ignored `migration/supabase/secrets/identity-review/` directory. It asserts
+11 normalized-email candidates, two UUID rewrites, and 39 Quote Live creator
+references before producing the packet. The disposable databases are removed
+on success or failure.
+
 ## Table-specific merge rules
 
 ### Current dispatch state
