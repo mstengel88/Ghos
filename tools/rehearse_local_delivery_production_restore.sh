@@ -8,14 +8,28 @@ repo_root="$(
 )"
 db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 database_admin="${SUPABASE_DATABASE_ADMIN:-supabase_admin}"
-database_name="${LOCAL_DELIVERY_REHEARSAL_DATABASE:-local_delivery_restore_$(date -u +%Y%m%d_%H%M%S)}"
-archive_path="${LOCAL_DELIVERY_DATABASE_ARCHIVE:-}"
-retain_database="${LOCAL_DELIVERY_RETAIN_REHEARSAL_DATABASE:-0}"
+project_label="${GHOS_MANAGED_RESTORE_LABEL:-Local Delivery}"
+archive_slug="${GHOS_MANAGED_RESTORE_ARCHIVE_SLUG:-local-delivery}"
+database_name="${GHOS_MANAGED_RESTORE_DATABASE:-}"
+if [[ -z "$database_name" ]]; then
+  database_name="${LOCAL_DELIVERY_REHEARSAL_DATABASE:-local_delivery_restore_$(date -u +%Y%m%d_%H%M%S)}"
+fi
+if [[ "${GHOS_MANAGED_RESTORE_ARCHIVE+x}" == x ]]; then
+  archive_path="$GHOS_MANAGED_RESTORE_ARCHIVE"
+else
+  archive_path="${LOCAL_DELIVERY_DATABASE_ARCHIVE:-}"
+fi
+retain_database="${GHOS_MANAGED_RESTORE_RETAIN_DATABASE:-${LOCAL_DELIVERY_RETAIN_REHEARSAL_DATABASE:-0}}"
 keychain_service="GHOS Migration Export Encryption"
-keychain_account="local-delivery"
-work_root="$(mktemp -d "${TMPDIR:-/tmp}/ghos-local-delivery-restore.XXXXXX")"
+keychain_account="${GHOS_MANAGED_RESTORE_KEYCHAIN_ACCOUNT:-local-delivery}"
+verifier_script="${GHOS_MANAGED_RESTORE_VERIFIER:-$repo_root/tools/verify_local_delivery_production_restore.sh}"
+verifier_database_env="${GHOS_MANAGED_RESTORE_VERIFIER_DATABASE_ENV:-LOCAL_DELIVERY_REHEARSAL_DATABASE}"
+verifier_counts_env="${GHOS_MANAGED_RESTORE_VERIFIER_COUNTS_ENV:-LOCAL_DELIVERY_EXPECTED_COUNTS_FILE}"
+known_drift="${GHOS_MANAGED_RESTORE_KNOWN_DRIFT-public.quote_tax_rate_cache}"
+apply_cluster_roles="${GHOS_MANAGED_RESTORE_APPLY_CLUSTER_ROLES:-${LOCAL_DELIVERY_APPLY_CLUSTER_ROLES:-0}}"
+work_root="$(mktemp -d "${TMPDIR:-/tmp}/ghos-managed-restore.XXXXXX")"
 export_root="$work_root/export"
-plain_archive="$work_root/local-delivery-database.sql.tar.gz"
+plain_archive="$work_root/$archive_slug-database.sql.tar.gz"
 rehearsal_schema="$work_root/schema.rehearsal.sql"
 rehearsal_data="$work_root/data.rehearsal.sql"
 reconciled_counts="$work_root/expected-counts.reconciled.tsv"
@@ -91,7 +105,25 @@ if [[ ! "$database_name" =~ ^[a-z_][a-z0-9_]*$ ]]; then
   exit 1
 fi
 if [[ "$retain_database" != "0" && "$retain_database" != "1" ]]; then
-  printf 'LOCAL_DELIVERY_RETAIN_REHEARSAL_DATABASE must be 0 or 1.\n' >&2
+  printf 'The managed restore retain flag must be 0 or 1.\n' >&2
+  exit 1
+fi
+if [[ "$apply_cluster_roles" != "0" && "$apply_cluster_roles" != "1" ]]; then
+  printf 'The managed restore cluster-role flag must be 0 or 1.\n' >&2
+  exit 1
+fi
+if [[ ! "$archive_slug" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  printf 'Unsafe archive slug: %s\n' "$archive_slug" >&2
+  exit 1
+fi
+if [[ ! "$verifier_database_env" =~ ^[A-Z][A-Z0-9_]*$ ]] ||
+  [[ ! "$verifier_counts_env" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+  printf 'Unsafe verifier environment variable name.\n' >&2
+  exit 1
+fi
+if [[ ! -x "$verifier_script" ]]; then
+  printf 'Restore verifier is missing or not executable: %s\n' \
+    "$verifier_script" >&2
   exit 1
 fi
 if [[ "$(
@@ -105,17 +137,19 @@ fi
 
 if [[ -z "$archive_path" ]]; then
   archive_path="$(
-    find "$repo_root/migration/supabase/exports/local-delivery" \
-      -type f -name 'local-delivery-database.sql.tar.gz.enc' \
-      -print 2>/dev/null |
+    {
+      find "$repo_root/migration/supabase/exports/$archive_slug" \
+        -type f -name "$archive_slug-database.sql.tar.gz.enc" \
+        -print 2>/dev/null || true
+    } |
       sort |
       tail -n 1
   )"
 fi
 if [[ -z "$archive_path" || ! -s "$archive_path" ]]; then
-  printf '%s\n' \
-    'No encrypted Local Delivery database archive was found.' \
-    'Set LOCAL_DELIVERY_DATABASE_ARCHIVE to the archive path.' >&2
+  printf 'No encrypted %s database archive was found.\n' \
+    "$project_label" >&2
+  printf 'Set GHOS_MANAGED_RESTORE_ARCHIVE to the archive path.\n' >&2
   exit 1
 fi
 if [[ -f "$archive_path.sha256" ]]; then
@@ -208,7 +242,8 @@ PY
 python3 - \
   "$export_root/expected-counts.tsv" \
   "$export_root/data.sql" \
-  "$reconciled_counts" <<'PY'
+  "$reconciled_counts" \
+  "$known_drift" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -216,7 +251,11 @@ from pathlib import Path
 manifest_path = Path(sys.argv[1])
 data_path = Path(sys.argv[2])
 output_path = Path(sys.argv[3])
-known_drift = {"public.quote_tax_rate_cache"}
+known_drift = {
+    relation
+    for relation in sys.argv[4].split(",")
+    if relation
+}
 
 counts = {}
 for raw_line in manifest_path.read_text(encoding="utf-8").splitlines():
@@ -325,7 +364,7 @@ end
 $$;
 SQL
 
-if [[ "${LOCAL_DELIVERY_APPLY_CLUSTER_ROLES:-0}" == 1 ]]; then
+if [[ "$apply_cluster_roles" == 1 ]]; then
   printf '%s\n' 'Applying exported cluster-wide role settings by explicit request...'
   docker exec -i "$db_container" \
     psql -v ON_ERROR_STOP=1 -U "$database_admin" -d "$database_name" \
@@ -333,30 +372,32 @@ if [[ "${LOCAL_DELIVERY_APPLY_CLUSTER_ROLES:-0}" == 1 ]]; then
 else
   printf '%s\n' \
     'Skipping cluster-wide role settings in the shared lab.' \
-    'Set LOCAL_DELIVERY_APPLY_CLUSTER_ROLES=1 only for a disposable target cluster.'
+    'Enable them only for a disposable target cluster.'
 fi
 
-printf '%s\n' 'Restoring Local Delivery application schema...'
+printf 'Restoring %s application schema...\n' "$project_label"
 docker exec -i "$db_container" \
   psql -v ON_ERROR_STOP=1 -U postgres -d "$database_name" \
   < "$rehearsal_schema"
 
-printf '%s\n' 'Restoring Local Delivery production rows and Auth/Storage metadata...'
+printf 'Restoring %s production rows and Auth/Storage metadata...\n' \
+  "$project_label"
 docker exec -i "$db_container" \
   psql -v ON_ERROR_STOP=1 -U "$database_admin" -d "$database_name" \
   < "$rehearsal_data"
 
-LOCAL_DELIVERY_REHEARSAL_DATABASE="$database_name" \
-LOCAL_DELIVERY_EXPECTED_COUNTS_FILE="$reconciled_counts" \
-  "$repo_root/tools/verify_local_delivery_production_restore.sh"
+env \
+  "$verifier_database_env=$database_name" \
+  "$verifier_counts_env=$reconciled_counts" \
+  "$verifier_script"
 
 if [[ "$retain_database" == "1" ]]; then
   printf '%s\n' \
-    "Local Delivery restore rehearsal passed in $database_name." \
+    "$project_label restore rehearsal passed in $database_name." \
     'The isolated database was retained by explicit request.'
 else
   drop_rehearsal_database
   printf '%s\n' \
-    'Local Delivery restore rehearsal passed.' \
+    "$project_label restore rehearsal passed." \
     'The disposable database and plaintext working files were removed.'
 fi

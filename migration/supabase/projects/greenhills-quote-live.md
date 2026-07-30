@@ -259,3 +259,33 @@ before retrying.
 The ignored encrypted snapshot is a protected consolidation input. It does not
 authorize importing legacy dispatch rows into Local-Delivery; ID-level
 reconciliation and an isolated restore rehearsal remain required first.
+
+## Prepared production restore rehearsal
+
+The isolated Quote Live restore path is now implemented:
+
+```bash
+tools/rehearse_greenhills_quote_live_restore.sh
+tools/verify_greenhills_quote_live_production_restore.sh
+```
+
+The rehearsal reuses the already-verified managed-project restore engine while
+keeping Quote Live's archive identity, Keychain account, disposable database,
+and verifier separate. It will:
+
+- validate the encrypted archive and every signed component;
+- decrypt only into a mode-`0700` temporary directory;
+- clone the local PostgreSQL 17 platform database without resetting the
+  standing Local-Delivery target;
+- restore schema, production rows, Auth, and Storage metadata;
+- verify 22 RLS-enabled public tables, 20 policies, eight functions, eight
+  triggers, indexes, constraints, Auth relationships, Storage relationships,
+  and all 26 exact relation counts; and
+- remove the disposable database and plaintext files on completion or failure.
+
+The wrapper currently fails closed because the encrypted Quote Live export does
+not yet exist. This is expected while project-scoped temporary database access
+is unavailable. The existing Local-Delivery encrypted export completed a full
+restore through the generalized engine after this change, and the standing
+Local-Delivery lab passed its independent clean-room verification afterward.
+No Quote Live production data was read or changed by preparing this tooling.

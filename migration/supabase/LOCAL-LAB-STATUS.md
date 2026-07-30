@@ -510,6 +510,25 @@ without reviving Quote Live's legacy dispatch implementation. No production
 customer row, Auth identity, Shopify token, or managed-project setting was
 changed.
 
+The guarded encrypted export and isolated restore paths are also prepared:
+
+```bash
+tools/export_greenhills_quote_live_database.sh
+tools/rehearse_greenhills_quote_live_restore.sh
+tools/verify_greenhills_quote_live_production_restore.sh
+```
+
+The restore verifier enforces Quote Live's 22-table RLS contract, 20 policies,
+eight functions, eight triggers, Auth and Storage relationships, index and
+constraint validity, and the 26-relation signed row-count manifest. The
+generalized restore engine was regression-tested with the Local-Delivery
+encrypted snapshot; the restore passed and the standing lab independently
+passed its clean-room verification afterward.
+
+Quote Live remains blocked before export because the current Supabase operator
+does not have project-scoped temporary database access. The exporter and
+rehearsal both fail closed, and no database password was reset.
+
 ## Local-Delivery encrypted database/Auth snapshot
 
 Supabase temporary database access was enabled for the current operator and

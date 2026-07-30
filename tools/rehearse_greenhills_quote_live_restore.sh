@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+repo_root="$(
+  cd "$(dirname "${BASH_SOURCE[0]}")/.."
+  pwd
+)"
+
+export GHOS_MANAGED_RESTORE_LABEL="GreenHills Quote Live"
+export GHOS_MANAGED_RESTORE_ARCHIVE_SLUG="greenhills-quote-live"
+export GHOS_MANAGED_RESTORE_DATABASE="${GREENHILLS_QUOTE_LIVE_REHEARSAL_DATABASE:-greenhills_quote_live_restore_$(date -u +%Y%m%d_%H%M%S)}"
+export GHOS_MANAGED_RESTORE_ARCHIVE="${GREENHILLS_QUOTE_LIVE_DATABASE_ARCHIVE:-}"
+export GHOS_MANAGED_RESTORE_RETAIN_DATABASE="${GREENHILLS_QUOTE_LIVE_RETAIN_REHEARSAL_DATABASE:-0}"
+export GHOS_MANAGED_RESTORE_KEYCHAIN_ACCOUNT="greenhills-quote-live"
+export GHOS_MANAGED_RESTORE_VERIFIER="$repo_root/tools/verify_greenhills_quote_live_production_restore.sh"
+export GHOS_MANAGED_RESTORE_VERIFIER_DATABASE_ENV="GREENHILLS_QUOTE_LIVE_REHEARSAL_DATABASE"
+export GHOS_MANAGED_RESTORE_VERIFIER_COUNTS_ENV="GREENHILLS_QUOTE_LIVE_EXPECTED_COUNTS_FILE"
+export GHOS_MANAGED_RESTORE_KNOWN_DRIFT=""
+export GHOS_MANAGED_RESTORE_APPLY_CLUSTER_ROLES="${GREENHILLS_QUOTE_LIVE_APPLY_CLUSTER_ROLES:-0}"
+
+exec "$repo_root/tools/rehearse_local_delivery_production_restore.sh"
