@@ -40,6 +40,19 @@ with zero errors, container health check, managed-project guard, runtime
 configuration check, and secret-free image build all passed. No managed
 Supabase setting or production data was changed.
 
+The application package was installed on GHOS on 2026-07-30 at:
+
+```text
+/opt/ghos/apps/winterwatch-pro
+```
+
+Commit `cf46df4` built successfully on the VM. The
+`winterwatch-pro-web` container is healthy on port `8083`, recovered cleanly
+from a container restart, and is reachable over both the GHOS LAN and Tailscale
+addresses. Its managed Supabase Auth endpoint passed an authenticated
+publishable-key connectivity check. Cloudflare Tunnel and public DNS were
+deliberately not configured during this deployment.
+
 ## Read-only managed inventory
 
 Captured 2026-07-28 without retrieving row payloads, identities, objects, or
