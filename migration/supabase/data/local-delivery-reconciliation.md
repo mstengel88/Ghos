@@ -214,7 +214,8 @@ When database access is available:
 - [x] Active order and route rows remain unchanged in the disposable merge
 - [x] Quote rows remain unchanged and no Quote Live quote is imported
 - [ ] Product and material calculator configuration tested
-- [ ] Every Storage object at extraction time restored with matching SHA-256
+- [x] Every Storage object in the current checkpoint restored with matching
+      SHA-256
 - [ ] Embedded and unclassified `dispatch_orders.photo_urls` payloads retained
 - [ ] Final delta rehearsal passes after a simulated write freeze
 - [ ] Rollback restore tested

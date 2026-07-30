@@ -621,6 +621,15 @@ remained at 212, orders remained at 970, and no non-notification table count
 changed. Both disposable databases were removed. Final delta rehearsal and
 production cutover remain pending.
 
+The combined final-input tool then passed in explicitly unfrozen, read-only
+mode. It independently verified both encrypted database archive checksums, all
+475 `dispatch-photos` objects and 643,127,719 bytes by SHA-256, the prior
+localhost Storage restore report, and an 8,677-second input-extraction skew
+before repeating the disposable notification-only merge. Read-only live
+inventory showed one new Local-Delivery order and ten updated orders after the
+database checkpoint, so this run is tooling acceptance rather than a final
+delta. A fresh writes-frozen export remains mandatory.
+
 ## Photo migration inventory
 
 A read-only Storage/reference inventory found 470 current objects totaling

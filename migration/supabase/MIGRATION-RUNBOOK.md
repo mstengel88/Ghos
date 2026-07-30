@@ -156,7 +156,9 @@ For each of the five production applications:
 
 ## Gate 5 — Per-application cutover
 
-- [ ] Final delta or maintenance-window process rehearsed
+- [x] Unfrozen final-input tooling and maintenance-window guards implemented;
+      live drift proves a fresh writes-frozen export is still required
+- [ ] Writes-frozen final delta process rehearsed
 - [ ] Record counts and critical-table checksums match
 - [ ] Auth and authorization acceptance tests pass
 - [ ] Storage object counts and sample hashes match

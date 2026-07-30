@@ -14,20 +14,26 @@ apply_owner_quote_disposition="${GHOS_RECONCILE_APPLY_OWNER_QUOTE_DISPOSITION:-0
 run_id="$(date -u +%Y%m%d_%H%M%S)"
 canonical_database="${GHOS_RECONCILE_CANONICAL_DATABASE:-ghos_reconcile_local_$run_id}"
 legacy_database="${GHOS_RECONCILE_LEGACY_DATABASE:-ghos_reconcile_quote_$run_id}"
-canonical_archive="$(
-  find "$repo_root/migration/supabase/exports/local-delivery" \
-    -type f -name 'local-delivery-database.sql.tar.gz.enc' \
-    -print 2>/dev/null |
-    sort |
-    tail -n 1
-)"
-legacy_archive="$(
-  find "$repo_root/migration/supabase/exports/greenhills-quote-live" \
-    -type f -name 'greenhills-quote-live-database.sql.tar.gz.enc' \
-    -print 2>/dev/null |
-    sort |
-    tail -n 1
-)"
+canonical_archive="${GHOS_RECONCILE_CANONICAL_ARCHIVE:-}"
+legacy_archive="${GHOS_RECONCILE_LEGACY_ARCHIVE:-}"
+if [[ -z "$canonical_archive" ]]; then
+  canonical_archive="$(
+    find "$repo_root/migration/supabase/exports/local-delivery" \
+      -type f -name 'local-delivery-database.sql.tar.gz.enc' \
+      -print 2>/dev/null |
+      sort |
+      tail -n 1
+  )"
+fi
+if [[ -z "$legacy_archive" ]]; then
+  legacy_archive="$(
+    find "$repo_root/migration/supabase/exports/greenhills-quote-live" \
+      -type f -name 'greenhills-quote-live-database.sql.tar.gz.enc' \
+      -print 2>/dev/null |
+      sort |
+      tail -n 1
+  )"
+fi
 created_canonical=0
 created_legacy=0
 work_root="$(mktemp -d "${TMPDIR:-/tmp}/ghos-reconcile.XXXXXX")"

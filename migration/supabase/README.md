@@ -77,6 +77,21 @@ checks exact row counts and integrity, and removes the disposable database and
 plaintext files after success or failure. It never targets managed Supabase or
 the standing local lab.
 
+After both database snapshots and the verified Storage byte export exist,
+exercise the combined final-input path without changing production:
+
+```bash
+GHOS_FINAL_DELTA_ACKNOWLEDGEMENT=UNFROZEN_READ_ONLY_REHEARSAL \
+  ./tools/rehearse_local_delivery_final_delta.sh
+```
+
+The command verifies encrypted archive checksums, every Storage object
+SHA-256, extraction-time skew, the owner-approved no-quote disposition, and the
+notification-only merge in disposable databases. An unfrozen rehearsal proves
+the tooling only. The actual final run still requires a maintenance window,
+fresh exports, and
+`GHOS_FINAL_DELTA_ACKNOWLEDGEMENT=WRITES_FROZEN_FINAL_REHEARSAL`.
+
 ## Export managed Storage
 
 Storage object bytes can be exported independently while the exact database
