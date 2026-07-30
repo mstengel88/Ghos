@@ -251,10 +251,22 @@ Run:
 ```
 
 The first guarded attempt on 2026-07-29 confirmed that temporary database
-access was not enabled for this specific project. The exporter stopped before
-creating plaintext or changing production. Enable temporary access for project
-`dbyxbgbkokcddgeybjmf` and map the current Supabase operator to `postgres`
-before retrying.
+access was not enabled for this specific project. After access was granted, a
+second diagnostic identified a stale shared-pooler hostname in the wrapper.
+The wrapper now uses the verified `aws-1-us-west-2` endpoint.
+
+The guarded export then completed successfully:
+
+```text
+migration/supabase/exports/greenhills-quote-live/20260730T031508Z/
+```
+
+The approximately 57 MiB encrypted archive contains role settings, application
+schema, database rows, Auth/Storage metadata, and the signed 26-relation
+reconciliation manifest. The exporter verified every plaintext component and
+the encrypted archive checksum before removing all plaintext work files. The
+encryption password remains in macOS Keychain under the dedicated
+`greenhills-quote-live` account, and the private archive is excluded from Git.
 
 The ignored encrypted snapshot is a protected consolidation input. It does not
 authorize importing legacy dispatch rows into Local-Delivery; ID-level
@@ -283,9 +295,19 @@ and verifier separate. It will:
   and all 26 exact relation counts; and
 - remove the disposable database and plaintext files on completion or failure.
 
-The wrapper currently fails closed because the encrypted Quote Live export does
-not yet exist. This is expected while project-scoped temporary database access
-is unavailable. The existing Local-Delivery encrypted export completed a full
-restore through the generalized engine after this change, and the standing
-Local-Delivery lab passed its independent clean-room verification afterward.
-No Quote Live production data was read or changed by preparing this tooling.
+The encrypted Quote Live snapshot completed a full disposable PostgreSQL 17
+restore rehearsal on 2026-07-29. Verification passed for:
+
+- 22 of 22 public tables with RLS;
+- 20 policies, eight functions, and eight triggers;
+- 11 Auth users, 11 identities, and zero orphan identities;
+- 11 application profiles and one dispatch role with no orphan references;
+- 89 quotes and 457 legacy dispatch orders;
+- the `dispatch-photos` bucket with zero objects;
+- all 26 signed exact row counts;
+- zero invalid or unready indexes; and
+- zero unvalidated constraints.
+
+The rehearsal removed its disposable database and plaintext files. The
+standing Local-Delivery lab then passed its independent clean-room verification
+with all services healthy. No Quote Live production row was changed.

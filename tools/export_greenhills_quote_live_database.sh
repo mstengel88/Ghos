@@ -7,7 +7,7 @@ repo_root="$(
 )"
 
 export SUPABASE_EXPORT_PROJECT_REF="dbyxbgbkokcddgeybjmf"
-export SUPABASE_EXPORT_POOLER_HOST="aws-0-us-west-2.pooler.supabase.com"
+export SUPABASE_EXPORT_POOLER_HOST="aws-1-us-west-2.pooler.supabase.com"
 export SUPABASE_EXPORT_LABEL="GreenHills Quote Live"
 export SUPABASE_EXPORT_ARCHIVE_SLUG="greenhills-quote-live"
 export SUPABASE_EXPORT_KEYCHAIN_ACCOUNT="greenhills-quote-live"

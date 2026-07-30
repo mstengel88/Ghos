@@ -525,9 +525,28 @@ generalized restore engine was regression-tested with the Local-Delivery
 encrypted snapshot; the restore passed and the standing lab independently
 passed its clean-room verification afterward.
 
-Quote Live remains blocked before export because the current Supabase operator
-does not have project-scoped temporary database access. The exporter and
-rehearsal both fail closed, and no database password was reset.
+Temporary access was enabled for Quote Live on 2026-07-29. A stale `aws-0`
+shared-pooler hostname was then corrected to the project-verified `aws-1`
+endpoint. No database password was reset.
+
+The guarded export completed at:
+
+```text
+migration/supabase/exports/greenhills-quote-live/20260730T031508Z/
+```
+
+The approximately 57 MiB encrypted archive passed component and archive
+checksum verification and remains excluded from Git. Its dedicated encryption
+password remains in macOS Keychain.
+
+The encrypted snapshot then passed the complete disposable PostgreSQL 17
+restore rehearsal. Results included 22 RLS-enabled public tables, 20 policies,
+eight functions, eight triggers, 11 Auth users and identities, 11 profiles, one
+dispatch role, 89 quotes, 457 legacy dispatch orders, one empty Storage bucket,
+all 26 exact relation counts, and no invalid indexes, unvalidated constraints,
+or orphan Auth/Storage relationships. The disposable database and plaintext
+files were removed, and the standing Local-Delivery lab passed independent
+clean-room verification afterward with all services healthy.
 
 ## Local-Delivery encrypted database/Auth snapshot
 

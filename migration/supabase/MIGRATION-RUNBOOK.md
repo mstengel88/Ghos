@@ -44,6 +44,12 @@ For each of the five production applications:
 - [x] Local-Delivery temporary database access enabled for the current operator
       with the `postgres` role; the encrypted database/Auth export completed
       and was verified on 2026-07-29
+- [x] GreenHills Quote Live temporary database access enabled for the current
+      operator with the `postgres` role; the encrypted database/Auth export
+      completed and was verified on 2026-07-29
+- [x] GreenHills Quote Live database, Auth, and Storage metadata restored and
+      verified in an isolated PostgreSQL 17 environment with all 26 signed
+      relation counts
 - [x] WinterWatch private Storage objects and metadata exported and SHA-256 verified
 - [x] WinterWatch private Storage export encrypted and retained off the Mac
 - [x] WinterWatch private Storage restored to the isolated lab with byte-for-byte verification

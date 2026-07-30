@@ -171,7 +171,10 @@ Only secret names were inventoried.
   dispatch orders, 20 visible public RLS policies, and a public but empty
   `dispatch-photos` bucket. Its continuing quote client is environment
   configurable, has a migration branch protecting runtime secrets, and passes
-  secret-free configuration acceptance. See
+  secret-free configuration acceptance. Its encrypted database/Auth/Storage
+  metadata export and disposable PostgreSQL 17 restore rehearsal now pass with
+  all 26 signed relation counts, RLS, policies, functions, triggers, Auth and
+  Storage relationships, indexes, and constraints verified. See
   `projects/greenhills-quote-live.md` for the MCP-backed inventory.
 - Dump Site: eight migrations, `pgcrypto`, queue/claim RPC functions, and two
   Edge Functions. Read-only MCP reconciliation confirms the live three-table
