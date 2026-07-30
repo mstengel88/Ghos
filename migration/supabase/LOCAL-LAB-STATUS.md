@@ -1,6 +1,6 @@
 # Local Supabase compatibility lab status
 
-Last verified: 2026-07-29
+Last verified: 2026-07-30
 
 ## Baseline
 
@@ -582,6 +582,33 @@ table's COPY block from the checksum-verified data dump before verification.
 
 After the rehearsal, `tools/verify_local_delivery_clean_room.sh` independently
 passed again against the unchanged standing lab.
+
+## Exact Local-Delivery / Quote Live reconciliation
+
+Both protected production snapshots were restored together into disposable
+local PostgreSQL 17 databases and classified through:
+
+```bash
+tools/reconcile_local_delivery_quote_live_snapshots.sh
+```
+
+The runner now records a per-source table manifest, including empty tables,
+before streaming JSON row projections directly between local database
+processes. It does not write customer records or identifiers to disk or Git.
+All 23 Local-Delivery tables, all 22 Quote Live tables, and every per-table row
+count passed the exact staging gate.
+
+Aggregate results were 44,434 canonical-only, 43 legacy-only, 1,489 matching,
+and 373 raw conflicting records. The legacy-only set is limited to 40 read
+notifications and three quotes. After removing explainable timestamp,
+environment, identity, and source-row UUID differences from the explanatory
+view, the product map has 28 substantive conflicts and the duplicate quote set
+has one substantive total conflict. No Quote Live quote creator is unmapped in
+the exact snapshot.
+
+Full aggregate results and the resulting ownership decisions are documented in
+`data/exact-reconciliation-20260730.md`. Conflict decisions, final delta
+rehearsal, and production cutover remain pending.
 
 ## Photo migration inventory
 

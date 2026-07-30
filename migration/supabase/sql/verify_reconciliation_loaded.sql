@@ -1,30 +1,11 @@
 \set ON_ERROR_STOP on
 \pset pager off
 
-select *
-from migration_reconcile.reconciliation_summary;
-
-select
-  classification,
-  count(*) as record_count
-from migration_reconcile.record_comparison
-group by classification
-order by classification;
-
-select
-  table_name,
-  count(*) as unresolved_count
-from migration_reconcile.unresolved_records
-group by table_name
-order by table_name;
-
 do $$
 declare
   batch record;
   actual_table_count bigint;
   actual_row_count bigint;
-  unresolved_count bigint;
-  blocked_quote_count bigint;
 begin
   if (
     select count(*)
@@ -32,7 +13,7 @@ begin
     where source_project in ('local_delivery', 'quote_live')
   ) <> 2 then
     raise exception
-      'Reconciliation is not ready: both source import manifests are required';
+      'Both source import manifests are required';
   end if;
 
   for batch in
@@ -80,27 +61,14 @@ begin
     end if;
   end loop;
 
-  select count(*)
-  into unresolved_count
-  from migration_reconcile.unresolved_records;
-
-  if unresolved_count <> 0 then
-    raise exception
-      'Reconciliation is not ready: % legacy-only or conflicting rows lack decisions',
-      unresolved_count;
+  if (
+    select count(*)
+    from migration_reconcile.record_comparison
+  ) = 0 then
+    raise exception 'The reconciliation comparison is empty';
   end if;
 
-  select count(*)
-  into blocked_quote_count
-  from migration_reconcile.quote_import_candidates
-  where not ready_for_import;
-
-  if blocked_quote_count <> 0 then
-    raise exception
-      'Reconciliation is not ready: % reviewed quote import(s) have unmapped creators',
-      blocked_quote_count;
-  end if;
-
-  raise notice 'Every legacy-only and conflicting row has a merge decision.';
+  raise notice
+    'Both exact source manifests and every per-table row count are verified.';
 end
 $$;

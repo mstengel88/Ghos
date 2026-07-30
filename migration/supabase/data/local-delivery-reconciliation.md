@@ -1,7 +1,7 @@
 # Local-Delivery data reconciliation plan
 
-Status: design and sanitized MCP comparison complete; production export not
-started
+Status: exact encrypted-snapshot classification complete; merge decisions and
+final delta rehearsal pending
 
 Canonical target: Local-Delivery / Dispatch V2 Sandbox
 
@@ -125,6 +125,16 @@ legacy-only orders, routes, trucks, or stop metrics. It identified 40
 legacy-only read notifications with valid canonical order/route references and
 three legacy-only quotes requiring creator-identity review.
 
+The exact encrypted-snapshot comparison is recorded in
+`exact-reconciliation-20260730.md`. It verified all 23 Local-Delivery and 22
+Quote Live public tables, including Quote Live's empty B2B table. The exact
+comparison found 44,434 canonical-only, 43 legacy-only, 1,489 matching, and 373
+raw conflicting records. After excluding reviewed timestamp, environment, and
+identity/source-UUID differences, the main decision set is 163 operational
+order conflicts, 28 product-map conflicts, 10 route conflicts, seven truck
+conflicts, seven location conflicts, two profile conflicts, one stop-metric
+conflict, and one quote-total conflict.
+
 The read-only photo inventory is recorded in
 `storage-manifest-20260728.md`. At inventory time the bucket held 470 objects,
 while 170 orders retained roughly 151.4 million characters of embedded JPEG
@@ -142,8 +152,8 @@ When database access is available:
 
 ## Acceptance gates
 
-- [ ] Exact production exports retained and checksummed
-- [ ] All 22 tables classified by primary/natural key
+- [x] Exact production exports retained and checksummed
+- [x] All 22 Quote Live tables classified by primary/natural key
 - [ ] Every conflict reviewed
 - [ ] Auth identity map approved
 - [ ] Foreign-key orphan report is empty

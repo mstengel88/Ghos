@@ -42,6 +42,7 @@ staging_row_count="$(
     "
       select
         (select count(*) from migration_reconcile.import_batches)
+        + (select count(*) from migration_reconcile.source_tables)
         + (select count(*) from migration_reconcile.source_rows)
         + (select count(*) from migration_reconcile.merge_decisions)
         + (select count(*) from migration_reconcile.identity_map);

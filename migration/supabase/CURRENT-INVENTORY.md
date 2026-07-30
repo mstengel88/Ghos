@@ -165,7 +165,11 @@ Only secret names were inventoried.
   one-time reconciliation source, not a second continuing implementation.
   Read-only MCP inventory confirmed 22 public tables and 13 Auth users. The
   2026-07-28 follow-up recorded 966 dispatch orders, 588 stop-metric records,
-  and 470 Storage objects. See
+  and 470 Storage objects. The later exact encrypted snapshot verified 23
+  public tables, 970 orders, 592 stop metrics, 212 quotes, and 475 Storage
+  metadata rows. Its exact reconciliation against Quote Live found 44,434
+  canonical-only, 43 legacy-only, 1,489 matching, and 373 raw conflicting
+  records; see `data/exact-reconciliation-20260730.md`. See
   `projects/local-delivery.md`.
 - GreenHills Quote Live: 22 public tables, 11 Auth users, 89 quotes, 457
   dispatch orders, 20 visible public RLS policies, and a public but empty

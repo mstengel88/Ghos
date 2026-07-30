@@ -28,6 +28,16 @@ create table if not exists migration_reconcile.source_rows (
   primary key (source_project, table_name, record_key)
 );
 
+create table if not exists migration_reconcile.source_tables (
+  source_project text not null
+    check (source_project in ('local_delivery', 'quote_live')),
+  table_name text not null,
+  source_row_count bigint not null check (source_row_count >= 0),
+  record_key_strategy text not null
+    check (length(btrim(record_key_strategy)) > 0),
+  primary key (source_project, table_name)
+);
+
 create index if not exists source_rows_table_key_idx
   on migration_reconcile.source_rows (table_name, record_key);
 
@@ -207,6 +217,9 @@ comment on table migration_reconcile.import_batches is
 
 comment on table migration_reconcile.source_rows is
   'Contains sensitive temporary production projections; never dump into Git.';
+
+comment on table migration_reconcile.source_tables is
+  'Exact per-source table manifest, including empty source tables.';
 
 comment on table migration_reconcile.identity_map is
   'Private reviewed Auth UUID mapping; never dump identities into Git.';

@@ -94,6 +94,9 @@ For each of the five production applications:
       Shopify-setting, and anonymous-isolation contracts
 - [x] Sanitized Local-Delivery/Quote Live key and row reconciliation completed
       without exporting customer data or secrets
+- [x] Exact encrypted Local-Delivery/Quote Live snapshots restored together;
+      all 23 canonical and 22 legacy tables plus every per-table row count
+      classified by deterministic primary/natural key
 - [x] Quote creator UUID rewrite and unmapped-owner quarantine behavior pass
       in the isolated reconciliation lab
 - [x] Local-Delivery Storage/reference manifest records bucket objects,
