@@ -234,3 +234,28 @@ The acceptance passed on 2026-07-29. This establishes the newer
 Local-Delivery schema as the clean-room compatibility target for the continuing
 quote tool. Production Quote Live rows, Auth identities, and Shopify sessions
 remain separate cutover inputs and were not copied by this test.
+
+## Guarded production snapshot
+
+`tools/export_greenhills_quote_live_database.sh` wraps the pinned managed
+Supabase exporter with Quote Live's exact project, pooler, archive identity, and
+26-table Auth/application/Storage reconciliation query. It uses the current
+operator's temporary database access token from macOS Keychain, never requires
+resetting the database password, encrypts the resulting logical snapshot, and
+fails closed if temporary access or any expected relation is unavailable.
+
+Run:
+
+```bash
+./tools/export_greenhills_quote_live_database.sh
+```
+
+The first guarded attempt on 2026-07-29 confirmed that temporary database
+access was not enabled for this specific project. The exporter stopped before
+creating plaintext or changing production. Enable temporary access for project
+`dbyxbgbkokcddgeybjmf` and map the current Supabase operator to `postgres`
+before retrying.
+
+The ignored encrypted snapshot is a protected consolidation input. It does not
+authorize importing legacy dispatch rows into Local-Delivery; ID-level
+reconciliation and an isolated restore rehearsal remain required first.
