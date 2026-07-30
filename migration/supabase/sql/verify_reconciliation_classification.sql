@@ -10,6 +10,9 @@ begin
     from migration_reconcile.import_batches
   ) or exists (
     select 1
+    from migration_reconcile.source_tables
+  ) or exists (
+    select 1
     from migration_reconcile.source_rows
   ) or exists (
     select 1
@@ -23,6 +26,17 @@ begin
   end if;
 end
 $$;
+
+insert into migration_reconcile.source_tables (
+  source_project,
+  table_name,
+  source_row_count,
+  record_key_strategy
+)
+values
+  ('local_delivery', 'dispatch_orders', 3, 't.id'),
+  ('quote_live', 'dispatch_orders', 3, 't.id'),
+  ('quote_live', 'custom_delivery_quotes', 3, 't.id');
 
 insert into migration_reconcile.import_batches (
   source_project,
@@ -228,10 +242,10 @@ begin
     from migration_reconcile.import_batches
   loop
     select
-      count(distinct table_name),
-      count(*)
+      count(*),
+      coalesce(sum(source_row_count), 0)
     into actual_table_count, actual_row_count
-    from migration_reconcile.source_rows
+    from migration_reconcile.source_tables
     where source_project = batch.source_project;
 
     if actual_table_count <> batch.source_table_count
@@ -243,6 +257,28 @@ begin
         batch.source_row_count,
         actual_table_count,
         actual_row_count;
+    end if;
+
+    if exists (
+      select 1
+      from migration_reconcile.source_tables source_table
+      left join (
+        select
+          source_project,
+          table_name,
+          count(*) as loaded_row_count
+        from migration_reconcile.source_rows
+        group by source_project, table_name
+      ) loaded
+        on loaded.source_project = source_table.source_project
+        and loaded.table_name = source_table.table_name
+      where source_table.source_project = batch.source_project
+        and coalesce(loaded.loaded_row_count, 0)
+          <> source_table.source_row_count
+    ) then
+      raise exception
+        'Synthetic per-table source manifest mismatch for %',
+        batch.source_project;
     end if;
   end loop;
 
@@ -291,6 +327,9 @@ begin
   if exists (
     select 1
     from migration_reconcile.import_batches
+  ) or exists (
+    select 1
+    from migration_reconcile.source_tables
   ) or exists (
     select 1
     from migration_reconcile.source_rows

@@ -510,6 +510,79 @@ docker exec "$db_container" \
       where resolution = 'not_required';
     "
 
+docker exec -i "$db_container" \
+  psql -X -v ON_ERROR_STOP=1 -U "$database_admin" \
+    -d "$canonical_database" \
+  < "$repo_root/migration/supabase/sql/seed_reconciliation_policy_decisions.sql" \
+  >/dev/null
+
+printf '\nDocumented policy decisions\n'
+printf '%s\n' '==========================='
+docker exec "$db_container" \
+  psql -X -v ON_ERROR_STOP=1 -U "$database_admin" \
+    -d "$canonical_database" -P pager=off -c "
+      select decision, count(*) as records
+      from migration_reconcile.merge_decisions
+      where decided_by = 'documented-owner-policy-v1'
+      group by decision
+      order by decision;
+    "
+
+printf '\nRemaining human review queue\n'
+printf '%s\n' '============================'
+docker exec "$db_container" \
+  psql -X -v ON_ERROR_STOP=1 -U "$database_admin" \
+    -d "$canonical_database" -P pager=off -c "
+      select table_name, classification, count(*) as records
+      from migration_reconcile.unresolved_records
+      group by table_name, classification
+      order by table_name, classification;
+    "
+
+docker exec "$db_container" \
+  psql -X -v ON_ERROR_STOP=1 -U "$database_admin" \
+    -d "$canonical_database" <<'SQL' >/dev/null
+do $$
+declare
+  policy_decision_count bigint;
+  unresolved_quote_count bigint;
+  unresolved_nonquote_count bigint;
+begin
+  select count(*)
+  into policy_decision_count
+  from migration_reconcile.merge_decisions
+  where decided_by = 'documented-owner-policy-v1';
+
+  select
+    count(*) filter (where table_name = 'custom_delivery_quotes'),
+    count(*) filter (where table_name <> 'custom_delivery_quotes')
+  into unresolved_quote_count, unresolved_nonquote_count
+  from migration_reconcile.unresolved_records;
+
+  if policy_decision_count <> 412 then
+    raise exception
+      'Exact policy baseline changed: expected 412 decisions, found %',
+      policy_decision_count;
+  end if;
+
+  if unresolved_nonquote_count <> 0 then
+    raise exception
+      'Policy scaffold left % non-quote record(s) unresolved',
+      unresolved_nonquote_count;
+  end if;
+
+  if unresolved_quote_count <> 4 then
+    raise exception
+      'Exact quote review baseline changed: expected 4 records, found %',
+      unresolved_quote_count;
+  end if;
+
+  raise notice
+    'Exact policy baseline verified: 412 decisions and four quotes for human review.';
+end
+$$;
+SQL
+
 printf '\nReconciliation staging verification\n'
 printf '%s\n' '==================================='
 docker exec -i "$db_container" \

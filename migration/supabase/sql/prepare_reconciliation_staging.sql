@@ -209,6 +209,59 @@ where source.source_project = 'quote_live'
   and source.table_name = 'custom_delivery_quotes'
   and decision.decision in ('import_legacy', 'merge_reviewed');
 
+create or replace view migration_reconcile.identity_map_candidates as
+select
+  nullif(legacy.payload ->> 'id', '')::uuid as legacy_user_id,
+  nullif(canonical.payload ->> 'id', '')::uuid as canonical_user_id,
+  canonical.record_key as normalized_email,
+  (
+    nullif(legacy.payload ->> 'id', '')::uuid
+      is distinct from
+    nullif(canonical.payload ->> 'id', '')::uuid
+  ) as uuid_rewrite_required
+from migration_reconcile.source_rows canonical
+join migration_reconcile.source_rows legacy
+  on legacy.table_name = canonical.table_name
+  and legacy.record_key = canonical.record_key
+where canonical.source_project = 'local_delivery'
+  and legacy.source_project = 'quote_live'
+  and canonical.table_name = 'app_user_profiles';
+
+create or replace view
+migration_reconcile.legacy_notification_import_candidates as
+select
+  notification.record_key,
+  notification.payload,
+  (
+    nullif(notification.payload ->> 'order_id', '') is null
+    or exists (
+      select 1
+      from migration_reconcile.source_rows canonical_order
+      where canonical_order.source_project = 'local_delivery'
+        and canonical_order.table_name = 'dispatch_orders'
+        and canonical_order.record_key =
+          notification.payload ->> 'order_id'
+    )
+  ) as order_reference_valid,
+  (
+    nullif(notification.payload ->> 'route_id', '') is null
+    or exists (
+      select 1
+      from migration_reconcile.source_rows canonical_route
+      where canonical_route.source_project = 'local_delivery'
+        and canonical_route.table_name = 'dispatch_routes'
+        and canonical_route.record_key =
+          notification.payload ->> 'route_id'
+    )
+  ) as route_reference_valid
+from migration_reconcile.source_rows notification
+join migration_reconcile.record_comparison comparison
+  on comparison.table_name = notification.table_name
+  and comparison.record_key = notification.record_key
+where notification.source_project = 'quote_live'
+  and notification.table_name = 'dispatch_notifications'
+  and comparison.classification = 'legacy_only';
+
 comment on schema migration_reconcile is
   'Local-only staging for Local-Delivery and Quote Live reconciliation.';
 
@@ -226,3 +279,9 @@ comment on table migration_reconcile.identity_map is
 
 comment on view migration_reconcile.quote_import_candidates is
   'Reviewed Quote Live imports with deterministic creator remapping and fail-closed readiness.';
+
+comment on view migration_reconcile.identity_map_candidates is
+  'Private normalized-email identity candidates; requires approval before loading identity_map.';
+
+comment on view migration_reconcile.legacy_notification_import_candidates is
+  'Legacy-only notifications with fail-closed canonical reference checks.';

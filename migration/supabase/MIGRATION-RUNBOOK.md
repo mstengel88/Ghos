@@ -99,6 +99,9 @@ For each of the five production applications:
       classified by deterministic primary/natural key
 - [x] Quote creator UUID rewrite and unmapped-owner quarantine behavior pass
       in the isolated reconciliation lab
+- [x] Deterministic Local-Delivery/Quote Live ownership policy records 412
+      safe decisions and leaves only three legacy-only quotes plus one
+      quote-total conflict for human review
 - [x] Local-Delivery Storage/reference manifest records bucket objects,
       embedded database images, and unresolved photo payloads
 - [x] Dump Site eight-migration schema, RLS, generated order number, rate

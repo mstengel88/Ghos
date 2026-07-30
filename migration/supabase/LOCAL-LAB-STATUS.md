@@ -51,6 +51,12 @@ promoted: 23 tables, 26 policies, eight functions, eight triggers, 109 indexes,
 47 constraints, Storage metadata, Realtime publication, and all synthetic
 reconciliation classifications.
 
+The exact Local-Delivery/Quote Live reconciliation policy rehearsal also
+passes. It verifies both full source manifests, records 412 deterministic
+ownership decisions, and leaves exactly four business quote records
+fail-closed for human review. No identity mapping is auto-approved and no
+production database is written.
+
 The self-hosted baseline now also declares the standard Data API grants that
 managed Supabase normally installs outside application migrations. A
 disposable PostgreSQL 17 rebuild passed with 22 tables, 26 policies, and the

@@ -1,7 +1,8 @@
 # Local-Delivery data reconciliation plan
 
-Status: exact encrypted-snapshot classification complete; merge decisions and
-final delta rehearsal pending
+Status: exact encrypted-snapshot classification and deterministic ownership
+policy complete; four quote decisions, identity-map approval, and final delta
+rehearsal pending
 
 Canonical target: Local-Delivery / Dispatch V2 Sandbox
 
@@ -46,6 +47,12 @@ Every source row is loaded into the local-only
 Nothing in `conflict` is auto-merged. A reviewed decision is recorded in
 `migration_reconcile.merge_decisions` before a production migration can be
 generated.
+
+The documented ownership policy is now encoded by
+`seed_reconciliation_policy_decisions.sql`. It records 412 deterministic
+decisions while leaving all three legacy-only quotes and the one quote-total
+conflict unresolved. It does not approve the Auth identity map and does not
+write to production.
 
 The classification and decision rules are exercised repeatably by
 `migration/supabase/sql/verify_reconciliation_classification.sql`. The test
@@ -134,6 +141,12 @@ identity/source-UUID differences, the main decision set is 163 operational
 order conflicts, 28 product-map conflicts, 10 route conflicts, seven truck
 conflicts, seven location conflicts, two profile conflicts, one stop-metric
 conflict, and one quote-total conflict.
+
+The exact policy rehearsal resolves every non-quote review row plus the 16
+duplicate quote records that differ only by creator UUID. It creates 371
+`keep_canonical`, 40 `import_legacy`, and one
+`exclude_environment_state` decision. The only remaining review queue is three
+legacy-only quotes and one duplicate quote with a differing total.
 
 The read-only photo inventory is recorded in
 `storage-manifest-20260728.md`. At inventory time the bucket held 470 objects,

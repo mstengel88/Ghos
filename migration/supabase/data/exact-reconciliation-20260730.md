@@ -2,8 +2,9 @@
 
 Date: 2026-07-30 UTC
 
-Status: exact encrypted snapshots loaded and classified in an isolated local
-rehearsal; no production writes
+Status: exact encrypted snapshots loaded, classified, and deterministic
+non-business ownership decisions seeded in an isolated local rehearsal; four
+quotes remain for human review; no production writes
 
 Canonical target: Local-Delivery / Dispatch V2 Sandbox
 
@@ -131,6 +132,34 @@ even though none is blocked by an unmapped creator in this snapshot.
 - Shopify sessions and push subscriptions are environment state and are not
   migrated.
 
+## Deterministic decision boundary
+
+The documented ownership policy now produces 412 reviewable decisions directly
+from the exact snapshots:
+
+| Decision | Records |
+|---|---:|
+| Keep canonical Local-Delivery row | 371 |
+| Import verified legacy notification | 40 |
+| Exclude environment-specific Shopify session | 1 |
+
+The 371 canonical decisions include the 16 duplicate quotes whose only shared
+field difference is the creator UUID. They retain the canonical quote and do
+not rewrite business values.
+
+The fail-closed human review queue contains exactly four records:
+
+| Quote classification | Records |
+|---|---:|
+| Legacy-only quote | 3 |
+| Duplicate quote with a differing total | 1 |
+
+The policy script refuses to decide legacy-only quotes, refuses notification
+imports with invalid canonical references, and the exact runner aborts if any
+non-quote row remains unresolved or if the 412/4 baseline changes. The Auth
+identity candidates are visible only inside the disposable reconciliation
+database and are not automatically approved or loaded into the identity map.
+
 ## Reproduction
 
 Run:
@@ -141,5 +170,6 @@ Run:
 
 The command restores both encrypted snapshots into disposable databases,
 verifies every source-table manifest, streams JSON projections directly between
-local PostgreSQL processes, prints aggregate reports only, and drops the
-temporary databases on exit.
+local PostgreSQL processes, seeds the documented deterministic decisions,
+prints aggregate reports only, verifies the exact decision boundary, and drops
+the temporary databases on exit.
