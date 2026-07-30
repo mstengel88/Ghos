@@ -148,6 +148,18 @@ duplicate quote records that differ only by creator UUID. It creates 371
 `exclude_environment_state` decision. The only remaining review queue is three
 legacy-only quotes and one duplicate quote with a differing total.
 
+Create the private customer-level review packet with:
+
+```bash
+./tools/create_private_quote_reconciliation_review.sh
+```
+
+The command repeats both signed restore rehearsals, verifies the exact 412/4
+boundary, writes a local-only HTML comparison and CSV decision worksheet under
+the Git-ignored `migration/supabase/secrets/reconciliation-review/` directory,
+and removes both disposable databases. The packet contains customer data and
+must not be committed, emailed, or pasted into chat.
+
 The read-only photo inventory is recorded in
 `storage-manifest-20260728.md`. At inventory time the bucket held 470 objects,
 while 170 orders retained roughly 151.4 million characters of embedded JPEG

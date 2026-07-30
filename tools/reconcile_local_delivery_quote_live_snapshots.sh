@@ -9,6 +9,7 @@ repo_root="$(
 db_container="${SUPABASE_DB_CONTAINER:-supabase-db}"
 database_admin="${SUPABASE_DATABASE_ADMIN:-supabase_admin}"
 use_existing="${GHOS_RECONCILE_USE_EXISTING_DATABASES:-0}"
+retain_databases="${GHOS_RECONCILE_RETAIN_DATABASES:-0}"
 run_id="$(date -u +%Y%m%d_%H%M%S)"
 canonical_database="${GHOS_RECONCILE_CANONICAL_DATABASE:-ghos_reconcile_local_$run_id}"
 legacy_database="${GHOS_RECONCILE_LEGACY_DATABASE:-ghos_reconcile_quote_$run_id}"
@@ -51,10 +52,10 @@ drop_database() {
 
 cleanup() {
   set +e
-  if [[ "$created_legacy" == 1 ]]; then
+  if [[ "$created_legacy" == 1 && "$retain_databases" != "1" ]]; then
     drop_database "$legacy_database"
   fi
-  if [[ "$created_canonical" == 1 ]]; then
+  if [[ "$created_canonical" == 1 && "$retain_databases" != "1" ]]; then
     drop_database "$canonical_database"
   fi
   rm -rf "$work_root"
@@ -83,6 +84,10 @@ if [[ "$canonical_database" == "$legacy_database" ]]; then
 fi
 if [[ "$use_existing" != "0" && "$use_existing" != "1" ]]; then
   printf 'GHOS_RECONCILE_USE_EXISTING_DATABASES must be 0 or 1.\n' >&2
+  exit 1
+fi
+if [[ "$retain_databases" != "0" && "$retain_databases" != "1" ]]; then
+  printf 'GHOS_RECONCILE_RETAIN_DATABASES must be 0 or 1.\n' >&2
   exit 1
 fi
 if [[ ! -s "$canonical_archive" || ! -s "$legacy_archive" ]]; then
@@ -592,4 +597,7 @@ docker exec -i "$db_container" \
 printf '\nExact snapshot reconciliation completed without production writes.\n'
 if [[ "$use_existing" == "1" ]]; then
   printf 'Existing disposable databases were left intact by explicit request.\n'
+elif [[ "$retain_databases" == "1" ]]; then
+  printf 'Disposable databases retained by explicit request: %s and %s.\n' \
+    "$canonical_database" "$legacy_database"
 fi
