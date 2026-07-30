@@ -85,6 +85,10 @@ For each of the five production applications:
       Auth, invitation, recovery, RLS, Storage, and Realtime acceptance
 - [x] WinterWatch-Pro client candidate supports environment-specific Supabase
       URL/key and PWA caching through its migration branch
+- [x] WinterWatch-Pro application-only GHOS package builds and passes local
+      container acceptance while hard-pinned to its existing managed Supabase
+      project; its database, Auth, Storage, Realtime, Edge Functions, and cron
+      workloads remain outside this deployment
 - [x] GreenHills Quote Live already supports environment-specific Supabase
       configuration; its migration branch protects runtime secrets and passes
       secret-free configuration acceptance

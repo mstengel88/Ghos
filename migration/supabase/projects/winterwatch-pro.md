@@ -4,12 +4,41 @@ Managed project: WinterWatch-Pro (`caegybyfdkmgjrygnavg`)
 
 Canonical source: `/Users/mattstengel/winterwatch`
 
-Status: live inventory, exact PostgreSQL 17 application-schema rehearsal, and
-an isolated production database/Auth/Storage-metadata restore rehearsal passed.
-All private Storage objects have been exported, copied to the GHOS VM, restored
-into the isolated lab, and byte-verified. Full local PostgREST, Auth, and
-private Storage API recovery acceptance also passed. Secrets, Realtime client
-behavior, and external callbacks have not been migrated.
+Status: the WinterWatch-Pro application-only GHOS package is ready. This
+deployment moves the web container to GHOS but deliberately leaves Database,
+Auth, Storage, Realtime, Edge Functions, and scheduled jobs on the existing
+managed Supabase project. The separate self-hosting rehearsal remains retained
+as recovery evidence and future migration preparation; it is not part of this
+deployment.
+
+## Current deployment boundary
+
+The deployable application package is committed in the WinterWatch repository:
+
+```text
+branch: codex/ghos-managed-supabase-package
+commit: cf46df4
+compose: compose.ghos.yml
+```
+
+The package:
+
+- builds a static `winterwatch-pro-web` container without copying `.env` files
+  or credentials into the Docker build context;
+- injects only browser-visible settings at container startup;
+- refuses a Supabase service-role key or database password in its deployment
+  environment;
+- requires project ID `caegybyfdkmgjrygnavg` and its exact managed Supabase
+  URL before the container can start;
+- runs with a read-only root filesystem, dropped capabilities, an internal
+  health check, and `restart: unless-stopped`; and
+- publishes on port `8083` by default through the existing `ghos-internal`
+  network.
+
+Local acceptance passed on 2026-07-30: the unit test, production build, lint
+with zero errors, container health check, managed-project guard, runtime
+configuration check, and secret-free image build all passed. No managed
+Supabase setting or production data was changed.
 
 ## Read-only managed inventory
 
@@ -320,7 +349,10 @@ TypeScript result typing/casts; its queries and response behavior match. The
 typed local version is the self-hosting candidate, while the deployed bundle
 remains retained as migration evidence.
 
-## Remaining gates
+## Future backend-migration gates
+
+These gates apply only if WinterWatch's managed Supabase backend is moved in a
+later project. They do not block the current application-only GHOS deployment.
 
 1. Store a sealed recovery copy of the database-export encryption password.
 2. Test approved staging credentials for every external Edge Function service.
