@@ -7,22 +7,25 @@ repo_root="$(
   pwd
 )"
 
-project_ref="caegybyfdkmgjrygnavg"
-pooler_host="aws-1-us-east-1.pooler.supabase.com"
+project_ref="${SUPABASE_EXPORT_PROJECT_REF:-caegybyfdkmgjrygnavg}"
+pooler_host="${SUPABASE_EXPORT_POOLER_HOST:-aws-1-us-east-1.pooler.supabase.com}"
+export_label="${SUPABASE_EXPORT_LABEL:-WinterWatch}"
+archive_slug="${SUPABASE_EXPORT_ARCHIVE_SLUG:-winterwatch-pro}"
+expected_counts_sql_file="${SUPABASE_EXPORT_EXPECTED_COUNTS_SQL_FILE:-}"
 supabase_cli_commit="ac24960aeccfd7b2cfc0e59629c732f03f1a55a8"
 postgres_image="public.ecr.aws/supabase/postgres:17.6.1.147"
 keychain_service="${SUPABASE_KEYCHAIN_SERVICE:-Supabase CLI}"
 keychain_account="${SUPABASE_KEYCHAIN_ACCOUNT:-supabase}"
 archive_keychain_service="GHOS Migration Export Encryption"
-archive_keychain_account="winterwatch-pro"
+archive_keychain_account="${SUPABASE_EXPORT_KEYCHAIN_ACCOUNT:-winterwatch-pro}"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-destination_root="${WINTERWATCH_DATABASE_EXPORT_ROOT:-$repo_root/migration/supabase/exports/winterwatch-pro/$timestamp}"
-encrypted_archive="$destination_root/winterwatch-pro-database.sql.tar.gz.enc"
-work_root="$(mktemp -d "${TMPDIR:-/tmp}/ghos-winterwatch-export.XXXXXX")"
+destination_root="${SUPABASE_DATABASE_EXPORT_ROOT:-${WINTERWATCH_DATABASE_EXPORT_ROOT:-$repo_root/migration/supabase/exports/$archive_slug/$timestamp}}"
+encrypted_archive="$destination_root/$archive_slug-database.sql.tar.gz.enc"
+work_root="$(mktemp -d "${TMPDIR:-/tmp}/ghos-managed-export.XXXXXX")"
 export_root="$work_root/export"
 scripts_root="$work_root/scripts"
-plain_archive="$work_root/winterwatch-pro-database.sql.tar.gz"
-verify_archive="$work_root/winterwatch-pro-verify.tar.gz"
+plain_archive="$work_root/$archive_slug-database.sql.tar.gz"
+verify_archive="$work_root/$archive_slug-verify.tar.gz"
 pat=""
 encryption_password=""
 
@@ -39,7 +42,7 @@ require_command() {
   fi
 }
 
-for command_name in security docker curl openssl tar shasum git base64; do
+for command_name in security docker curl openssl tar shasum git base64 cp; do
   require_command "$command_name"
 done
 
@@ -67,6 +70,23 @@ unset keychain_value
 
 if [[ -z "$pat" ]]; then
   printf '%s\n' 'Supabase CLI token was not found in macOS Keychain.' >&2
+  exit 1
+fi
+
+if ! docker run --rm \
+  -e PGPASSWORD="$pat" \
+  -e PGOPTIONS="-c jit=true" \
+  -e PGHOST="$pooler_host" \
+  -e PGPORT=5432 \
+  -e PGUSER="postgres.$project_ref" \
+  -e PGDATABASE=postgres \
+  "$postgres_image" \
+  psql -v ON_ERROR_STOP=1 -Atc 'select 1' \
+  >/dev/null 2>&1; then
+  printf '%s\n' \
+    "Supabase temporary database access is not ready for $export_label." \
+    "Enable temporary access for project $project_ref and map the current Supabase user to the postgres role." \
+    'No database password was reset and no production data was changed.' >&2
   exit 1
 fi
 
@@ -124,23 +144,31 @@ run_dump() {
     bash -c "/scripts/$script_name > /export/$output_name"
 }
 
-printf '%s\n' 'Exporting WinterWatch role settings...'
+printf 'Exporting %s role settings...\n' "$export_label"
 run_dump dump_role.sh roles.sql \
   -e RESERVED_ROLES="$reserved_roles" \
   -e ALLOWED_CONFIGS="$allowed_configs" \
   -e EXTRA_SED='/^--/d'
 
-printf '%s\n' 'Exporting WinterWatch application schema...'
+printf 'Exporting %s application schema...\n' "$export_label"
 run_dump dump_schema.sh schema.sql \
   -e EXCLUDED_SCHEMAS="$schema_exclusions" \
   -e EXTRA_SED='/^--/d'
 
-printf '%s\n' 'Exporting WinterWatch database rows and Auth/Storage metadata...'
+printf 'Exporting %s database rows and Auth/Storage metadata...\n' "$export_label"
 run_dump dump_data.sh data.sql \
   -e INCLUDED_SCHEMAS='*' \
   -e EXCLUDED_SCHEMAS="$data_exclusions"
 
-cat > "$scripts_root/expected_counts.sql" <<'SQL'
+if [[ -n "$expected_counts_sql_file" ]]; then
+  if [[ ! -f "$expected_counts_sql_file" ]]; then
+    printf 'Expected-count SQL file not found: %s\n' \
+      "$expected_counts_sql_file" >&2
+    exit 1
+  fi
+  cp "$expected_counts_sql_file" "$scripts_root/expected_counts.sql"
+else
+  cat > "$scripts_root/expected_counts.sql" <<'SQL'
 select 'auth.users', count(*) from auth.users
 union all select 'auth.identities', count(*) from auth.identities
 union all select 'public.accounts', count(*) from public.accounts
@@ -167,6 +195,7 @@ union all select 'storage.buckets', count(*) from storage.buckets
 union all select 'storage.objects', count(*) from storage.objects
 order by 1;
 SQL
+fi
 
 printf '%s\n' 'Capturing exact reconciliation counts for this snapshot...'
 docker run --rm \
@@ -260,7 +289,7 @@ if ! git -C "$repo_root" check-ignore -q "$encrypted_archive"; then
 fi
 
 printf '%s\n' \
-  'Encrypted WinterWatch database/Auth export completed and verified.' \
+  "Encrypted $export_label database/Auth export completed and verified." \
   "Archive: $encrypted_archive" \
   "Checksum: $encrypted_archive.sha256" \
   "Encryption key: macOS Keychain service '$archive_keychain_service', account '$archive_keychain_account'"

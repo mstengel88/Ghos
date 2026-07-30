@@ -103,6 +103,24 @@ Storage is a material part of this migration. The bucket metadata, policies,
 object paths, object bytes, metadata, and any order references must be exported
 and restored together.
 
+The read-only migration tooling now includes:
+
+- `tools/export_local_delivery_database.sh`, which uses the Supabase CLI token
+  from macOS Keychain, the exact shared-pooler endpoint supplied by
+  `supabase link`, pinned Supabase dump scripts, live reconciliation counts,
+  SHA-256 verification, and AES-256 encryption;
+- `tools/configure_local_delivery_storage_export.sh`, which copies the existing
+  server-only Storage credential from the canonical Dispatch V2 environment
+  into the Git-ignored migration secret store without printing it;
+- `tools/export_local_delivery_storage.sh`, which validates the project URL and
+  service-role credential before privately downloading `dispatch-photos` with
+  resumable object and SHA-256 manifests.
+
+The database exporter never needs the long-lived database password. It uses
+Supabase temporary database access, which must be enabled for this project and
+must map the operator to the `postgres` role. The exporter fails closed when
+that mapping is absent; it does not reset credentials or alter production data.
+
 ## Security model
 
 The 26 public RLS policies use four main patterns:

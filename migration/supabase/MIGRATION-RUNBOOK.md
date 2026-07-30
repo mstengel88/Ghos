@@ -38,6 +38,12 @@ For each of the five production applications:
       isolated PostgreSQL 17 restore
 - [x] Local-Delivery Storage objects and metadata exported and SHA-256 verified
 - [x] Local-Delivery Storage restored to the isolated lab with byte-for-byte verification
+- [x] Local-Delivery database/Auth encrypted-export tooling validates the exact
+      project and pooler, captures live reconciliation counts, hashes artifacts,
+      and removes plaintext working files
+- [ ] Local-Delivery temporary database access enabled for the current operator
+      with the `postgres` role; the live encrypted database/Auth export remains
+      blocked until this reversible access rule exists
 - [x] WinterWatch private Storage objects and metadata exported and SHA-256 verified
 - [x] WinterWatch private Storage export encrypted and retained off the Mac
 - [x] WinterWatch private Storage restored to the isolated lab with byte-for-byte verification
