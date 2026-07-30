@@ -160,7 +160,21 @@ else
                 </div>
             </div>
 
-            @if (projectKind == ProjectCalculatorKind.Paver)
+            <div class="shape-tabs" role="group" aria-label="Input method">
+                <button type="button"
+                        class="@(ProjectInputMode == ProjectMeasurementMode.Dimensions ? "active" : null)"
+                        @onclick="() => ProjectInputMode = ProjectMeasurementMode.Dimensions">
+                    Measure project
+                </button>
+                <button type="button"
+                        class="@(ProjectInputMode == ProjectMeasurementMode.KnownArea ? "active" : null)"
+                        @onclick="() => ProjectInputMode = ProjectMeasurementMode.KnownArea">
+                    Known area
+                </button>
+            </div>
+
+            @if (ProjectInputMode == ProjectMeasurementMode.Dimensions &&
+                 projectKind == ProjectCalculatorKind.Paver)
             {
                 <div class="shape-tabs">
                     <button type="button"
@@ -173,7 +187,14 @@ else
             }
 
             <div class="dimension-grid project-dimensions">
-                @if (projectKind == ProjectCalculatorKind.Paver && Shape == ProjectShape.Circle)
+                @if (ProjectInputMode == ProjectMeasurementMode.KnownArea)
+                {
+                    <label class="field">
+                        <span>Known total area (sq. ft.)</span>
+                        <InputNumber @bind-Value="KnownProjectAreaSqFt" />
+                    </label>
+                }
+                else if (projectKind == ProjectCalculatorKind.Paver && Shape == ProjectShape.Circle)
                 {
                     <label class="field"><span>Diameter (feet)</span><InputNumber @bind-Value="DiameterFeet" /></label>
                 }
@@ -189,7 +210,8 @@ else
                         <label class="field"><span>Average height (feet)</span><InputNumber @bind-Value="WallHeightFeet" /></label>
                     }
                 }
-                @if (projectKind == ProjectCalculatorKind.Wall)
+                @if (ProjectInputMode == ProjectMeasurementMode.Dimensions &&
+                     projectKind == ProjectCalculatorKind.Wall)
                 {
                     <label class="field"><span>Openings to subtract (sq. ft.)</span><InputNumber @bind-Value="OpeningsSqFt" /></label>
                 }
@@ -296,7 +318,9 @@ else
     private decimal WallHeightFeet { get; set; }
     private decimal OpeningsSqFt { get; set; }
     private decimal ManualCubicYards { get; set; }
+    private decimal KnownProjectAreaSqFt { get; set; }
     private int ExtraPercent { get; set; } = 10;
+    private ProjectMeasurementMode ProjectInputMode { get; set; }
 
     private CalculatorProductOption? SelectedBulkOption =>
         BulkProductOptions.FirstOrDefault(option =>
@@ -338,7 +362,11 @@ else
                 DiameterFeet,
                 WallHeightFeet,
                 OpeningsSqFt,
-                ExtraPercent);
+                ExtraPercent,
+                ProjectInputMode == ProjectMeasurementMode.KnownArea
+                    ? KnownProjectAreaSqFt
+                    : 0m,
+                ProjectInputMode == ProjectMeasurementMode.KnownArea);
 
     private RenderFragment ExtraSelector => @<label class="field">
         <span>Extra for cuts / waste</span>
@@ -421,6 +449,8 @@ else
     {
         Mode = mode;
         Shape = ProjectShape.Rectangle;
+        ProjectInputMode = ProjectMeasurementMode.Dimensions;
+        KnownProjectAreaSqFt = 0m;
         SelectedProjectOptionKey = string.Empty;
     }
 
@@ -516,6 +546,12 @@ else
         Bulk,
         Pavers,
         Walls
+    }
+
+    private enum ProjectMeasurementMode
+    {
+        Dimensions,
+        KnownArea
     }
 
     private sealed record CalculatorProductOption(

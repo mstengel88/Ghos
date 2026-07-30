@@ -354,19 +354,40 @@ else
                                                 <button type="button"
                                                         @onclick="() => ActiveCalculatorLineKey = null">Close</button>
                                             </div>
-                                            <div class="shape-mini">
-                                                @if (projectConfiguration?.Kind != ProjectCalculatorKind.Wall)
-                                                {
+                                            @if (projectConfiguration is not null)
+                                            {
+                                                <div class="shape-mini">
+                                                    <button type="button"
+                                                            class="@(!line.UseKnownProjectArea ? "active" : null)"
+                                                            @onclick="() => line.UseKnownProjectArea = false">
+                                                        Measure project
+                                                    </button>
+                                                    <button type="button"
+                                                            class="@(line.UseKnownProjectArea ? "active" : null)"
+                                                            @onclick="() => line.UseKnownProjectArea = true">
+                                                        Known area
+                                                    </button>
+                                                </div>
+                                            }
+                                            @if (projectConfiguration?.Kind == ProjectCalculatorKind.Paver &&
+                                                 !line.UseKnownProjectArea)
+                                            {
+                                                <div class="shape-mini">
                                                     <button type="button"
                                                             class="@(line.CalculatorShape == ProjectShape.Rectangle ? "active" : null)"
                                                             @onclick="() => line.CalculatorShape = ProjectShape.Rectangle">Rectangle</button>
                                                     <button type="button"
                                                             class="@(line.CalculatorShape == ProjectShape.Circle ? "active" : null)"
                                                             @onclick="() => line.CalculatorShape = ProjectShape.Circle">Circle</button>
-                                                }
-                                            </div>
+                                                </div>
+                                            }
                                             <div class="calculator-fields">
-                                                @if (projectConfiguration?.Kind == ProjectCalculatorKind.Wall)
+                                                @if (projectConfiguration is not null &&
+                                                     line.UseKnownProjectArea)
+                                                {
+                                                    <label><span>Known area sq. ft.</span><InputNumber @bind-Value="line.KnownProjectAreaSqFt" /></label>
+                                                }
+                                                else if (projectConfiguration?.Kind == ProjectCalculatorKind.Wall)
                                                 {
                                                     <label><span>Wall length ft.</span><InputNumber @bind-Value="line.LengthFeet" /></label>
                                                     <label><span>Average height ft.</span><InputNumber @bind-Value="line.WallHeightFeet" /></label>
@@ -1139,7 +1160,11 @@ else
             line.DiameterFeet,
             line.WallHeightFeet,
             line.OpeningsSqFt,
-            line.ExtraPercent);
+            line.ExtraPercent,
+            line.UseKnownProjectArea
+                ? line.KnownProjectAreaSqFt
+                : 0m,
+            line.UseKnownProjectArea);
 
     private static void ApplyProjectCalculation(
         QuoteLineEditModel line,
@@ -1689,6 +1714,8 @@ else
         public int ExtraPercent { get; set; } = 10;
         public decimal WallHeightFeet { get; set; }
         public decimal OpeningsSqFt { get; set; }
+        public bool UseKnownProjectArea { get; set; }
+        public decimal KnownProjectAreaSqFt { get; set; }
         public ProjectProductConfiguration? ProjectConfiguration { get; set; }
     }
 }

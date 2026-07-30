@@ -19,11 +19,12 @@ Variant values override product values. GHOS imports these fields during its
 Shopify product synchronization and refreshes stale Shopify data when either
 Project Calculators or the quote editor opens.
 
-GHOS only includes a product in the paver or wall selector when
-`custom.project_calculator_type` is explicitly set. It does not infer the
-calculator from words such as `paver` or `wall` in a title, type, or tag because
-that would incorrectly include base sand, joint material, decorative paver
-chips, fabric, and other installation accessories.
+GHOS follows the Shopify County calculator’s product recognition rules. It uses
+`custom.project_calculator_type` first. When that field is blank, a title,
+product type, or tag containing `wall` or `tribute` selects the wall calculator;
+`paver` or `discover` selects the paver calculator. Keep installation
+accessories off the County product template or set their product data so they do
+not match those fallback terms.
 
 The shared server-side calculation rules live in:
 
@@ -32,6 +33,8 @@ The shared server-side calculation rules live in:
 
 Both the standalone GHOS calculators and the calculator embedded in each quote
 line call these same classes. Do not copy calculation math into a Razor page.
+Both support measured dimensions or a known square-foot area for paver and wall
+projects, matching the Shopify County calculator.
 
 ## Confirmed fallbacks
 

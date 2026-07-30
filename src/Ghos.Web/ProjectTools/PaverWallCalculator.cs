@@ -55,7 +55,7 @@ public static class PaverWallCalculator
         ProductVariant? variant = null)
     {
         var searchText =
-            $"{product.Name} {product.ShopifyTitle} {product.ShopifyProductType} {product.ShopifyTags}"
+            $"{product.ShopifyTitle ?? product.Name} {product.ShopifyProductType} {product.ShopifyTags}"
                 .ToLowerInvariant();
         var kind = product.ProjectCalculatorType?.Trim().ToLowerInvariant() switch
         {
@@ -65,6 +65,16 @@ public static class PaverWallCalculator
         };
         if (kind is null)
         {
+            kind = searchText.Contains("wall", StringComparison.Ordinal) ||
+                   searchText.Contains("tribute", StringComparison.Ordinal)
+                ? ProjectCalculatorKind.Wall
+                : searchText.Contains("paver", StringComparison.Ordinal) ||
+                  searchText.Contains("discover", StringComparison.Ordinal)
+                    ? ProjectCalculatorKind.Paver
+                    : null;
+        }
+        if (kind is null)
+        {
             return null;
         }
 
@@ -72,10 +82,10 @@ public static class PaverWallCalculator
             variant?.CoveragePerOrderUnitSqFt ??
             product.CoveragePerOrderUnitSqFt ??
             0m;
-        var orderLabel =
-            variant?.CalculatorOrderUnitLabel ??
-            product.CalculatorOrderUnitLabel ??
-            "order unit";
+        var orderLabel = FirstNonBlank(
+            variant?.CalculatorOrderUnitLabel,
+            product.CalculatorOrderUnitLabel,
+            "order unit");
         var pieces =
             variant?.PiecesPerOrderUnit ??
             product.PiecesPerOrderUnit;
@@ -163,9 +173,13 @@ public static class PaverWallCalculator
         decimal diameterFeet,
         decimal wallHeightFeet,
         decimal openingsSqFt,
-        decimal extraPercent)
+        decimal extraPercent,
+        decimal knownAreaSqFt = 0m,
+        bool useKnownArea = false)
     {
-        var baseArea = configuration.Kind switch
+        var baseArea = useKnownArea
+            ? Math.Max(0m, knownAreaSqFt)
+            : configuration.Kind switch
         {
             ProjectCalculatorKind.Paver
                 when shape == ProjectShape.Circle && diameterFeet > 0 =>
@@ -237,13 +251,27 @@ public static class PaverWallCalculator
         var normalized = string.IsNullOrWhiteSpace(label)
             ? "order unit"
             : label.Trim();
-        if (quantity == 1 || normalized.EndsWith('s'))
+        if (quantity == 1 ||
+            normalized.EndsWith("s", StringComparison.OrdinalIgnoreCase))
         {
             return normalized;
         }
 
-        return normalized.EndsWith('y')
-            ? $"{normalized[..^1]}ies"
+        if (normalized.EndsWith("y", StringComparison.OrdinalIgnoreCase) &&
+            normalized.Length > 1 &&
+            !"aeiou".Contains(char.ToLowerInvariant(normalized[^2])))
+        {
+            return $"{normalized[..^1]}ies";
+        }
+
+        return normalized.EndsWith("x", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith("z", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith("ch", StringComparison.OrdinalIgnoreCase) ||
+               normalized.EndsWith("sh", StringComparison.OrdinalIgnoreCase)
+            ? $"{normalized}es"
             : $"{normalized}s";
     }
+
+    private static string FirstNonBlank(params string?[] values) =>
+        values.First(value => !string.IsNullOrWhiteSpace(value))!.Trim();
 }
