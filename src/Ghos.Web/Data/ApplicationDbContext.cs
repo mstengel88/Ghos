@@ -69,6 +69,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<BackupStatusRecord> BackupStatuses =>
         Set<BackupStatusRecord>();
 
+    public DbSet<WinterWatchConnectionSettings> WinterWatchConnectionSettings =>
+        Set<WinterWatchConnectionSettings>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -296,6 +299,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<DumpSiteConnectionSettings>(settings =>
         {
             settings.ToTable("DumpSiteConnectionSettings");
+        });
+
+        builder.Entity<WinterWatchConnectionSettings>(settings =>
+        {
+            settings.ToTable("WinterWatchConnectionSettings");
         });
 
         builder.Entity<ProductMaterialProfile>(profile =>

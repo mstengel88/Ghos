@@ -11,6 +11,7 @@ using Ghos.Web.Exports;
 using Ghos.Web.Marketing;
 using Ghos.Web.ProjectTools;
 using Ghos.Web.Shopify;
+using Ghos.Web.WinterWatch;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -56,6 +57,14 @@ builder.Services.AddSingleton<CatalogSyncCoordinator>();
 builder.Services.AddScoped<ShopifySyncService>();
 builder.Services.Configure<BackupStatusOptions>(
     builder.Configuration.GetSection(BackupStatusOptions.SectionName));
+builder.Services.Configure<WinterWatchAdminOptions>(
+    builder.Configuration.GetSection(WinterWatchAdminOptions.SectionName));
+builder.Services.AddScoped<WinterWatchCredentialStore>();
+builder.Services.AddHttpClient<WinterWatchAdminClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(60);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-WinterWatch-Admin/1.0");
+});
 builder.Services.AddHttpClient<QuoteDeliveryService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(30);

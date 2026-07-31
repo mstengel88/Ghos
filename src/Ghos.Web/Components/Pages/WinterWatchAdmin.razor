@@ -1,0 +1,598 @@
+@page "/winterwatch/admin"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.AdministratorOnly)]
+@using System.Security.Claims
+@using Ghos.Web.WinterWatch
+@inject WinterWatchCredentialStore CredentialStore
+@inject WinterWatchAdminClient AdminClient
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<WinterWatchAdmin> Logger
+
+<PageTitle>WinterWatch Administration | GHOS</PageTitle>
+
+<div class="ww-heading">
+    <div>
+        <span class="panel-label">CUSTOMER ADMINISTRATION</span>
+        <h2>WinterWatch accounts</h2>
+        <p>Onboard customers and maintain their organizations, users, and service locations. The WinterWatch application remains separate.</p>
+    </div>
+    @if (Configured)
+    {
+        <div class="heading-actions">
+            <button class="secondary-action" type="button" @onclick="LoadOrganizationsAsync" disabled="@Busy">
+                Refresh
+            </button>
+            <button class="primary-action" type="button" @onclick="BeginOnboarding" disabled="@Busy">
+                + New customer
+            </button>
+        </div>
+    }
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="ww-alert error" role="alert">@ErrorMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="ww-alert success" role="status">@SuccessMessage</div>
+}
+
+@if (!Configured || ShowConnection)
+{
+    <section class="panel connection-panel">
+        <div class="section-heading">
+            <div>
+                <span class="panel-label">SECURE CONNECTION</span>
+                <h3>Connect GHOS to WinterWatch administration</h3>
+                <p>GHOS stores the integration secret encrypted. The Supabase service-role key never enters GHOS or the browser.</p>
+            </div>
+            @if (Configured)
+            {
+                <button class="close-button" type="button" @onclick="() => ShowConnection = false">×</button>
+            }
+        </div>
+
+        @if (CredentialStore.UsesServerManagedCredentials)
+        {
+            <div class="managed-connection">
+                <strong>Managed by the GHOS server</strong>
+                <span>Secret fingerprint: @CredentialStore.ServerManagedFingerprint</span>
+            </div>
+        }
+        else
+        {
+            <EditForm Model="@ConnectionModel" OnValidSubmit="@SaveConnectionAsync" FormName="winterwatch-connection">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="validation-summary" />
+                <div class="form-grid connection-grid">
+                    <label class="wide">
+                        <span>Admin function URL</span>
+                        <input @bind="ConnectionModel.FunctionUrl" autocomplete="url" />
+                    </label>
+                    <label>
+                        <span>Integration secret</span>
+                        <input @bind="ConnectionModel.IntegrationSecret" type="password" autocomplete="new-password" />
+                    </label>
+                    <label>
+                        <span>Invitation callback URL</span>
+                        <input @bind="ConnectionModel.InviteRedirectUrl" autocomplete="url" />
+                    </label>
+                </div>
+                <button class="primary-action" type="submit" disabled="@Busy">
+                    @(Busy ? "Testing…" : "Test and save connection")
+                </button>
+            </EditForm>
+        }
+    </section>
+}
+else
+{
+    <div class="ww-metrics">
+        <article class="panel"><span>Organizations</span><strong>@Organizations.Count</strong></article>
+        <article class="panel"><span>Active</span><strong>@Organizations.Count(item => item.Status == "active")</strong></article>
+        <article class="panel"><span>Users</span><strong>@Organizations.Sum(item => item.UserCount)</strong></article>
+        <article class="panel"><span>Service accounts</span><strong>@Organizations.Sum(item => item.AccountCount)</strong></article>
+    </div>
+
+    @if (ShowOnboarding)
+    {
+        <section class="panel onboarding-panel">
+            <div class="section-heading">
+                <div>
+                    <span class="panel-label">NEW CUSTOMER</span>
+                    <h3>Organization onboarding</h3>
+                    <p>Create the workspace, invite its primary contact, and optionally add the first service location in one controlled step.</p>
+                </div>
+                <button class="close-button" type="button" @onclick="CancelOnboarding">×</button>
+            </div>
+
+            <EditForm Model="@OnboardingModel" OnValidSubmit="@OnboardAsync" FormName="winterwatch-onboarding">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="validation-summary" />
+
+                <div class="form-section">
+                    <span class="step-number">01</span>
+                    <div>
+                        <h4>Organization</h4>
+                        <div class="form-grid">
+                            <label><span>Company name</span><input @bind="OnboardingModel.OrganizationName" /></label>
+                            <label><span>Workspace slug (optional)</span><input @bind="OnboardingModel.Slug" /></label>
+                            <label>
+                                <span>Plan</span>
+                                <select @bind="OnboardingModel.Plan">
+                                    <option value="launch">Launch</option>
+                                    <option value="growth">Growth</option>
+                                    <option value="professional">Professional</option>
+                                </select>
+                            </label>
+                            <label>
+                                <span>Status</span>
+                                <select @bind="OnboardingModel.Status">
+                                    <option value="active">Active</option>
+                                    <option value="trial">Trial</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <span class="step-number">02</span>
+                    <div>
+                        <h4>Primary contact</h4>
+                        <div class="form-grid">
+                            <label><span>Full name</span><input @bind="OnboardingModel.ContactName" autocomplete="name" /></label>
+                            <label><span>Email</span><input @bind="OnboardingModel.ContactEmail" type="email" autocomplete="email" /></label>
+                            <label><span>Phone</span><input @bind="OnboardingModel.ContactPhone" autocomplete="tel" /></label>
+                            <label>
+                                <span>Workspace role</span>
+                                <select @bind="OnboardingModel.ContactRole">
+                                    <option value="admin">Administrator</option>
+                                    <option value="manager">Manager</option>
+                                    <option value="client">Client</option>
+                                </select>
+                            </label>
+                        </div>
+                        <label class="check-line">
+                            <input @bind="OnboardingModel.CreateEmployee" type="checkbox" />
+                            <span>Create a linked employee record</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <span class="step-number">03</span>
+                    <div>
+                        <h4>First service account</h4>
+                        <label class="check-line">
+                            <input @bind="OnboardingModel.AddFirstAccount" type="checkbox" />
+                            <span>Add the first plowing or shoveling location now</span>
+                        </label>
+                        @if (OnboardingModel.AddFirstAccount)
+                        {
+                            @AccountFields(OnboardingModel.Account)
+                        }
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="primary-action" type="submit" disabled="@Busy">
+                        @(Busy ? "Creating…" : "Create WinterWatch customer")
+                    </button>
+                    <button class="secondary-action" type="button" @onclick="CancelOnboarding" disabled="@Busy">Cancel</button>
+                </div>
+            </EditForm>
+        </section>
+    }
+
+    <div class="workspace-layout">
+        <section class="panel organization-list">
+            <div class="list-heading">
+                <div>
+                    <span class="panel-label">CUSTOMER WORKSPACES</span>
+                    <h3>Organizations</h3>
+                </div>
+                <input @bind="Search" @bind:event="oninput" type="search" placeholder="Search organizations" />
+            </div>
+            @if (Loading)
+            {
+                <div class="empty-state">Loading WinterWatch organizations…</div>
+            }
+            else if (FilteredOrganizations.Count == 0)
+            {
+                <div class="empty-state">No organizations match this search.</div>
+            }
+            else
+            {
+                <div class="organizations">
+                    @foreach (var organization in FilteredOrganizations)
+                    {
+                        <button type="button"
+                                class="organization-row @(SelectedOrganizationId == organization.Id ? "selected" : "")"
+                                @onclick="() => SelectOrganizationAsync(organization.Id)">
+                            <span>
+                                <strong>@organization.Name</strong>
+                                <small>@organization.Slug · @organization.Plan</small>
+                            </span>
+                            <span class="row-counts">@organization.UserCount users · @organization.AccountCount accounts</span>
+                            <i class="@organization.Status">@organization.Status</i>
+                        </button>
+                    }
+                </div>
+            }
+        </section>
+
+        <aside class="workspace-editor">
+            @if (Workspace is null)
+            {
+                <section class="panel editor-placeholder">
+                    <span>WW</span>
+                    <h3>Select an organization</h3>
+                    <p>Open a customer workspace to maintain its account, users, and service locations.</p>
+                </section>
+            }
+            else
+            {
+                <section class="panel organization-editor">
+                    <div class="section-heading">
+                        <div><span class="panel-label">ORGANIZATION</span><h3>@Workspace.Organization.Name</h3></div>
+                        <button class="text-action" type="button" @onclick="() => ShowConnection = true">Connection</button>
+                    </div>
+                    <div class="form-grid compact">
+                        <label><span>Name</span><input @bind="Workspace.Organization.Name" /></label>
+                        <label><span>Slug</span><input @bind="Workspace.Organization.Slug" /></label>
+                        <label>
+                            <span>Plan</span>
+                            <select @bind="Workspace.Organization.Plan">
+                                <option value="launch">Launch</option>
+                                <option value="growth">Growth</option>
+                                <option value="professional">Professional</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Status</span>
+                            <select @bind="Workspace.Organization.Status">
+                                <option value="active">Active</option>
+                                <option value="trial">Trial</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="suspended">Suspended</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button class="primary-action" type="button" @onclick="SaveOrganizationAsync" disabled="@Busy">Save organization</button>
+                </section>
+
+                <section class="panel users-panel">
+                    <div class="section-heading">
+                        <div><span class="panel-label">ACCESS</span><h3>Workspace users</h3></div>
+                        <button class="secondary-action" type="button" @onclick="() => ShowInvite = !ShowInvite">+ Invite</button>
+                    </div>
+                    @if (ShowInvite)
+                    {
+                        <EditForm Model="@InviteModel" OnValidSubmit="@InviteUserAsync" FormName="winterwatch-invite">
+                            <DataAnnotationsValidator />
+                            <div class="form-grid compact">
+                                <label><span>Full name</span><input @bind="InviteModel.FullName" /></label>
+                                <label><span>Email</span><input @bind="InviteModel.Email" type="email" /></label>
+                                <label><span>Phone</span><input @bind="InviteModel.Phone" /></label>
+                                <label>
+                                    <span>Role</span>
+                                    <select @bind="InviteModel.Role">@RoleOptions()</select>
+                                </label>
+                            </div>
+                            <label class="check-line"><input @bind="InviteModel.CreateEmployee" type="checkbox" /><span>Create linked employee</span></label>
+                            <button class="primary-action" type="submit" disabled="@Busy">Send invitation</button>
+                        </EditForm>
+                    }
+                    <div class="maintenance-list">
+                        @foreach (var user in Workspace.Users)
+                        {
+                            <article>
+                                <div>
+                                    <strong>@user.FullName</strong>
+                                    <small>@user.Email</small>
+                                </div>
+                                <select @bind="user.Role">@RoleOptions()</select>
+                                <button class="text-action" type="button" @onclick="() => SaveUserAsync(user, true)" disabled="@Busy">Save</button>
+                                <button class="danger-action" type="button" @onclick="() => SaveUserAsync(user, false)" disabled="@Busy">Remove</button>
+                            </article>
+                        }
+                    </div>
+                </section>
+
+                <section class="panel accounts-panel">
+                    <div class="section-heading">
+                        <div><span class="panel-label">SERVICE LOCATIONS</span><h3>Accounts</h3></div>
+                        <button class="secondary-action" type="button" @onclick="BeginNewAccount">+ Add account</button>
+                    </div>
+                    @if (ShowAccountEditor)
+                    {
+                        <EditForm Model="@AccountModel" OnValidSubmit="@SaveAccountAsync" FormName="winterwatch-account">
+                            <DataAnnotationsValidator />
+                            @AccountFields(AccountModel)
+                            <div class="form-actions">
+                                <button class="primary-action" type="submit" disabled="@Busy">Save account</button>
+                                <button class="secondary-action" type="button" @onclick="() => ShowAccountEditor = false">Cancel</button>
+                            </div>
+                        </EditForm>
+                    }
+                    <div class="maintenance-list accounts">
+                        @foreach (var account in Workspace.Accounts)
+                        {
+                            <button type="button" @onclick="() => EditAccount(account)">
+                                <span>
+                                    <strong>@account.Name</strong>
+                                    <small>@account.Address, @account.City @account.State @account.Zip</small>
+                                </span>
+                                <i class="@(account.IsActive ? "active" : "inactive")">@(account.IsActive ? "Active" : "Inactive")</i>
+                            </button>
+                        }
+                    </div>
+                </section>
+            }
+        </aside>
+    </div>
+}
+
+@code {
+    private List<WinterWatchOrganizationSummary> Organizations { get; set; } = [];
+    private WinterWatchWorkspace? Workspace { get; set; }
+    private WinterWatchConnectionInput ConnectionModel { get; set; } = new()
+    {
+        FunctionUrl = "https://caegybyfdkmgjrygnavg.supabase.co/functions/v1/ghos-winterwatch-admin"
+    };
+    private WinterWatchOnboardingInput OnboardingModel { get; set; } = new();
+    private WinterWatchInviteInput InviteModel { get; set; } = new();
+    private WinterWatchAccountInput AccountModel { get; set; } = new();
+    private Guid? SelectedOrganizationId { get; set; }
+    private string Search { get; set; } = string.Empty;
+    private string Actor { get; set; } = "GHOS administrator";
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+    private bool Configured { get; set; }
+    private bool Loading { get; set; }
+    private bool Busy { get; set; }
+    private bool ShowConnection { get; set; }
+    private bool ShowOnboarding { get; set; }
+    private bool ShowInvite { get; set; }
+    private bool ShowAccountEditor { get; set; }
+
+    private List<WinterWatchOrganizationSummary> FilteredOrganizations =>
+        string.IsNullOrWhiteSpace(Search)
+            ? Organizations
+            : Organizations.Where(item =>
+                    item.Name.Contains(Search, StringComparison.OrdinalIgnoreCase) ||
+                    item.Slug.Contains(Search, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        Actor = authenticationState.User.FindFirstValue(ClaimTypes.Email)
+            ?? authenticationState.User.Identity?.Name
+            ?? "GHOS administrator";
+        Configured = await CredentialStore.HasCredentialsAsync();
+        ShowConnection = !Configured;
+        if (Configured)
+        {
+            await LoadOrganizationsAsync();
+        }
+    }
+
+    private async Task SaveConnectionAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await AdminClient.ValidateAsync(ConnectionModel.FunctionUrl, ConnectionModel.IntegrationSecret, Actor);
+            var state = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            await CredentialStore.SaveAsync(
+                ConnectionModel.FunctionUrl,
+                ConnectionModel.IntegrationSecret,
+                ConnectionModel.InviteRedirectUrl,
+                state.User.FindFirstValue(ClaimTypes.NameIdentifier));
+            ConnectionModel.IntegrationSecret = string.Empty;
+            Configured = true;
+            ShowConnection = false;
+            SuccessMessage = "WinterWatch administration connected securely.";
+            await LoadOrganizationsCoreAsync();
+        });
+    }
+
+    private async Task LoadOrganizationsAsync() =>
+        await RunAsync(LoadOrganizationsCoreAsync);
+
+    private async Task LoadOrganizationsCoreAsync()
+    {
+        Loading = true;
+        try
+        {
+            var result = await AdminClient.GetOrganizationsAsync(Actor);
+            Organizations = result.Organizations;
+            if (SelectedOrganizationId is Guid id &&
+                Organizations.Any(item => item.Id == id))
+            {
+                await LoadWorkspaceCoreAsync(id);
+            }
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private async Task SelectOrganizationAsync(Guid id) =>
+        await RunAsync(() => LoadWorkspaceCoreAsync(id));
+
+    private async Task LoadWorkspaceCoreAsync(Guid id)
+    {
+        SelectedOrganizationId = id;
+        var result = await AdminClient.GetWorkspaceAsync(id, Actor);
+        Workspace = result.Workspace;
+        ShowInvite = false;
+        ShowAccountEditor = false;
+    }
+
+    private void BeginOnboarding()
+    {
+        OnboardingModel = new();
+        ShowOnboarding = true;
+        ClearMessages();
+    }
+
+    private void CancelOnboarding() => ShowOnboarding = false;
+
+    private async Task OnboardAsync()
+    {
+        await RunAsync(async () =>
+        {
+            var result = await AdminClient.OnboardAsync(OnboardingModel, Actor);
+            ShowOnboarding = false;
+            SuccessMessage = $"{result.Organization?.Name ?? OnboardingModel.OrganizationName} was created and its primary contact was invited.";
+            await LoadOrganizationsCoreAsync();
+            if (result.Organization is not null)
+            {
+                await LoadWorkspaceCoreAsync(result.Organization.Id);
+            }
+        });
+    }
+
+    private async Task SaveOrganizationAsync()
+    {
+        if (Workspace is null) return;
+        await RunAsync(async () =>
+        {
+            await AdminClient.UpdateOrganizationAsync(Workspace.Organization, Actor);
+            SuccessMessage = "WinterWatch organization updated.";
+            await LoadOrganizationsCoreAsync();
+        });
+    }
+
+    private async Task InviteUserAsync()
+    {
+        if (SelectedOrganizationId is not Guid id) return;
+        await RunAsync(async () =>
+        {
+            await AdminClient.InviteUserAsync(id, InviteModel, Actor);
+            InviteModel = new();
+            ShowInvite = false;
+            SuccessMessage = "WinterWatch invitation sent.";
+            await LoadWorkspaceCoreAsync(id);
+            await LoadOrganizationsCoreAsync();
+        });
+    }
+
+    private async Task SaveUserAsync(WinterWatchWorkspaceUser user, bool hasAccess)
+    {
+        if (SelectedOrganizationId is not Guid id) return;
+        await RunAsync(async () =>
+        {
+            await AdminClient.UpdateUserAccessAsync(id, user, hasAccess, Actor);
+            SuccessMessage = hasAccess ? "Workspace access updated." : "Workspace access removed.";
+            await LoadWorkspaceCoreAsync(id);
+            await LoadOrganizationsCoreAsync();
+        });
+    }
+
+    private void BeginNewAccount()
+    {
+        AccountModel = new();
+        ShowAccountEditor = true;
+    }
+
+    private void EditAccount(WinterWatchServiceAccount account)
+    {
+        AccountModel = new WinterWatchAccountInput
+        {
+            Id = account.Id,
+            Name = account.Name,
+            Address = account.Address,
+            City = account.City ?? string.Empty,
+            State = account.State ?? "WI",
+            Zip = account.Zip ?? string.Empty,
+            ContactName = account.ContactName ?? string.Empty,
+            ContactPhone = account.ContactPhone ?? string.Empty,
+            ContactEmail = account.ContactEmail ?? string.Empty,
+            Priority = account.Priority,
+            GeofenceRadius = account.GeofenceRadius,
+            ServiceType = account.ServiceType,
+            Notes = account.Notes ?? string.Empty,
+            IsActive = account.IsActive
+        };
+        ShowAccountEditor = true;
+    }
+
+    private async Task SaveAccountAsync()
+    {
+        if (SelectedOrganizationId is not Guid id) return;
+        await RunAsync(async () =>
+        {
+            await AdminClient.SaveAccountAsync(id, AccountModel, Actor);
+            ShowAccountEditor = false;
+            SuccessMessage = AccountModel.Id.HasValue ? "Service account updated." : "Service account created.";
+            await LoadWorkspaceCoreAsync(id);
+            await LoadOrganizationsCoreAsync();
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (Busy) return;
+        Busy = true;
+        ClearMessages();
+        try
+        {
+            await action();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "WinterWatch administration operation failed.");
+            ErrorMessage = exception.Message;
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private void ClearMessages()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+    }
+
+    private RenderFragment AccountFields(WinterWatchAccountInput account) => @<div class="form-grid account-fields">
+        <label><span>Account name</span><input @bind="account.Name" /></label>
+        <label class="wide"><span>Street address</span><input @bind="account.Address" /></label>
+        <label><span>City</span><input @bind="account.City" /></label>
+        <label><span>State</span><input @bind="account.State" maxlength="2" /></label>
+        <label><span>ZIP</span><input @bind="account.Zip" /></label>
+        <label>
+            <span>Service type</span>
+            <select @bind="account.ServiceType">
+                <option value="plow">Plow</option>
+                <option value="shovel">Shovel</option>
+                <option value="both">Both</option>
+            </select>
+        </label>
+        <label><span>Contact name</span><input @bind="account.ContactName" /></label>
+        <label><span>Contact phone</span><input @bind="account.ContactPhone" /></label>
+        <label><span>Contact email</span><input @bind="account.ContactEmail" type="email" /></label>
+        <label><span>Priority (1–10)</span><input @bind="account.Priority" type="number" min="1" max="10" /></label>
+        <label><span>Geofence radius (feet)</span><input @bind="account.GeofenceRadius" type="number" min="25" max="1000" /></label>
+        <label class="check-line"><input @bind="account.IsActive" type="checkbox" /><span>Account is active</span></label>
+        <label class="wide"><span>Notes</span><textarea @bind="account.Notes"></textarea></label>
+    </div>;
+
+    private RenderFragment RoleOptions() => @<text>
+        <option value="admin">Administrator</option>
+        <option value="manager">Manager</option>
+        <option value="driver">Driver</option>
+        <option value="dispatch_driver">Dispatch driver</option>
+        <option value="shovel_crew">Shovel crew</option>
+        <option value="trucker">Trucker</option>
+        <option value="client">Client</option>
+        <option value="work_log_viewer">Work log viewer</option>
+    </text>;
+}

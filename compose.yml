@@ -76,6 +76,9 @@ services:
       DispatchQuoteData__SupabaseUrl: ${DISPATCH_QUOTE_SUPABASE_URL:-}
       DispatchQuoteData__ServiceRoleKey: ${DISPATCH_QUOTE_SERVICE_ROLE_KEY:-}
       DispatchQuoteData__RefreshMinutes: ${DISPATCH_QUOTE_REFRESH_MINUTES:-30}
+      WinterWatchAdmin__FunctionUrl: ${WINTERWATCH_ADMIN_FUNCTION_URL:-}
+      WinterWatchAdmin__IntegrationSecret: ${WINTERWATCH_ADMIN_INTEGRATION_SECRET:-}
+      WinterWatchAdmin__InviteRedirectUrl: ${WINTERWATCH_INVITE_REDIRECT_URL:-https://winterwatch-pro.info/auth/callback}
     volumes:
       - ghos-data-protection:/var/lib/ghos/data-protection
       - ./assets:/var/lib/ghos/assets
