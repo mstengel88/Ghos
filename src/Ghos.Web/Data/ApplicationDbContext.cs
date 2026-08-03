@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Ghos.Web.WebsiteHealth;
 
 namespace Ghos.Web.Data;
 
@@ -71,6 +72,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<WinterWatchConnectionSettings> WinterWatchConnectionSettings =>
         Set<WinterWatchConnectionSettings>();
+
+    public DbSet<MonitoredSite> MonitoredSites => Set<MonitoredSite>();
+
+    public DbSet<WebsiteCheck> WebsiteChecks => Set<WebsiteCheck>();
+
+    public DbSet<WebsiteCheckRun> WebsiteCheckRuns => Set<WebsiteCheckRun>();
+
+    public DbSet<WebsiteHealthIssue> WebsiteHealthIssues =>
+        Set<WebsiteHealthIssue>();
+
+    public DbSet<WebsiteHealthMetric> WebsiteHealthMetrics =>
+        Set<WebsiteHealthMetric>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -304,6 +317,97 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         builder.Entity<WinterWatchConnectionSettings>(settings =>
         {
             settings.ToTable("WinterWatchConnectionSettings");
+        });
+
+        builder.Entity<MonitoredSite>(site =>
+        {
+            site.HasIndex(item => item.BaseUrl).IsUnique();
+            site.HasIndex(item => new { item.IsEnabled, item.LastCheckedAtUtc });
+        });
+
+        builder.Entity<WebsiteCheck>(check =>
+        {
+            check.HasIndex(item => new { item.MonitoredSiteId, item.Key });
+            check.HasIndex(item => new
+            {
+                item.MonitoredSiteId,
+                item.Key,
+                item.TargetPath
+            }).IsUnique();
+
+            check.HasOne(item => item.MonitoredSite)
+                .WithMany(site => site.Checks)
+                .HasForeignKey(item => item.MonitoredSiteId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WebsiteCheckRun>(run =>
+        {
+            run.HasIndex(item => new { item.MonitoredSiteId, item.StartedAtUtc });
+            run.Property(item => item.Status)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+            run.Property(item => item.OverallScore).HasPrecision(5, 1);
+            run.Property(item => item.AvailabilityScore).HasPrecision(5, 1);
+            run.Property(item => item.SecurityScore).HasPrecision(5, 1);
+            run.Property(item => item.DiscoverabilityScore).HasPrecision(5, 1);
+            run.Property(item => item.ContentScore).HasPrecision(5, 1);
+
+            run.HasOne(item => item.MonitoredSite)
+                .WithMany(site => site.Runs)
+                .HasForeignKey(item => item.MonitoredSiteId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WebsiteHealthIssue>(issue =>
+        {
+            issue.HasIndex(item => new
+            {
+                item.MonitoredSiteId,
+                item.Fingerprint
+            }).IsUnique();
+            issue.HasIndex(item => new
+            {
+                item.MonitoredSiteId,
+                item.ResolvedAtUtc,
+                item.Severity
+            });
+            issue.Property(item => item.Severity)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+
+            issue.HasOne(item => item.MonitoredSite)
+                .WithMany(site => site.Issues)
+                .HasForeignKey(item => item.MonitoredSiteId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<WebsiteHealthMetric>(metric =>
+        {
+            metric.HasIndex(item => new
+            {
+                item.WebsiteCheckRunId,
+                item.Key
+            });
+            metric.HasIndex(item => new
+            {
+                item.WebsiteCheckId,
+                item.RecordedAtUtc
+            });
+            metric.Property(item => item.Status)
+                .HasConversion<string>()
+                .HasMaxLength(24);
+            metric.Property(item => item.NumericValue).HasPrecision(14, 2);
+
+            metric.HasOne(item => item.WebsiteCheckRun)
+                .WithMany(run => run.Metrics)
+                .HasForeignKey(item => item.WebsiteCheckRunId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            metric.HasOne(item => item.WebsiteCheck)
+                .WithMany(check => check.Metrics)
+                .HasForeignKey(item => item.WebsiteCheckId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<ProductMaterialProfile>(profile =>
