@@ -379,6 +379,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasMaxLength(450);
             issue.Property(item => item.SuppressedByUserId)
                 .HasMaxLength(450);
+            issue.Property(item => item.Recommendation)
+                .HasMaxLength(3000);
+            issue.Property(item => item.SuggestedValue)
+                .HasMaxLength(6000);
 
             issue.HasOne(item => item.MonitoredSite)
                 .WithMany(site => site.Issues)

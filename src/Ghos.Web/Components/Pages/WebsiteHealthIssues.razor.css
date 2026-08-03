@@ -330,6 +330,68 @@
     font-size: .53rem;
 }
 
+.recommendation {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid rgba(126, 167, 27, .28);
+    border-radius: 9px;
+    background: var(--ghos-accent-soft);
+}
+
+.recommendation > div:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.recommendation > div:first-child span,
+.suggested-value > span {
+    color: var(--ghos-accent-text);
+    font-size: .49rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+
+.recommendation > div:first-child strong {
+    color: var(--ghos-accent-text);
+    font-size: .62rem;
+}
+
+.finding-main .recommendation > p {
+    margin: 7px 0 0;
+    color: var(--ghos-text-secondary);
+    font-size: .59rem;
+}
+
+.suggested-value {
+    margin-top: 10px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(126, 167, 27, .22);
+}
+
+.suggested-value > span {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.suggested-value pre {
+    max-height: 190px;
+    margin: 0;
+    padding: 9px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 7px;
+    background: var(--ghos-surface);
+    color: var(--ghos-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .57rem;
+    line-height: 1.5;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
 .triage-controls {
     display: grid;
     align-content: center;

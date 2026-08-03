@@ -19,6 +19,13 @@ acknowledge findings, add a triage note, suppress accepted findings, restore
 them, or reopen acknowledged work. Suppressed findings remain in history but
 do not count toward the dashboard's active-issue total.
 
+Each finding includes a recommended fix and, when applicable, copy-ready
+suggested wording or markup. Suggestions use the live page heading,
+introductory copy, URL structure, and image context. The monitor provides
+specific titles, meta descriptions, image alt text, canonical tags, JSON-LD,
+robots.txt content, and broken-link guidance. A later crawl refreshes the
+recommendation when the source page changes.
+
 Open **Settings** to enable or pause a monitored site, change its recurring
 interval and safe crawl limits, enable or disable individual checks, and manage
 the key pages included in each run. Homepage availability is always enabled
@@ -76,6 +83,7 @@ The migrations are:
 ```text
 20260803225113_AddWebsiteHealthCenter
 20260803232802_AddWebsiteHealthIssueTriage
+20260803234045_AddWebsiteHealthRecommendations
 ```
 
 To apply it explicitly from a machine with the .NET 10 SDK:
