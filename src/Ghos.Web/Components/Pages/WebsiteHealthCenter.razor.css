@@ -22,6 +22,23 @@
     opacity: .65;
 }
 
+.health-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.secondary-action {
+    padding: 10px 15px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 9px;
+    background: var(--ghos-surface);
+    color: var(--ghos-text-secondary);
+    font-size: .75rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
 .health-alert {
     margin-bottom: 16px;
     padding: 13px 15px;
@@ -330,9 +347,16 @@
     font-size: 1rem;
 }
 
-.panel-heading > span {
+.panel-heading > span,
+.panel-heading > a {
     color: var(--ghos-text-muted);
     font-size: .63rem;
+}
+
+.panel-heading > a {
+    color: var(--ghos-accent-text);
+    font-weight: 800;
+    text-decoration: none;
 }
 
 .issue-list {

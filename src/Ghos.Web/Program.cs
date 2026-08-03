@@ -165,6 +165,8 @@ builder.Services.AddHttpClient<WebsiteHealthMonitorService>(client =>
     MaxConnectionsPerServer = 2,
 });
 builder.Services.AddSingleton<WebsiteHealthRunCoordinator>();
+builder.Services.AddScoped<WebsiteHealthIssueService>();
+builder.Services.AddScoped<WebsiteHealthSettingsService>();
 builder.Services.AddHostedService<WebsiteHealthAutomaticCheckService>();
 builder.Services.Configure<SecurityStampValidatorOptions>(options =>
 {

@@ -7,8 +7,22 @@ in the existing PostgreSQL database.
 ## Access
 
 - Administrators, Managers, and Operations users can view the dashboard.
-- Administrators and Managers can start a manual check.
+- Administrators and Managers can start a manual check, triage findings, and
+  change monitoring settings.
 - Only one check can run at a time in a GHOS instance.
+
+## Operations
+
+Open **Issue center** from the Website Health dashboard to filter findings by
+status, check type, or affected URL. Administrators and Managers can
+acknowledge findings, add a triage note, suppress accepted findings, restore
+them, or reopen acknowledged work. Suppressed findings remain in history but
+do not count toward the dashboard's active-issue total.
+
+Open **Settings** to enable or pause a monitored site, change its recurring
+interval and safe crawl limits, enable or disable individual checks, and manage
+the key pages included in each run. Homepage availability is always enabled
+because it is the foundation for the other checks.
 
 ## First startup
 
@@ -57,10 +71,11 @@ Green Hills Supply starts with a 60-minute interval, 15-second request timeout,
 
 ## Migration
 
-The migration is:
+The migrations are:
 
 ```text
 20260803225113_AddWebsiteHealthCenter
+20260803232802_AddWebsiteHealthIssueTriage
 ```
 
 To apply it explicitly from a machine with the .NET 10 SDK:

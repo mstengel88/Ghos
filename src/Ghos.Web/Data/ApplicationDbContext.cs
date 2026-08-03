@@ -375,6 +375,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             issue.Property(item => item.Severity)
                 .HasConversion<string>()
                 .HasMaxLength(24);
+            issue.Property(item => item.AcknowledgedByUserId)
+                .HasMaxLength(450);
+            issue.Property(item => item.SuppressedByUserId)
+                .HasMaxLength(450);
 
             issue.HasOne(item => item.MonitoredSite)
                 .WithMany(site => site.Issues)

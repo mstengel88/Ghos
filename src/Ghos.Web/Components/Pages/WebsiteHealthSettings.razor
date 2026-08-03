@@ -1,0 +1,337 @@
+@page "/website-health/settings"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.WebsiteHealthManage)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject WebsiteHealthSettingsService SettingsService
+@inject ILogger<WebsiteHealthSettings> Logger
+
+<PageTitle>Website Health Settings | GHOS</PageTitle>
+
+<div class="settings-heading">
+    <div>
+        <a href="/website-health">← Website Health Center</a>
+        <span class="panel-label">MONITORING CONFIGURATION</span>
+        <h2>Website Health settings</h2>
+        <p>Control the recurring schedule and bounded crawl without changing server configuration.</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="settings-alert error" role="alert">@ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="settings-alert success" role="status">@SuccessMessage</div>
+}
+
+@if (Loading)
+{
+    <section class="panel settings-loading">Loading monitoring settings…</section>
+}
+else if (Site is null)
+{
+    <section class="panel settings-loading">No monitored site is configured.</section>
+}
+else
+{
+    <div class="settings-layout">
+        <section class="panel site-settings">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">MONITORED SITE</span>
+                    <h3>@Site.Name</h3>
+                </div>
+                <span class="site-state @(Model.IsEnabled ? "enabled" : "paused")">
+                    @(Model.IsEnabled ? "Enabled" : "Paused")
+                </span>
+            </div>
+
+            <div class="site-url">
+                <span>Website</span>
+                <strong>@Site.BaseUrl</strong>
+                <small>The production target is fixed; changing domains requires a reviewed migration.</small>
+            </div>
+
+            <EditForm Model="@Model"
+                      OnValidSubmit="SaveSiteAsync"
+                      FormName="website-health-settings">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="validation-summary" />
+
+                <label class="enable-toggle">
+                    <InputCheckbox @bind-Value="Model.IsEnabled" />
+                    <span>
+                        <strong>Recurring checks enabled</strong>
+                        <small>Pausing stops scheduled runs; managers can still run a manual check.</small>
+                    </span>
+                </label>
+
+                <div class="settings-fields">
+                    <label>
+                        <span>Check interval</span>
+                        <div>
+                            <InputNumber @bind-Value="Model.CheckIntervalMinutes" />
+                            <i>minutes</i>
+                        </div>
+                        <small>15–1,440 minutes</small>
+                    </label>
+                    <label>
+                        <span>Request timeout</span>
+                        <div>
+                            <InputNumber @bind-Value="Model.RequestTimeoutSeconds" />
+                            <i>seconds</i>
+                        </div>
+                        <small>5–60 seconds per request</small>
+                    </label>
+                    <label>
+                        <span>Delay between requests</span>
+                        <div>
+                            <InputNumber @bind-Value="Model.RequestDelayMilliseconds" />
+                            <i>ms</i>
+                        </div>
+                        <small>100–5,000 ms</small>
+                    </label>
+                    <label>
+                        <span>Maximum crawl pages</span>
+                        <div>
+                            <InputNumber @bind-Value="Model.MaxCrawlPages" />
+                            <i>pages</i>
+                        </div>
+                        <small>5–100 pages per run</small>
+                    </label>
+                </div>
+
+                <button class="primary-action"
+                        type="submit"
+                        disabled="@Busy">
+                    @(Busy ? "Saving…" : "Save monitoring settings")
+                </button>
+            </EditForm>
+        </section>
+
+        <aside class="panel safety-panel">
+            <span class="panel-label">CRAWL SAFETY</span>
+            <h3>Production safeguards</h3>
+            <ul>
+                <li>Public HTTPS targets only</li>
+                <li>robots.txt rules respected</li>
+                <li>Five-redirect maximum</li>
+                <li>Two-megabyte response cap</li>
+                <li>Single active run per GHOS instance</li>
+                <li>Explicit page, delay, and timeout limits</li>
+            </ul>
+            <p>These boundaries cannot be disabled from the dashboard.</p>
+        </aside>
+    </div>
+
+    <section class="panel check-settings">
+        <div class="panel-heading">
+            <div>
+                <span class="panel-label">CHECK CATALOG</span>
+                <h3>Enabled monitoring checks</h3>
+            </div>
+            <span>@Checks.Count(check => check.IsEnabled) of @Checks.Count enabled</span>
+        </div>
+
+        <div class="check-grid">
+            @foreach (var check in Checks
+                .Where(item => item.Key != "key-page")
+                .OrderBy(item => item.Category)
+                .ThenBy(item => item.DisplayName))
+            {
+                <label class="check-option @(check.Key == "homepage" ? "required" : "")">
+                    <input type="checkbox"
+                           checked="@check.IsEnabled"
+                           disabled="@(Busy || check.Key == "homepage")"
+                           @onchange="eventArgs => ToggleCheckAsync(check, eventArgs)" />
+                    <span>
+                        <strong>@check.DisplayName</strong>
+                        <small>@check.Category</small>
+                    </span>
+                    @if (check.Key == "homepage")
+                    {
+                        <em>Required</em>
+                    }
+                </label>
+            }
+        </div>
+    </section>
+
+    <section class="panel key-pages">
+        <div class="panel-heading">
+            <div>
+                <span class="panel-label">KEY PAGE AVAILABILITY</span>
+                <h3>Priority URLs</h3>
+            </div>
+            <span>Checked on every run</span>
+        </div>
+
+        <div class="key-page-list">
+            @foreach (var check in Checks
+                .Where(item => item.Key == "key-page")
+                .OrderBy(item => item.TargetPath))
+            {
+                <div class="key-page-row">
+                    <label>
+                        <input type="checkbox"
+                               checked="@check.IsEnabled"
+                               disabled="@Busy"
+                               @onchange="eventArgs => ToggleCheckAsync(check, eventArgs)" />
+                        <span>
+                            <strong>@check.TargetPath</strong>
+                            <small>@(check.IsEnabled ? "Monitored" : "Paused")</small>
+                        </span>
+                    </label>
+                    <button type="button"
+                            disabled="@Busy"
+                            @onclick="() => RemoveKeyPageAsync(check)">
+                        Remove
+                    </button>
+                </div>
+            }
+        </div>
+
+        <div class="add-key-page">
+            <label>
+                <span>Add a relative site path</span>
+                <input @bind="NewKeyPagePath"
+                       @bind:event="oninput"
+                       placeholder="/collections/all" />
+            </label>
+            <button class="primary-action"
+                    type="button"
+                    disabled="@(Busy || string.IsNullOrWhiteSpace(NewKeyPagePath))"
+                    @onclick="AddKeyPageAsync">
+                Add key page
+            </button>
+        </div>
+    </section>
+}
+
+@code {
+    private MonitoredSite? Site { get; set; }
+    private List<WebsiteCheck> Checks { get; set; } = [];
+    private WebsiteHealthSiteSettingsInput Model { get; set; } = new();
+    private string NewKeyPagePath { get; set; } = "";
+    private bool Loading { get; set; } = true;
+    private bool Busy { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        Site = await dbContext.MonitoredSites
+            .AsNoTracking()
+            .OrderBy(site => site.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+        if (Site is not null)
+        {
+            Checks = await dbContext.WebsiteChecks
+                .AsNoTracking()
+                .Where(check => check.MonitoredSiteId == Site.Id)
+                .ToListAsync();
+            Model = new WebsiteHealthSiteSettingsInput
+            {
+                SiteId = Site.Id,
+                IsEnabled = Site.IsEnabled,
+                CheckIntervalMinutes = Site.CheckIntervalMinutes,
+                RequestTimeoutSeconds = Site.RequestTimeoutSeconds,
+                RequestDelayMilliseconds = Site.RequestDelayMilliseconds,
+                MaxCrawlPages = Site.MaxCrawlPages
+            };
+        }
+
+        Loading = false;
+    }
+
+    private async Task SaveSiteAsync()
+    {
+        await ExecuteAsync(
+            () => SettingsService.SaveSiteAsync(Model),
+            "Monitoring settings saved.");
+    }
+
+    private async Task ToggleCheckAsync(
+        WebsiteCheck check,
+        ChangeEventArgs eventArgs)
+    {
+        var isEnabled = eventArgs.Value is bool enabled && enabled;
+        await ExecuteAsync(
+            () => SettingsService.SetCheckEnabledAsync(
+                check.MonitoredSiteId,
+                check.Id,
+                isEnabled),
+            $"{check.DisplayName} {(isEnabled ? "enabled" : "paused")}.");
+    }
+
+    private async Task AddKeyPageAsync()
+    {
+        if (Site is null)
+        {
+            return;
+        }
+
+        var added = await ExecuteAsync(
+            () => SettingsService.AddKeyPageAsync(
+                Site.Id,
+                NewKeyPagePath),
+            "Key page added.");
+        if (added)
+        {
+            NewKeyPagePath = "";
+        }
+    }
+
+    private async Task RemoveKeyPageAsync(WebsiteCheck check)
+    {
+        var removed = await ExecuteAsync(
+            () => SettingsService.RemoveKeyPageAsync(
+                check.MonitoredSiteId,
+                check.Id),
+            "Key page removed.");
+        if (removed)
+        {
+            NewKeyPagePath = "";
+        }
+    }
+
+    private async Task<bool> ExecuteAsync(
+        Func<Task> action,
+        string successMessage)
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            await action();
+            SuccessMessage = successMessage;
+            await LoadAsync();
+            return true;
+        }
+        catch (ValidationException exception)
+        {
+            ErrorMessage = exception.Message;
+            return false;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Unable to update Website Health settings.");
+            ErrorMessage = "The settings could not be saved.";
+            return false;
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+}

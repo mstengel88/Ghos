@@ -16,12 +16,15 @@
         <p>Live availability, security, crawl, and content checks for Green Hills Supply.</p>
     </div>
     <AuthorizeView Policy="@GhosPolicies.WebsiteHealthManage">
-        <button class="primary-action"
-                type="button"
-                disabled="@(Running || Site is null)"
-                @onclick="RunNowAsync">
-            @(Running ? "Running checks…" : "Run health check")
-        </button>
+        <div class="health-actions">
+            <a class="secondary-action" href="/website-health/settings">Settings</a>
+            <button class="primary-action"
+                    type="button"
+                    disabled="@(Running || Site is null)"
+                    @onclick="RunNowAsync">
+                @(Running ? "Running checks…" : "Run health check")
+            </button>
+        </div>
     </AuthorizeView>
 </div>
 
@@ -122,7 +125,7 @@ else
                     <span class="panel-label">ACTIVE ISSUES</span>
                     <h3>Needs attention</h3>
                 </div>
-                <span>@ActiveIssues.Count open</span>
+                <a href="/website-health/issues">@ActiveIssues.Count open →</a>
             </div>
 
             @if (ActiveIssues.Count == 0)
@@ -266,7 +269,8 @@ else
             .AsNoTracking()
             .Where(issue =>
                 issue.MonitoredSiteId == Site.Id &&
-                issue.ResolvedAtUtc == null)
+                issue.ResolvedAtUtc == null &&
+                issue.SuppressedAtUtc == null)
             .OrderByDescending(issue => issue.Severity)
             .ThenByDescending(issue => issue.LastDetectedAtUtc)
             .Take(100)

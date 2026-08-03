@@ -48,17 +48,24 @@ public sealed class WebsiteHealthMonitorService(
                 cancellationToken);
             var observations = new List<Observation>();
             var issues = new List<DetectedIssue>();
+            var enabledCheckKeys = site.Checks
+                .Where(check => check.IsEnabled)
+                .Select(check => check.Key)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var pages = new Dictionary<string, PageSnapshot>(
                 StringComparer.OrdinalIgnoreCase);
             var checkedUrls = new HashSet<string>(
                 StringComparer.OrdinalIgnoreCase);
 
-            await CheckSslAsync(
-                baseUri,
-                site,
-                observations,
-                issues,
-                cancellationToken);
+            if (enabledCheckKeys.Contains("ssl"))
+            {
+                await CheckSslAsync(
+                    baseUri,
+                    site,
+                    observations,
+                    issues,
+                    cancellationToken);
+            }
 
             var homepage = await FetchPageAsync(
                 baseUri,
@@ -73,17 +80,20 @@ public sealed class WebsiteHealthMonitorService(
                 observations,
                 issues,
                 critical: true);
-            observations.Add(new Observation(
-                "response-time",
-                "Homepage response time",
-                "Availability",
-                homepage.ResponseTimeMilliseconds <= 2_500
-                    ? WebsiteHealthCheckStatus.Passed
-                    : WebsiteHealthCheckStatus.Warning,
-                homepage.ResponseTimeMilliseconds,
-                "ms",
-                baseUri.ToString(),
-                $"HTTP {homepage.StatusCode} in {homepage.ResponseTimeMilliseconds:0} ms"));
+            if (enabledCheckKeys.Contains("response-time"))
+            {
+                observations.Add(new Observation(
+                    "response-time",
+                    "Homepage response time",
+                    "Availability",
+                    homepage.ResponseTimeMilliseconds <= 2_500
+                        ? WebsiteHealthCheckStatus.Passed
+                        : WebsiteHealthCheckStatus.Warning,
+                    homepage.ResponseTimeMilliseconds,
+                    "ms",
+                    baseUri.ToString(),
+                    $"HTTP {homepage.StatusCode} in {homepage.ResponseTimeMilliseconds:0} ms"));
+            }
 
             if (homepage.IsHtml && homepage.IsSuccess)
             {
@@ -98,30 +108,36 @@ public sealed class WebsiteHealthMonitorService(
                 site,
                 cancellationToken);
             checkedUrls.Add(NormalizeUrl(robotsUri));
-            AddResourceObservation(
-                "robots",
-                "robots.txt",
-                "Discoverability",
-                robotsUri,
-                robots,
-                observations,
-                issues);
+            if (enabledCheckKeys.Contains("robots"))
+            {
+                AddResourceObservation(
+                    "robots",
+                    "robots.txt",
+                    "Discoverability",
+                    robotsUri,
+                    robots,
+                    observations,
+                    issues);
+            }
 
-            var sitemapUri = new Uri(baseUri, "/sitemap.xml");
-            await DelayAsync(site, cancellationToken);
-            var sitemap = await FetchPageAsync(
-                sitemapUri,
-                site,
-                cancellationToken);
-            checkedUrls.Add(NormalizeUrl(sitemapUri));
-            AddResourceObservation(
-                "sitemap",
-                "Sitemap",
-                "Discoverability",
-                sitemapUri,
-                sitemap,
-                observations,
-                issues);
+            if (enabledCheckKeys.Contains("sitemap"))
+            {
+                var sitemapUri = new Uri(baseUri, "/sitemap.xml");
+                await DelayAsync(site, cancellationToken);
+                var sitemap = await FetchPageAsync(
+                    sitemapUri,
+                    site,
+                    cancellationToken);
+                checkedUrls.Add(NormalizeUrl(sitemapUri));
+                AddResourceObservation(
+                    "sitemap",
+                    "Sitemap",
+                    "Discoverability",
+                    sitemapUri,
+                    sitemap,
+                    observations,
+                    issues);
+            }
 
             var disallowedPaths = ParseRobotsDisallowRules(robots.Content);
             var keyTargets = site.Checks
@@ -161,13 +177,18 @@ public sealed class WebsiteHealthMonitorService(
                 }
             }
 
+            var crawlEnabled = enabledCheckKeys.Overlaps(
+                ["internal-link", "title", "meta-description", "image-alt", "canonical", "schema"]);
             var queue = new Queue<Uri>();
-            EnqueueInternalLinks(
-                pages.Values.SelectMany(page => page.InternalLinks),
-                baseUri,
-                disallowedPaths,
-                checkedUrls,
-                queue);
+            if (crawlEnabled)
+            {
+                EnqueueInternalLinks(
+                    pages.Values.SelectMany(page => page.InternalLinks),
+                    baseUri,
+                    disallowedPaths,
+                    checkedUrls,
+                    queue);
+            }
 
             while (queue.Count > 0 && pages.Count < site.MaxCrawlPages)
             {
@@ -183,7 +204,10 @@ public sealed class WebsiteHealthMonitorService(
                     target,
                     site,
                     cancellationToken);
-                AddLinkObservation(target, snapshot, observations, issues);
+                if (enabledCheckKeys.Contains("internal-link"))
+                {
+                    AddLinkObservation(target, snapshot, observations, issues);
+                }
                 if (!snapshot.IsHtml || !snapshot.IsSuccess)
                 {
                     continue;
@@ -202,7 +226,11 @@ public sealed class WebsiteHealthMonitorService(
                     queue);
             }
 
-            AddContentObservations(pages.Values, observations, issues);
+            AddContentObservations(
+                pages.Values,
+                enabledCheckKeys,
+                observations,
+                issues);
             ApplyScores(run, observations);
             run.PagesCrawled = pages.Count;
             run.LinksChecked = checkedUrls.Count;
@@ -713,70 +741,89 @@ public sealed class WebsiteHealthMonitorService(
 
     private static void AddContentObservations(
         IEnumerable<PageSnapshot> pages,
+        IReadOnlySet<string> enabledCheckKeys,
         ICollection<Observation> observations,
         ICollection<DetectedIssue> issues)
     {
         foreach (var page in pages)
         {
-            AddPresenceObservation(
-                "title",
-                "Page title",
-                "Content",
-                page.Url,
-                !string.IsNullOrWhiteSpace(page.Title),
-                "Missing page title",
-                observations,
-                issues);
-            AddPresenceObservation(
-                "meta-description",
-                "Meta description",
-                "Content",
-                page.Url,
-                !string.IsNullOrWhiteSpace(page.MetaDescription),
-                "Missing meta description",
-                observations,
-                issues);
-            AddPresenceObservation(
-                "canonical",
-                "Canonical URL",
-                "Discoverability",
-                page.Url,
-                !string.IsNullOrWhiteSpace(page.Canonical),
-                "Missing canonical URL",
-                observations,
-                issues);
-            AddPresenceObservation(
-                "schema",
-                "Structured data",
-                "Discoverability",
-                page.Url,
-                page.SchemaBlockCount > 0,
-                "Missing structured data",
-                observations,
-                issues,
-                WebsiteHealthIssueSeverity.Info);
-
-            observations.Add(new Observation(
-                "image-alt",
-                "Image alt text",
-                "Content",
-                page.MissingImageAltCount == 0
-                    ? WebsiteHealthCheckStatus.Passed
-                    : WebsiteHealthCheckStatus.Warning,
-                (decimal)page.MissingImageAltCount,
-                "images",
-                page.Url.ToString(),
-                page.MissingImageAltCount == 0
-                    ? "All images have alt text."
-                    : $"{page.MissingImageAltCount} image(s) are missing alt text."));
-            if (page.MissingImageAltCount > 0)
+            if (enabledCheckKeys.Contains("title"))
             {
-                issues.Add(new DetectedIssue(
+                AddPresenceObservation(
+                    "title",
+                    "Page title",
+                    "Content",
+                    page.Url,
+                    !string.IsNullOrWhiteSpace(page.Title),
+                    "Missing page title",
+                    observations,
+                    issues);
+            }
+
+            if (enabledCheckKeys.Contains("meta-description"))
+            {
+                AddPresenceObservation(
+                    "meta-description",
+                    "Meta description",
+                    "Content",
+                    page.Url,
+                    !string.IsNullOrWhiteSpace(page.MetaDescription),
+                    "Missing meta description",
+                    observations,
+                    issues);
+            }
+
+            if (enabledCheckKeys.Contains("canonical"))
+            {
+                AddPresenceObservation(
+                    "canonical",
+                    "Canonical URL",
+                    "Discoverability",
+                    page.Url,
+                    !string.IsNullOrWhiteSpace(page.Canonical),
+                    "Missing canonical URL",
+                    observations,
+                    issues);
+            }
+
+            if (enabledCheckKeys.Contains("schema"))
+            {
+                AddPresenceObservation(
+                    "schema",
+                    "Structured data",
+                    "Discoverability",
+                    page.Url,
+                    page.SchemaBlockCount > 0,
+                    "Missing structured data",
+                    observations,
+                    issues,
+                    WebsiteHealthIssueSeverity.Info);
+            }
+
+            if (enabledCheckKeys.Contains("image-alt"))
+            {
+                observations.Add(new Observation(
                     "image-alt",
-                    "Images missing alt text",
-                    $"{page.MissingImageAltCount} image(s) do not have meaningful alt text.",
+                    "Image alt text",
+                    "Content",
+                    page.MissingImageAltCount == 0
+                        ? WebsiteHealthCheckStatus.Passed
+                        : WebsiteHealthCheckStatus.Warning,
+                    (decimal)page.MissingImageAltCount,
+                    "images",
                     page.Url.ToString(),
-                    WebsiteHealthIssueSeverity.Warning));
+                    page.MissingImageAltCount == 0
+                        ? "All images have alt text."
+                        : $"{page.MissingImageAltCount} image(s) are missing alt text."));
+                if (page.MissingImageAltCount > 0)
+                {
+                    issues.Add(new DetectedIssue(
+                        "image-alt",
+                        "Images missing alt text",
+                        $"{page.MissingImageAltCount} image(s) do not have meaningful alt text.",
+                        page.Url.ToString(),
+                        WebsiteHealthIssueSeverity.Warning));
+                }
             }
         }
     }
@@ -917,10 +964,8 @@ public sealed class WebsiteHealthMonitorService(
         DateTime detectedAtUtc,
         CancellationToken cancellationToken)
     {
-        var activeIssues = await dbContext.WebsiteHealthIssues
-            .Where(issue =>
-                issue.MonitoredSiteId == siteId &&
-                issue.ResolvedAtUtc == null)
+        var knownIssues = await dbContext.WebsiteHealthIssues
+            .Where(issue => issue.MonitoredSiteId == siteId)
             .ToListAsync(cancellationToken);
         var seenFingerprints = new HashSet<string>(
             StringComparer.OrdinalIgnoreCase);
@@ -935,7 +980,7 @@ public sealed class WebsiteHealthMonitorService(
                 continue;
             }
 
-            var existing = activeIssues.FirstOrDefault(issue =>
+            var existing = knownIssues.FirstOrDefault(issue =>
                 issue.Fingerprint == fingerprint);
             if (existing is null)
             {
@@ -960,10 +1005,12 @@ public sealed class WebsiteHealthMonitorService(
                 existing.Severity = detected.Severity;
                 existing.LastDetectedAtUtc = detectedAtUtc;
                 existing.LastSeenRunId = runId;
+                existing.ResolvedAtUtc = null;
             }
         }
 
-        foreach (var issue in activeIssues.Where(issue =>
+        foreach (var issue in knownIssues.Where(issue =>
+            issue.ResolvedAtUtc == null &&
             !seenFingerprints.Contains(issue.Fingerprint)))
         {
             issue.ResolvedAtUtc = detectedAtUtc;
