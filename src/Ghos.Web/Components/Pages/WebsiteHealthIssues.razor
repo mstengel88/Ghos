@@ -1,0 +1,400 @@
+@page "/website-health/issues"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.WebsiteHealth)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject WebsiteHealthIssueService IssueService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<WebsiteHealthIssues> Logger
+
+<PageTitle>Website Health Issues | GHOS</PageTitle>
+
+<div class="issue-heading">
+    <div>
+        <a href="/website-health">← Website Health Center</a>
+        <span class="panel-label">ISSUE OPERATIONS</span>
+        <h2>Website issues</h2>
+        <p>Prioritize findings, document ownership, and suppress known exceptions without losing history.</p>
+    </div>
+    <span class="last-refresh">Latest crawl data</span>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="issue-alert error" role="alert">@ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="issue-alert success" role="status">@SuccessMessage</div>
+}
+
+@if (Loading)
+{
+    <section class="panel issue-loading">Loading website issues…</section>
+}
+else
+{
+    <section class="issue-summary">
+        <article class="panel">
+            <span>Open</span>
+            <strong>@Issues.Count(IsOpen)</strong>
+            <small>Unacknowledged findings</small>
+        </article>
+        <article class="panel">
+            <span>Acknowledged</span>
+            <strong>@Issues.Count(IsAcknowledged)</strong>
+            <small>Reviewed and assigned</small>
+        </article>
+        <article class="panel">
+            <span>Suppressed</span>
+            <strong>@Issues.Count(IsSuppressed)</strong>
+            <small>Known exceptions</small>
+        </article>
+        <article class="panel">
+            <span>Resolved</span>
+            <strong>@Issues.Count(IsResolved)</strong>
+            <small>Cleared by a later crawl</small>
+        </article>
+    </section>
+
+    <section class="panel issue-controls">
+        <div class="status-tabs" role="group" aria-label="Issue status filter">
+            @foreach (var view in Enum.GetValues<IssueView>())
+            {
+                <button class="@(SelectedView == view ? "active" : "")"
+                        type="button"
+                        @onclick="() => SelectedView = view">
+                    @FormatView(view)
+                </button>
+            }
+        </div>
+        <div class="filter-fields">
+            <label>
+                <span>Finding type</span>
+                <select @bind="SelectedCheckKey">
+                    <option value="">All finding types</option>
+                    @foreach (var key in Issues
+                        .Select(issue => issue.CheckKey)
+                        .Distinct()
+                        .OrderBy(key => key))
+                    {
+                        <option value="@key">@FormatCheckKey(key)</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <span>Search</span>
+                <input @bind="Search"
+                       @bind:event="oninput"
+                       type="search"
+                       placeholder="Title or affected URL" />
+            </label>
+        </div>
+    </section>
+
+    var filteredIssues = GetFilteredIssues();
+    <section class="panel issue-results">
+        <div class="results-heading">
+            <div>
+                <span class="panel-label">FINDINGS</span>
+                <h3>@filteredIssues.Count issue@(filteredIssues.Count == 1 ? "" : "s")</h3>
+            </div>
+            <span>Grouped by type and affected page</span>
+        </div>
+
+        @if (filteredIssues.Count == 0)
+        {
+            <div class="issue-empty">
+                <strong>No issues match these filters</strong>
+                <span>Change the status, finding type, or search text.</span>
+            </div>
+        }
+        else
+        {
+            <div class="issue-groups">
+                @foreach (var group in filteredIssues
+                    .GroupBy(issue => issue.CheckKey)
+                    .OrderByDescending(group => group.Max(issue => issue.Severity))
+                    .ThenByDescending(group => group.Count()))
+                {
+                    <section class="issue-group">
+                        <header>
+                            <div>
+                                <span class="type-icon">@IssueIcon(group.Key)</span>
+                                <div>
+                                    <strong>@FormatCheckKey(group.Key)</strong>
+                                    <small>@group.Count() affected page@(group.Count() == 1 ? "" : "s")</small>
+                                </div>
+                            </div>
+                            <span class="severity @group.Max(issue => issue.Severity).ToString().ToLowerInvariant()">
+                                @group.Max(issue => issue.Severity)
+                            </span>
+                        </header>
+
+                        @foreach (var issue in group.OrderByDescending(item => item.LastDetectedAtUtc))
+                        {
+                            <article class="finding-row">
+                                <div class="finding-main">
+                                    <div class="finding-title">
+                                        <strong>@issue.Title</strong>
+                                        <span class="state @GetIssueState(issue).ToLowerInvariant()">
+                                            @GetIssueState(issue)
+                                        </span>
+                                    </div>
+                                    <p>@issue.Description</p>
+                                    @if (!string.IsNullOrWhiteSpace(issue.AffectedUrl))
+                                    {
+                                        <a href="@issue.AffectedUrl"
+                                           target="_blank"
+                                           rel="noopener noreferrer">
+                                            @issue.AffectedUrl ↗
+                                        </a>
+                                    }
+                                    <div class="finding-meta">
+                                        <span>First seen @FormatDate(issue.FirstDetectedAtUtc)</span>
+                                        <span>Last seen @FormatDate(issue.LastDetectedAtUtc)</span>
+                                    </div>
+                                </div>
+
+                                <AuthorizeView Policy="@GhosPolicies.WebsiteHealthManage">
+                                    <div class="triage-controls">
+                                        <input value="@GetNote(issue)"
+                                               @onchange="eventArgs => SetNote(issue.Id, eventArgs.Value?.ToString())"
+                                               maxlength="1000"
+                                               placeholder="Optional triage note" />
+                                        <div>
+                                            @if (issue.ResolvedAtUtc is null && issue.SuppressedAtUtc is null)
+                                            {
+                                                @if (issue.AcknowledgedAtUtc is null)
+                                                {
+                                                    <button type="button"
+                                                            disabled="@Busy"
+                                                            @onclick="() => UpdateIssueAsync(issue, WebsiteHealthIssueAction.Acknowledge)">
+                                                        Acknowledge
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button"
+                                                            disabled="@Busy"
+                                                            @onclick="() => UpdateIssueAsync(issue, WebsiteHealthIssueAction.ClearAcknowledgement)">
+                                                        Reopen
+                                                    </button>
+                                                }
+                                                <button class="suppress"
+                                                        type="button"
+                                                        disabled="@Busy"
+                                                        title="Hide this known exception from the active dashboard"
+                                                        @onclick="() => UpdateIssueAsync(issue, WebsiteHealthIssueAction.Suppress)">
+                                                    Suppress
+                                                </button>
+                                            }
+                                            else if (issue.SuppressedAtUtc is not null)
+                                            {
+                                                <button type="button"
+                                                        disabled="@Busy"
+                                                        @onclick="() => UpdateIssueAsync(issue, WebsiteHealthIssueAction.Restore)">
+                                                    Restore
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </AuthorizeView>
+                            </article>
+                        }
+                    </section>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private List<WebsiteHealthIssue> Issues { get; set; } = [];
+    private Dictionary<Guid, string?> Notes { get; } = [];
+    private IssueView SelectedView { get; set; } = IssueView.Active;
+    private string SelectedCheckKey { get; set; } = "";
+    private string Search { get; set; } = "";
+    private bool Loading { get; set; } = true;
+    private bool Busy { get; set; }
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        Issues = await dbContext.WebsiteHealthIssues
+            .AsNoTracking()
+            .OrderByDescending(issue => issue.LastDetectedAtUtc)
+            .Take(500)
+            .ToListAsync();
+        foreach (var issue in Issues)
+        {
+            Notes[issue.Id] = issue.TriageNote;
+        }
+
+        Loading = false;
+    }
+
+    private List<WebsiteHealthIssue> GetFilteredIssues()
+    {
+        var query = Issues.Where(issue => SelectedView switch
+        {
+            IssueView.Active => IsOpen(issue) || IsAcknowledged(issue),
+            IssueView.Open => IsOpen(issue),
+            IssueView.Acknowledged => IsAcknowledged(issue),
+            IssueView.Suppressed => IsSuppressed(issue),
+            IssueView.Resolved => IsResolved(issue),
+            _ => true
+        });
+        if (!string.IsNullOrWhiteSpace(SelectedCheckKey))
+        {
+            query = query.Where(issue =>
+                issue.CheckKey == SelectedCheckKey);
+        }
+
+        if (!string.IsNullOrWhiteSpace(Search))
+        {
+            query = query.Where(issue =>
+                issue.Title.Contains(
+                    Search,
+                    StringComparison.OrdinalIgnoreCase) ||
+                (issue.AffectedUrl?.Contains(
+                    Search,
+                    StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        return query.ToList();
+    }
+
+    private async Task UpdateIssueAsync(
+        WebsiteHealthIssue issue,
+        WebsiteHealthIssueAction action)
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirst(
+                ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                ErrorMessage = "Your session could not be verified.";
+                return;
+            }
+
+            var updated = await IssueService.UpdateAsync(
+                issue.Id,
+                action,
+                userId,
+                GetNote(issue));
+            if (!updated)
+            {
+                ErrorMessage = "This issue no longer exists.";
+                return;
+            }
+
+            SuccessMessage = action switch
+            {
+                WebsiteHealthIssueAction.Acknowledge => "Issue acknowledged.",
+                WebsiteHealthIssueAction.ClearAcknowledgement => "Issue returned to the open queue.",
+                WebsiteHealthIssueAction.Suppress => "Issue suppressed as a known exception.",
+                WebsiteHealthIssueAction.Restore => "Issue restored to the active queue.",
+                _ => "Issue updated."
+            };
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Unable to update Website Health issue {IssueId}.",
+                issue.Id);
+            ErrorMessage = "The issue could not be updated.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private string? GetNote(WebsiteHealthIssue issue) =>
+        Notes.GetValueOrDefault(issue.Id);
+
+    private void SetNote(Guid issueId, string? note) =>
+        Notes[issueId] = note;
+
+    private static bool IsOpen(WebsiteHealthIssue issue) =>
+        issue.ResolvedAtUtc is null &&
+        issue.SuppressedAtUtc is null &&
+        issue.AcknowledgedAtUtc is null;
+
+    private static bool IsAcknowledged(WebsiteHealthIssue issue) =>
+        issue.ResolvedAtUtc is null &&
+        issue.SuppressedAtUtc is null &&
+        issue.AcknowledgedAtUtc is not null;
+
+    private static bool IsSuppressed(WebsiteHealthIssue issue) =>
+        issue.ResolvedAtUtc is null &&
+        issue.SuppressedAtUtc is not null;
+
+    private static bool IsResolved(WebsiteHealthIssue issue) =>
+        issue.ResolvedAtUtc is not null;
+
+    private static string GetIssueState(WebsiteHealthIssue issue) =>
+        IsResolved(issue) ? "Resolved" :
+        IsSuppressed(issue) ? "Suppressed" :
+        IsAcknowledged(issue) ? "Acknowledged" :
+        "Open";
+
+    private static string FormatCheckKey(string key) => key switch
+    {
+        "image-alt" => "Missing image alt text",
+        "meta-description" => "Missing meta descriptions",
+        "title" => "Missing page titles",
+        "canonical" => "Missing canonical URLs",
+        "schema" => "Missing structured data",
+        "internal-link" => "Broken internal links",
+        "ssl" => "SSL certificate",
+        _ => key.Replace('-', ' ')
+    };
+
+    private static string IssueIcon(string key) => key switch
+    {
+        "image-alt" => "IM",
+        "meta-description" => "MD",
+        "internal-link" => "↗",
+        "ssl" => "◇",
+        _ => "!"
+    };
+
+    private static string FormatDate(DateTime date) =>
+        date.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+
+    private static string FormatView(IssueView view) => view switch
+    {
+        IssueView.Active => "Active",
+        IssueView.Open => "Open",
+        IssueView.Acknowledged => "Acknowledged",
+        IssueView.Suppressed => "Suppressed",
+        IssueView.Resolved => "Resolved",
+        _ => "All"
+    };
+
+    private enum IssueView
+    {
+        Active,
+        Open,
+        Acknowledged,
+        Suppressed,
+        Resolved,
+        All
+    }
+}

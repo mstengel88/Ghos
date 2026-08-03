@@ -154,6 +154,19 @@ public sealed class WebsiteHealthIssue
 
     public Guid? LastSeenRunId { get; set; }
 
+    public DateTime? AcknowledgedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? AcknowledgedByUserId { get; set; }
+
+    public DateTime? SuppressedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? SuppressedByUserId { get; set; }
+
+    [MaxLength(1000)]
+    public string? TriageNote { get; set; }
+
     public MonitoredSite MonitoredSite { get; set; } = null!;
 }
 
