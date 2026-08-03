@@ -155,6 +155,23 @@ else
                                         <span>First seen @FormatDate(issue.FirstDetectedAtUtc)</span>
                                         <span>Last seen @FormatDate(issue.LastDetectedAtUtc)</span>
                                     </div>
+                                    @if (!string.IsNullOrWhiteSpace(issue.Recommendation))
+                                    {
+                                        <section class="recommendation">
+                                            <div>
+                                                <span>RECOMMENDED FIX</span>
+                                                <strong>What to change</strong>
+                                            </div>
+                                            <p>@issue.Recommendation</p>
+                                            @if (!string.IsNullOrWhiteSpace(issue.SuggestedValue))
+                                            {
+                                                <div class="suggested-value">
+                                                    <span>@SuggestionLabel(issue.CheckKey)</span>
+                                                    <pre>@issue.SuggestedValue</pre>
+                                                </div>
+                                            }
+                                        </section>
+                                    }
                                 </div>
 
                                 <AuthorizeView Policy="@GhosPolicies.WebsiteHealthManage">
@@ -373,6 +390,18 @@ else
         "internal-link" => "↗",
         "ssl" => "◇",
         _ => "!"
+    };
+
+    private static string SuggestionLabel(string key) => key switch
+    {
+        "title" => "SUGGESTED TITLE",
+        "meta-description" => "SUGGESTED DESCRIPTION",
+        "image-alt" => "SUGGESTED ALT TEXT",
+        "canonical" => "SUGGESTED CANONICAL TAG",
+        "schema" => "SUGGESTED JSON-LD",
+        "robots" => "SUGGESTED ROBOTS.TXT",
+        "internal-link" => "AFFECTED TARGET",
+        _ => "SUGGESTED VALUE"
     };
 
     private static string FormatDate(DateTime date) =>

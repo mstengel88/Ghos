@@ -167,6 +167,12 @@ public sealed class WebsiteHealthIssue
     [MaxLength(1000)]
     public string? TriageNote { get; set; }
 
+    [MaxLength(3000)]
+    public string? Recommendation { get; set; }
+
+    [MaxLength(6000)]
+    public string? SuggestedValue { get; set; }
+
     public MonitoredSite MonitoredSite { get; set; } = null!;
 }
 

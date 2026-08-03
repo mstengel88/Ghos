@@ -414,7 +414,10 @@ public sealed class WebsiteHealthMonitorService(
                 target.ToString(),
                 status == WebsiteHealthCheckStatus.Failed
                     ? WebsiteHealthIssueSeverity.Critical
-                    : WebsiteHealthIssueSeverity.Warning));
+                    : WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.AvailabilityFailure(
+                    "ssl",
+                    target)));
         }
     }
 
@@ -551,20 +554,42 @@ public sealed class WebsiteHealthMonitorService(
             .Where(link => link is not null)
             .Cast<Uri>()
             .ToHashSet();
-        var missingAlt = document.QuerySelectorAll("img")
-            .Count(image =>
+        var missingImages = document.QuerySelectorAll("img")
+            .Where(image =>
                 !image.HasAttribute("alt") ||
-                string.IsNullOrWhiteSpace(image.GetAttribute("alt")));
+                string.IsNullOrWhiteSpace(image.GetAttribute("alt")))
+            .Select(image => new WebsiteHealthMissingImage(
+                image.GetAttribute("src") ??
+                    image.GetAttribute("data-src"),
+                image.GetAttribute("title") ??
+                    image.GetAttribute("aria-label") ??
+                    image.ParentElement?.GetAttribute("aria-label") ??
+                    image.ParentElement?.GetAttribute("title") ??
+                    image.ParentElement?.TextContent))
+            .ToList();
+        var introductoryText = document.QuerySelectorAll("main p, article p")
+            .Select(element => element.TextContent?.Trim())
+            .FirstOrDefault(text => text?.Length >= 50) ??
+            document.QuerySelectorAll("p")
+                .Select(element => element.TextContent?.Trim())
+                .FirstOrDefault(text => text?.Length >= 50);
 
         return new PageSnapshot(
             url,
             document.Title?.Trim(),
+            document.QuerySelector("h1")?.TextContent?.Trim(),
+            introductoryText,
             document.QuerySelector("meta[name='description']")
                 ?.GetAttribute("content")?.Trim(),
             document.QuerySelector("link[rel~='canonical']")
                 ?.GetAttribute("href")?.Trim(),
             document.QuerySelectorAll("script[type='application/ld+json']").Length,
-            missingAlt,
+            document.QuerySelector("meta[name='robots']")
+                ?.GetAttribute("content")
+                ?.Contains(
+                    "noindex",
+                    StringComparison.OrdinalIgnoreCase) == true,
+            missingImages,
             links);
     }
 
@@ -735,7 +760,10 @@ public sealed class WebsiteHealthMonitorService(
                 "Broken internal link",
                 snapshot.Error ?? $"The URL returned HTTP {snapshot.StatusCode}.",
                 target.ToString(),
-                WebsiteHealthIssueSeverity.Warning));
+                WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.BrokenLink(
+                    target,
+                    snapshot.StatusCode)));
         }
     }
 
@@ -757,10 +785,15 @@ public sealed class WebsiteHealthMonitorService(
                     !string.IsNullOrWhiteSpace(page.Title),
                     "Missing page title",
                     observations,
-                    issues);
+                    issues,
+                    recommendation:
+                        WebsiteHealthRecommendationBuilder.MissingTitle(
+                            page.Url,
+                            page.Heading));
             }
 
-            if (enabledCheckKeys.Contains("meta-description"))
+            if (enabledCheckKeys.Contains("meta-description") &&
+                !page.IsNoIndex)
             {
                 AddPresenceObservation(
                     "meta-description",
@@ -770,7 +803,13 @@ public sealed class WebsiteHealthMonitorService(
                     !string.IsNullOrWhiteSpace(page.MetaDescription),
                     "Missing meta description",
                     observations,
-                    issues);
+                    issues,
+                    recommendation:
+                        WebsiteHealthRecommendationBuilder.MissingMetaDescription(
+                            page.Url,
+                            page.Title,
+                            page.Heading,
+                            page.IntroductoryText));
             }
 
             if (enabledCheckKeys.Contains("canonical"))
@@ -783,7 +822,10 @@ public sealed class WebsiteHealthMonitorService(
                     !string.IsNullOrWhiteSpace(page.Canonical),
                     "Missing canonical URL",
                     observations,
-                    issues);
+                    issues,
+                    recommendation:
+                        WebsiteHealthRecommendationBuilder.MissingCanonical(
+                            page.Url));
             }
 
             if (enabledCheckKeys.Contains("schema"))
@@ -797,7 +839,12 @@ public sealed class WebsiteHealthMonitorService(
                     "Missing structured data",
                     observations,
                     issues,
-                    WebsiteHealthIssueSeverity.Info);
+                    WebsiteHealthIssueSeverity.Info,
+                    WebsiteHealthRecommendationBuilder.MissingSchema(
+                        page.Url,
+                        page.Title,
+                        page.Heading,
+                        page.MetaDescription));
             }
 
             if (enabledCheckKeys.Contains("image-alt"))
@@ -806,23 +853,28 @@ public sealed class WebsiteHealthMonitorService(
                     "image-alt",
                     "Image alt text",
                     "Content",
-                    page.MissingImageAltCount == 0
+                    page.MissingImages.Count == 0
                         ? WebsiteHealthCheckStatus.Passed
                         : WebsiteHealthCheckStatus.Warning,
-                    (decimal)page.MissingImageAltCount,
+                    (decimal)page.MissingImages.Count,
                     "images",
                     page.Url.ToString(),
-                    page.MissingImageAltCount == 0
+                    page.MissingImages.Count == 0
                         ? "All images have alt text."
-                        : $"{page.MissingImageAltCount} image(s) are missing alt text."));
-                if (page.MissingImageAltCount > 0)
+                        : $"{page.MissingImages.Count} image(s) are missing alt text."));
+                if (page.MissingImages.Count > 0)
                 {
                     issues.Add(new DetectedIssue(
                         "image-alt",
                         "Images missing alt text",
-                        $"{page.MissingImageAltCount} image(s) do not have meaningful alt text.",
+                        $"{page.MissingImages.Count} image(s) do not have meaningful alt text.",
                         page.Url.ToString(),
-                        WebsiteHealthIssueSeverity.Warning));
+                        WebsiteHealthIssueSeverity.Warning,
+                        WebsiteHealthRecommendationBuilder.MissingImageAltText(
+                            page.Url,
+                            page.Title,
+                            page.Heading,
+                            page.MissingImages)));
                 }
             }
         }
@@ -837,7 +889,8 @@ public sealed class WebsiteHealthMonitorService(
         string issueTitle,
         ICollection<Observation> observations,
         ICollection<DetectedIssue> issues,
-        WebsiteHealthIssueSeverity severity = WebsiteHealthIssueSeverity.Warning)
+        WebsiteHealthIssueSeverity severity = WebsiteHealthIssueSeverity.Warning,
+        WebsiteHealthRecommendation? recommendation = null)
     {
         observations.Add(new Observation(
             key,
@@ -857,7 +910,8 @@ public sealed class WebsiteHealthMonitorService(
                 issueTitle,
                 $"{label} was not detected on this page.",
                 url.ToString(),
-                severity));
+                severity,
+                recommendation));
         }
     }
 
@@ -885,7 +939,10 @@ public sealed class WebsiteHealthMonitorService(
             $"{label} check failed",
             detail,
             target.ToString(),
-            severity));
+            severity,
+            WebsiteHealthRecommendationBuilder.AvailabilityFailure(
+                key,
+                target)));
     }
 
     private static void ApplyScores(
@@ -992,6 +1049,12 @@ public sealed class WebsiteHealthMonitorService(
                     Title = detected.Title,
                     Description = Truncate(detected.Description, 2000) ?? "",
                     AffectedUrl = Truncate(detected.AffectedUrl, 1000),
+                    Recommendation = Truncate(
+                        detected.Recommendation?.Guidance,
+                        3000),
+                    SuggestedValue = Truncate(
+                        detected.Recommendation?.SuggestedValue,
+                        6000),
                     Severity = detected.Severity,
                     FirstDetectedAtUtc = detectedAtUtc,
                     LastDetectedAtUtc = detectedAtUtc,
@@ -1002,6 +1065,12 @@ public sealed class WebsiteHealthMonitorService(
             {
                 existing.Title = detected.Title;
                 existing.Description = Truncate(detected.Description, 2000) ?? "";
+                existing.Recommendation = Truncate(
+                    detected.Recommendation?.Guidance,
+                    3000);
+                existing.SuggestedValue = Truncate(
+                    detected.Recommendation?.SuggestedValue,
+                    6000);
                 existing.Severity = detected.Severity;
                 existing.LastDetectedAtUtc = detectedAtUtc;
                 existing.LastSeenRunId = runId;
@@ -1062,10 +1131,13 @@ public sealed class WebsiteHealthMonitorService(
     private sealed record PageSnapshot(
         Uri Url,
         string? Title,
+        string? Heading,
+        string? IntroductoryText,
         string? MetaDescription,
         string? Canonical,
         int SchemaBlockCount,
-        int MissingImageAltCount,
+        bool IsNoIndex,
+        IReadOnlyList<WebsiteHealthMissingImage> MissingImages,
         IReadOnlySet<Uri> InternalLinks);
 
     private sealed record Observation(
@@ -1105,5 +1177,6 @@ public sealed class WebsiteHealthMonitorService(
         string Title,
         string Description,
         string? AffectedUrl,
-        WebsiteHealthIssueSeverity Severity);
+        WebsiteHealthIssueSeverity Severity,
+        WebsiteHealthRecommendation? Recommendation = null);
 }
