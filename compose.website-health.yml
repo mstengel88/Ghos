@@ -1,0 +1,6 @@
+services:
+  ghos-web:
+    environment:
+      WebsiteHealth__SchedulerEnabled: ${WEBSITE_HEALTH_SCHEDULER_ENABLED:-true}
+      WebsiteHealth__InitialDelaySeconds: ${WEBSITE_HEALTH_INITIAL_DELAY_SECONDS:-120}
+      WebsiteHealth__SchedulerPollMinutes: ${WEBSITE_HEALTH_SCHEDULER_POLL_MINUTES:-5}

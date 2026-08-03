@@ -12,6 +12,7 @@ using Ghos.Web.Marketing;
 using Ghos.Web.ProjectTools;
 using Ghos.Web.Shopify;
 using Ghos.Web.WinterWatch;
+using Ghos.Web.WebsiteHealth;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -147,6 +148,24 @@ builder.Services.AddScoped<
     IUserClaimsPrincipalFactory<ApplicationUser>,
     ApplicationUserClaimsPrincipalFactory>();
 builder.Services.AddScoped<UserAdministrationService>();
+builder.Services.Configure<WebsiteHealthOptions>(
+    builder.Configuration.GetSection(WebsiteHealthOptions.SectionName));
+builder.Services.AddHttpClient<WebsiteHealthMonitorService>(client =>
+{
+    client.Timeout = Timeout.InfiniteTimeSpan;
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "GHOS-WebsiteHealth/1.0 (+https://greenhillssupply.com)");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AutomaticDecompression =
+        System.Net.DecompressionMethods.GZip |
+        System.Net.DecompressionMethods.Deflate |
+        System.Net.DecompressionMethods.Brotli,
+    AllowAutoRedirect = false,
+    MaxConnectionsPerServer = 2,
+});
+builder.Services.AddSingleton<WebsiteHealthRunCoordinator>();
+builder.Services.AddHostedService<WebsiteHealthAutomaticCheckService>();
 builder.Services.Configure<SecurityStampValidatorOptions>(options =>
 {
     options.ValidationInterval = TimeSpan.FromMinutes(2);
@@ -184,7 +203,16 @@ builder.Services.AddAuthorizationBuilder()
             GhosRoles.Administrator,
             GhosRoles.Manager,
             GhosRoles.Operations,
-            GhosRoles.Marketing));
+            GhosRoles.Marketing))
+    .AddPolicy(GhosPolicies.WebsiteHealth,
+        policy => policy.RequireRole(
+            GhosRoles.Administrator,
+            GhosRoles.Manager,
+            GhosRoles.Operations))
+    .AddPolicy(GhosPolicies.WebsiteHealthManage,
+        policy => policy.RequireRole(
+            GhosRoles.Administrator,
+            GhosRoles.Manager));
 
 builder.Services.AddCascadingAuthenticationState();
 

@@ -1,5 +1,6 @@
 using Ghos.Web.Auth;
 using Ghos.Web.ProjectTools;
+using Ghos.Web.WebsiteHealth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,6 +65,68 @@ public static class DatabaseInitializer
         await SeedTomorrowMaterialMondayAsync(dbContext);
         await SeedMaterialProfilesAsync(dbContext);
         await SeedQuoteConfigurationAsync(dbContext);
+        await SeedWebsiteHealthAsync(dbContext);
+    }
+
+    private static async Task SeedWebsiteHealthAsync(
+        ApplicationDbContext dbContext)
+    {
+        const string baseUrl = "https://www.greenhillssupply.com";
+        var site = await dbContext.MonitoredSites
+            .Include(item => item.Checks)
+            .SingleOrDefaultAsync(item => item.BaseUrl == baseUrl);
+        if (site is null)
+        {
+            site = new MonitoredSite
+            {
+                Name = "Green Hills Supply",
+                BaseUrl = baseUrl,
+                CheckIntervalMinutes = 60,
+                RequestTimeoutSeconds = 15,
+                RequestDelayMilliseconds = 300,
+                MaxCrawlPages = 25
+            };
+            dbContext.MonitoredSites.Add(site);
+        }
+
+        var definitions = new[]
+        {
+            ("homepage", "Homepage availability", "Availability", (string?)null, 10),
+            ("response-time", "Homepage response time", "Availability", null, 5),
+            ("ssl", "SSL certificate", "Security", null, 10),
+            ("robots", "robots.txt", "Discoverability", "/robots.txt", 4),
+            ("sitemap", "Sitemap", "Discoverability", "/sitemap.xml", 6),
+            ("internal-link", "Internal links", "Availability", null, 8),
+            ("title", "Page titles", "Content", null, 6),
+            ("meta-description", "Meta descriptions", "Content", null, 6),
+            ("image-alt", "Image alt text", "Content", null, 4),
+            ("canonical", "Canonical URLs", "Discoverability", null, 4),
+            ("schema", "Structured data", "Discoverability", null, 3),
+            ("key-page", "Catalog", "Availability", "/collections/all", 5),
+            ("key-page", "Search", "Availability", "/search", 5),
+            ("key-page", "Cart", "Availability", "/cart", 5)
+        };
+
+        foreach (var definition in definitions)
+        {
+            if (site.Checks.Any(check =>
+                check.Key == definition.Item1 &&
+                check.TargetPath == definition.Item4))
+            {
+                continue;
+            }
+
+            site.Checks.Add(new WebsiteCheck
+            {
+                Key = definition.Item1,
+                DisplayName = definition.Item2,
+                Category = definition.Item3,
+                TargetPath = definition.Item4,
+                Weight = definition.Item5
+            });
+        }
+
+        await dbContext.SaveChangesAsync();
     }
 
     private static async Task SeedQuoteConfigurationAsync(

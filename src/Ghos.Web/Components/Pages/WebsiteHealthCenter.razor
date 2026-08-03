@@ -1,0 +1,397 @@
+@page "/website-health"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.WebsiteHealth)]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject WebsiteHealthRunCoordinator RunCoordinator
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ILogger<WebsiteHealthCenter> Logger
+
+<PageTitle>Website Health Center | GHOS</PageTitle>
+
+<div class="health-heading">
+    <div>
+        <span class="panel-label">WEBSITE OPERATIONS CENTER</span>
+        <h2>Website Health Center</h2>
+        <p>Live availability, security, crawl, and content checks for Green Hills Supply.</p>
+    </div>
+    <AuthorizeView Policy="@GhosPolicies.WebsiteHealthManage">
+        <button class="primary-action"
+                type="button"
+                disabled="@(Running || Site is null)"
+                @onclick="RunNowAsync">
+            @(Running ? "Running checks…" : "Run health check")
+        </button>
+    </AuthorizeView>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="health-alert error" role="alert">@ErrorMessage</div>
+}
+
+@if (Loading)
+{
+    <section class="panel health-loading">Loading Website Health Center…</section>
+}
+else if (Site is null)
+{
+    <section class="panel health-empty">
+        <strong>No monitored site is configured</strong>
+        <span>Apply the Website Health migration and restart GHOS to seed Green Hills Supply.</span>
+    </section>
+}
+else if (LatestRun is null)
+{
+    <section class="panel first-run">
+        <span class="first-run-icon">♥</span>
+        <h3>Green Hills Supply is ready to monitor</h3>
+        <p>
+            The first run will check the live homepage, TLS certificate, robots and sitemap files,
+            key pages, internal links, page metadata, image alt text, canonical tags, and structured data.
+        </p>
+        <dl>
+            <div><dt>Crawl limit</dt><dd>@Site.MaxCrawlPages pages</dd></div>
+            <div><dt>Request delay</dt><dd>@Site.RequestDelayMilliseconds ms</dd></div>
+            <div><dt>Timeout</dt><dd>@Site.RequestTimeoutSeconds seconds</dd></div>
+            <div><dt>Schedule</dt><dd>Every @Site.CheckIntervalMinutes minutes when enabled</dd></div>
+        </dl>
+        <AuthorizeView Policy="@GhosPolicies.WebsiteHealthManage">
+            <button class="primary-action"
+                    type="button"
+                    disabled="@Running"
+                    @onclick="RunNowAsync">
+                @(Running ? "Running checks…" : "Run first health check")
+            </button>
+        </AuthorizeView>
+    </section>
+}
+else
+{
+    <section class="health-overview">
+        <article class="panel score-card @ScoreClass(LatestRun.OverallScore)">
+            <span class="panel-label">OVERALL HEALTH SCORE</span>
+            <div class="score-ring"
+                 style="--score:@LatestRun.OverallScore">
+                <strong>@LatestRun.OverallScore.ToString("0.0")</strong>
+                <span>out of 100</span>
+            </div>
+            <div class="run-state">
+                <i></i>
+                <strong>@FormatRunStatus(LatestRun.Status)</strong>
+            </div>
+            <small>Last checked @FormatDateTime(LatestRun.CompletedAtUtc)</small>
+        </article>
+
+        <div class="category-grid">
+            @foreach (var category in GetCategoryCards())
+            {
+                <article class="panel category-card @ScoreClass(category.Score)">
+                    <span>@category.Name</span>
+                    <strong>@category.Score.ToString("0.0")</strong>
+                    <div><i style="width:@category.Score%"></i></div>
+                    <small>@category.Description</small>
+                </article>
+            }
+        </div>
+    </section>
+
+    <section class="status-grid">
+        @foreach (var card in GetStatusCards())
+        {
+            var metric = LatestMetrics
+                .Where(item => item.Key == card.Key)
+                .OrderByDescending(item => item.Status)
+                .FirstOrDefault();
+            var status = metric?.Status ?? WebsiteHealthCheckStatus.Warning;
+            <article class="panel status-card @status.ToString().ToLowerInvariant()">
+                <i></i>
+                <div>
+                    <span>@card.Title</span>
+                    <strong>@FormatCheckStatus(metric)</strong>
+                    <small>@card.Description</small>
+                </div>
+            </article>
+        }
+    </section>
+
+    <div class="health-layout">
+        <section class="panel issues-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">ACTIVE ISSUES</span>
+                    <h3>Needs attention</h3>
+                </div>
+                <span>@ActiveIssues.Count open</span>
+            </div>
+
+            @if (ActiveIssues.Count == 0)
+            {
+                <div class="health-empty compact">
+                    <strong>No active issues</strong>
+                    <span>The latest run did not detect anything requiring attention.</span>
+                </div>
+            }
+            else
+            {
+                <div class="issue-list">
+                    @foreach (var issue in ActiveIssues)
+                    {
+                        <article class="issue-row @issue.Severity.ToString().ToLowerInvariant()">
+                            <span class="severity">@issue.Severity</span>
+                            <div>
+                                <strong>@issue.Title</strong>
+                                <p>@issue.Description</p>
+                                @if (!string.IsNullOrWhiteSpace(issue.AffectedUrl))
+                                {
+                                    <a href="@issue.AffectedUrl"
+                                       target="_blank"
+                                       rel="noopener noreferrer">
+                                        @ShortUrl(issue.AffectedUrl) ↗
+                                    </a>
+                                }
+                            </div>
+                            <time>@FormatDate(issue.LastDetectedAtUtc)</time>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="panel trend-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">HISTORICAL TREND</span>
+                    <h3>Recent health scores</h3>
+                </div>
+                <span>Last @RecentRuns.Count runs</span>
+            </div>
+            @if (RecentRuns.Count == 0)
+            {
+                <div class="health-empty compact">No history yet.</div>
+            }
+            else
+            {
+                <div class="trend-chart">
+                    @foreach (var run in RecentRuns.OrderBy(item => item.StartedAtUtc))
+                    {
+                        <div class="trend-column"
+                             title="@($"{run.OverallScore:0.0} on {FormatDateTime(run.CompletedAtUtc)}")">
+                            <span>@run.OverallScore.ToString("0")</span>
+                            <i style="height:@Math.Max(run.OverallScore, 3)%"></i>
+                            <small>@run.StartedAtUtc.ToLocalTime().ToString("M/d")</small>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+
+    <section class="panel runs-panel">
+        <div class="panel-heading">
+            <div>
+                <span class="panel-label">CHECK HISTORY</span>
+                <h3>Recent runs</h3>
+            </div>
+            <span>Persisted monitoring data</span>
+        </div>
+        <div class="runs-table">
+            <div class="run-row run-header">
+                <span>Started</span>
+                <span>Trigger</span>
+                <span>Status</span>
+                <span>Pages</span>
+                <span>Score</span>
+            </div>
+            @foreach (var run in RecentRuns.OrderByDescending(item => item.StartedAtUtc))
+            {
+                <div class="run-row">
+                    <span>@FormatDateTime(run.StartedAtUtc)</span>
+                    <span>@run.Trigger</span>
+                    <span class="status-chip @run.Status.ToString().ToLowerInvariant()">
+                        @FormatRunStatus(run.Status)
+                    </span>
+                    <span>@run.PagesCrawled</span>
+                    <strong>@run.OverallScore.ToString("0.0")</strong>
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private MonitoredSite? Site { get; set; }
+    private WebsiteCheckRun? LatestRun { get; set; }
+    private List<WebsiteHealthMetric> LatestMetrics { get; set; } = [];
+    private List<WebsiteHealthIssue> ActiveIssues { get; set; } = [];
+    private List<WebsiteCheckRun> RecentRuns { get; set; } = [];
+    private bool Loading { get; set; } = true;
+    private bool Running { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var dbContext =
+            await DbContextFactory.CreateDbContextAsync();
+        Site = await dbContext.MonitoredSites
+            .AsNoTracking()
+            .OrderBy(site => site.CreatedAtUtc)
+            .FirstOrDefaultAsync();
+        if (Site is null)
+        {
+            Loading = false;
+            return;
+        }
+
+        RecentRuns = await dbContext.WebsiteCheckRuns
+            .AsNoTracking()
+            .Where(run =>
+                run.MonitoredSiteId == Site.Id &&
+                run.CompletedAtUtc != null)
+            .OrderByDescending(run => run.StartedAtUtc)
+            .Take(12)
+            .ToListAsync();
+        LatestRun = RecentRuns.FirstOrDefault();
+        if (LatestRun is not null)
+        {
+            LatestMetrics = await dbContext.WebsiteHealthMetrics
+                .AsNoTracking()
+                .Where(metric => metric.WebsiteCheckRunId == LatestRun.Id)
+                .ToListAsync();
+        }
+
+        ActiveIssues = await dbContext.WebsiteHealthIssues
+            .AsNoTracking()
+            .Where(issue =>
+                issue.MonitoredSiteId == Site.Id &&
+                issue.ResolvedAtUtc == null)
+            .OrderByDescending(issue => issue.Severity)
+            .ThenByDescending(issue => issue.LastDetectedAtUtc)
+            .Take(100)
+            .ToListAsync();
+        Loading = false;
+    }
+
+    private async Task RunNowAsync()
+    {
+        if (Site is null || Running)
+        {
+            return;
+        }
+
+        Running = true;
+        ErrorMessage = null;
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirst(
+                ClaimTypes.NameIdentifier)?.Value;
+            var run = await RunCoordinator.TryRunAsync(
+                Site.Id,
+                "Manual",
+                userId);
+            if (run is null)
+            {
+                ErrorMessage = "A website health check is already running.";
+            }
+            else if (run.Status == WebsiteHealthRunStatus.Failed)
+            {
+                ErrorMessage = run.ErrorMessage ??
+                    "The website health check could not be completed.";
+            }
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Manual Website Health check failed.");
+            ErrorMessage =
+                "The check could not be completed. Review the application logs and try again.";
+        }
+        finally
+        {
+            Running = false;
+        }
+    }
+
+    private IReadOnlyList<CategoryCardModel> GetCategoryCards() =>
+    [
+        new("Availability", LatestRun!.AvailabilityScore, "Homepage, key pages, links"),
+        new("Security", LatestRun.SecurityScore, "Certificate validity and expiry"),
+        new("Discoverability", LatestRun.DiscoverabilityScore, "Robots, sitemap, canonical, schema"),
+        new("Content", LatestRun.ContentScore, "Titles, descriptions, image alt text")
+    ];
+
+    private IReadOnlyList<StatusCardModel> GetStatusCards() =>
+    [
+        new("Homepage", "homepage", "Live response"),
+        new("SSL certificate", "ssl", "Validity and expiration"),
+        new("robots.txt", "robots", "Crawler guidance"),
+        new("Sitemap", "sitemap", "Search discovery"),
+        new("Internal links", "internal-link", $"{LatestRun!.LinksChecked} URLs checked"),
+        new("Page content", "title", $"{LatestRun.PagesCrawled} pages analyzed")
+    ];
+
+    private static string FormatCheckStatus(WebsiteHealthMetric? metric)
+    {
+        if (metric is null)
+        {
+            return "Not measured";
+        }
+
+        if (metric.Key == "ssl" && metric.NumericValue is not null)
+        {
+            return $"{metric.NumericValue:0} days remaining";
+        }
+
+        if (metric.Key == "response-time" && metric.NumericValue is not null)
+        {
+            return $"{metric.NumericValue:0} ms";
+        }
+
+        return metric.Status switch
+        {
+            WebsiteHealthCheckStatus.Passed => "Healthy",
+            WebsiteHealthCheckStatus.Warning => "Review",
+            _ => "Failed"
+        };
+    }
+
+    private static string ScoreClass(decimal score) => score switch
+    {
+        >= 90 => "healthy",
+        >= 70 => "warning",
+        _ => "critical"
+    };
+
+    private static string FormatRunStatus(WebsiteHealthRunStatus status) =>
+        status switch
+        {
+            WebsiteHealthRunStatus.Healthy => "Healthy",
+            WebsiteHealthRunStatus.Degraded => "Needs attention",
+            WebsiteHealthRunStatus.Failed => "Check failed",
+            _ => "Running"
+        };
+
+    private static string FormatDateTime(DateTime? date) =>
+        date?.ToLocalTime().ToString("MMM d, yyyy h:mm tt") ?? "—";
+
+    private static string FormatDate(DateTime date) =>
+        date.ToLocalTime().ToString("MMM d");
+
+    private static string ShortUrl(string url) =>
+        url.Length <= 72 ? url : $"{url[..69]}…";
+
+    private sealed record CategoryCardModel(
+        string Name,
+        decimal Score,
+        string Description);
+
+    private sealed record StatusCardModel(
+        string Title,
+        string Key,
+        string Description);
+}
