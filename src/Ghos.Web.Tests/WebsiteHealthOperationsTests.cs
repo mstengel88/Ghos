@@ -1010,6 +1010,56 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void IssueLifecycle_DoesNotResolveAnUnvisitedFinding()
+    {
+        var issue = "title-length|product-a";
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var evaluated = new HashSet<string>(
+            ["title-length|product-b"],
+            StringComparer.OrdinalIgnoreCase);
+
+        Assert.False(
+            WebsiteHealthMonitorService.ShouldResolveIssue(
+                issue,
+                seen,
+                evaluated));
+    }
+
+    [Fact]
+    public void IssueLifecycle_ResolvesARecheckedPassingFinding()
+    {
+        var issue = "title-length|product-a";
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var evaluated = new HashSet<string>(
+            [issue],
+            StringComparer.OrdinalIgnoreCase);
+
+        Assert.True(
+            WebsiteHealthMonitorService.ShouldResolveIssue(
+                issue,
+                seen,
+                evaluated));
+    }
+
+    [Fact]
+    public void IssueLifecycle_KeepsARecheckedFailingFindingOpen()
+    {
+        var issue = "title-length|product-a";
+        var seen = new HashSet<string>(
+            [issue],
+            StringComparer.OrdinalIgnoreCase);
+        var evaluated = new HashSet<string>(
+            [issue],
+            StringComparer.OrdinalIgnoreCase);
+
+        Assert.False(
+            WebsiteHealthMonitorService.ShouldResolveIssue(
+                issue,
+                seen,
+                evaluated));
+    }
+
+    [Fact]
     public void MetaDescriptionLength_ProducesDistinctCollectionSpecificCopy()
     {
         var aggregate =
