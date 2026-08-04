@@ -296,6 +296,10 @@ public sealed class WebsiteHealthOperationsTests
             "crushed limestone",
             recommendation.SuggestedValue,
             StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "limestone, gravel, base",
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
         Assert.InRange(recommendation.SuggestedValue.Length, 120, 155);
         Assert.EndsWith(".", recommendation.SuggestedValue);
         Assert.DoesNotContain(
@@ -327,6 +331,8 @@ public sealed class WebsiteHealthOperationsTests
                 null,
                 "Finish planting beds with natural hardwood mulch, rich dark mulch, and long-lasting decorative options that retain moisture and give landscapes a polished appearance.");
 
+        Assert.NotNull(aggregate.SuggestedValue);
+        Assert.NotNull(mulch.SuggestedValue);
         Assert.Contains(
             "crushed limestone",
             aggregate.SuggestedValue,
@@ -338,10 +344,10 @@ public sealed class WebsiteHealthOperationsTests
         Assert.NotEqual(
             aggregate.SuggestedValue,
             mulch.SuggestedValue);
-        Assert.DoesNotEndWith(
-            "convenient.",
-            mulch.SuggestedValue,
-            StringComparison.OrdinalIgnoreCase);
+        Assert.False(
+            mulch.SuggestedValue.EndsWith(
+                "convenient.",
+                StringComparison.OrdinalIgnoreCase));
     }
 
     [Theory]
