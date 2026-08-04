@@ -12,7 +12,13 @@ public sealed record SmartSearchQueryPlan(
     string NormalizedQuery,
     IReadOnlySet<string> DirectTerms,
     IReadOnlySet<string> ExpandedTerms,
-    IReadOnlyList<string> Intents);
+    IReadOnlyList<string> Intents,
+    IReadOnlyList<SmartSearchIntent> IntentMatches);
+
+public sealed record SmartSearchIntent(
+    string Category,
+    string Name,
+    IReadOnlyList<string> Terms);
 
 public static partial class SmartSearchSynonymLibrary
 {
@@ -77,10 +83,12 @@ public static partial class SmartSearchSynonymLibrary
         var expanded = new HashSet<string>(
             direct,
             StringComparer.OrdinalIgnoreCase);
-        var intents = new List<string>();
-        foreach (var concept in Concepts.Where(concept =>
+        var matchedConcepts = Concepts.Where(concept =>
             concept.Terms.Any(term =>
-                ContainsTerm(normalized, Normalize(term)))))
+                ContainsTerm(normalized, Normalize(term))))
+            .ToList();
+        var intents = new List<string>();
+        foreach (var concept in matchedConcepts)
         {
             foreach (var term in concept.Terms)
             {
@@ -95,7 +103,16 @@ public static partial class SmartSearchSynonymLibrary
             normalized,
             direct,
             expanded,
-            intents.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+            intents.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            matchedConcepts
+                .Select(concept => new SmartSearchIntent(
+                    concept.Category,
+                    concept.Name,
+                    concept.Terms
+                        .Select(Normalize)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()))
+                .ToList());
     }
 
     internal static string Normalize(string? value) =>

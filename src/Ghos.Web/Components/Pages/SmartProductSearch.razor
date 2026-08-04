@@ -106,6 +106,9 @@
                     }
                     <div>
                         <h3>@result.Title</h3>
+                        <span class="confidence @result.Confidence.ToLowerInvariant()">
+                            @result.Confidence confidence
+                        </span>
                         @if (result.StartingPrice is not null)
                         {
                             <strong class="price">From @result.StartingPrice.Value.ToString("C")</strong>
@@ -117,6 +120,15 @@
                                 <span>@reason</span>
                             }
                         </div>
+                        @if (result.UnmatchedIntents.Count > 0)
+                        {
+                            <small class="missing-intent">
+                                Not confirmed: @string.Join(
+                                    ", ",
+                                    result.UnmatchedIntents.Select(
+                                        intent => intent.Split(':', 2)[1].Trim()))
+                            </small>
+                        }
                         <a href="@result.ProductUrl"
                            target="_blank"
                            rel="noopener noreferrer"
