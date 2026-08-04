@@ -194,6 +194,31 @@
     font-size: .82rem;
 }
 
+.confidence {
+    width: fit-content;
+    padding: 3px 6px;
+    border-radius: 999px;
+    display: block;
+    font-size: .48rem;
+    font-weight: 850;
+    text-transform: uppercase;
+}
+
+.confidence.high {
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
+}
+
+.confidence.medium {
+    background: rgba(215, 165, 40, .13);
+    color: #9a7011;
+}
+
+.confidence.low {
+    background: rgba(190, 65, 57, .1);
+    color: #a73f39;
+}
+
 .price {
     color: var(--ghos-accent-text);
     font-size: .65rem;
@@ -228,6 +253,13 @@
     font-size: .59rem;
     font-weight: 800;
     text-decoration: none;
+}
+
+.missing-intent {
+    margin: -4px 0 9px;
+    color: var(--ghos-text-muted);
+    display: block;
+    font-size: .51rem;
 }
 
 .no-results {

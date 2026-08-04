@@ -50,4 +50,27 @@ public sealed class SmartSearchTests
         Assert.Contains("something", plan.DirectTerms);
         Assert.Contains("unusual", plan.DirectTerms);
     }
+
+    [Fact]
+    public void IntentCoverage_RequiresTheProductToSupportEachMeaning()
+    {
+        var plan = SmartSearchSynonymLibrary.Plan(
+            "gray stone for a patio");
+
+        var strongMatches =
+            SmartProductSearchService.EvaluateIntentMatches(
+                "gray crushed limestone stone for patios and outdoor seating",
+                plan);
+        var partialMatches =
+            SmartProductSearchService.EvaluateIntentMatches(
+                "gray decorative stone for landscape beds",
+                plan);
+
+        Assert.Contains("Use: Patios", strongMatches);
+        Assert.Contains("Material: Crushed stone", strongMatches);
+        Assert.Contains("Color: Gray", strongMatches);
+        Assert.DoesNotContain("Use: Patios", partialMatches);
+        Assert.Contains("Material: Crushed stone", partialMatches);
+        Assert.Contains("Color: Gray", partialMatches);
+    }
 }

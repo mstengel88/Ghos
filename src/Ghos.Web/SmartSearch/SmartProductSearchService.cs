@@ -12,6 +12,9 @@ public sealed record SmartProductSearchResult(
     string? Description,
     decimal? StartingPrice,
     int Score,
+    string Confidence,
+    IReadOnlyList<string> MatchedIntents,
+    IReadOnlyList<string> UnmatchedIntents,
     IReadOnlyList<string> MatchReasons);
 
 public sealed record SmartProductSearchResponse(
@@ -178,6 +181,35 @@ public sealed class SmartProductSearchService(
         };
         var score = 0;
         var reasons = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var searchableDocument = SmartSearchSynonymLibrary.Normalize(
+            string.Join(' ', fields.Select(field => field.Value)));
+        var matchedIntents = EvaluateIntentMatches(
+            searchableDocument,
+            plan);
+        var unmatchedIntents = plan.IntentMatches
+            .Where(intent => !matchedIntents.Contains(
+                $"{intent.Category}: {intent.Name}",
+                StringComparer.OrdinalIgnoreCase))
+            .Select(intent => $"{intent.Category}: {intent.Name}")
+            .ToList();
+        foreach (var matchedIntent in matchedIntents)
+        {
+            var category = matchedIntent.Split(':', 2)[0];
+            score += category switch
+            {
+                "Use" or "Project" => 140,
+                "Color" or "Size" => 100,
+                _ => 85
+            };
+            reasons.Add($"Fits {matchedIntent.Split(':', 2)[1].Trim()}");
+        }
+
+        foreach (var unmatchedIntent in unmatchedIntents)
+        {
+            var category = unmatchedIntent.Split(':', 2)[0];
+            score -= category is "Use" or "Project" ? 70 : 25;
+        }
+
         foreach (var field in fields)
         {
             var normalizedField =
@@ -226,7 +258,42 @@ public sealed class SmartProductSearchService(
                         product.ShopifyDescriptionHtml)),
             startingPrice,
             score,
+            GetConfidence(plan.IntentMatches.Count, matchedIntents.Count, score),
+            matchedIntents,
+            unmatchedIntents,
             reasons.Take(3).ToList());
+    }
+
+    internal static IReadOnlyList<string> EvaluateIntentMatches(
+        string searchableDocument,
+        SmartSearchQueryPlan plan) =>
+        plan.IntentMatches
+            .Where(intent => intent.Terms.Any(term =>
+                term.Length > 1 &&
+                searchableDocument.Contains(
+                    term,
+                    StringComparison.OrdinalIgnoreCase)))
+            .Select(intent => $"{intent.Category}: {intent.Name}")
+            .ToList();
+
+    private static string GetConfidence(
+        int intentCount,
+        int matchedIntentCount,
+        int score)
+    {
+        if (intentCount == 0)
+        {
+            return score >= 100 ? "High" : "Medium";
+        }
+
+        if (matchedIntentCount == intentCount)
+        {
+            return "High";
+        }
+
+        return matchedIntentCount * 2 >= intentCount
+            ? "Medium"
+            : "Low";
     }
 
     private static SmartProductSearchResponse Empty(
