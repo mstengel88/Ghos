@@ -70,4 +70,34 @@ public sealed class WebsiteHealthMonitorServiceTests
             "https://example.com/products/stone/?variant=1",
             normalized);
     }
+
+    [Fact]
+    public void GetMissingSocialPreviewFields_ReportsOnlyMissingOrInvalidValues()
+    {
+        var missing =
+            WebsiteHealthMonitorService.GetMissingSocialPreviewFields(
+                "Driveway Stone | Green Hills Supply",
+                "",
+                "/images/stone.jpg",
+                "http://example.com/products/stone",
+                "summary_large_image");
+
+        Assert.Equal(
+            ["og:description", "og:image", "og:url"],
+            missing);
+    }
+
+    [Fact]
+    public void GetMissingSocialPreviewFields_AcceptsCompletePreview()
+    {
+        var missing =
+            WebsiteHealthMonitorService.GetMissingSocialPreviewFields(
+                "Driveway Stone | Green Hills Supply",
+                "Shop driveway stone for a durable landscape project.",
+                "https://cdn.example.com/stone.jpg",
+                "https://example.com/products/stone",
+                "summary_large_image");
+
+        Assert.Empty(missing);
+    }
 }

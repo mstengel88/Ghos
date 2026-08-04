@@ -200,7 +200,9 @@ public sealed class WebsiteHealthMonitorService(
                     "canonical",
                     "canonical-quality",
                     "indexability",
-                    "schema"
+                    "schema",
+                    "schema-quality",
+                    "social-preview"
                 ]);
             var queue = new Queue<Uri>();
             if (crawlEnabled)
@@ -624,6 +626,12 @@ public sealed class WebsiteHealthMonitorService(
             document.QuerySelector("link[rel~='canonical']")
                 ?.GetAttribute("href")?.Trim(),
             structuredData,
+            GetMetadataContent(document, "property", "og:title"),
+            GetMetadataContent(document, "property", "og:description"),
+            GetMetadataContent(document, "property", "og:image:secure_url") ??
+                GetMetadataContent(document, "property", "og:image"),
+            GetMetadataContent(document, "property", "og:url"),
+            GetMetadataContent(document, "name", "twitter:card"),
             document.QuerySelector("meta[name='robots']")
                 ?.GetAttribute("content")?.Trim(),
             document.QuerySelector("meta[name='robots']")
@@ -634,6 +642,14 @@ public sealed class WebsiteHealthMonitorService(
             images,
             links);
     }
+
+    private static string? GetMetadataContent(
+        IDocument document,
+        string attribute,
+        string value) =>
+        document.QuerySelector(
+                $"meta[{attribute}='{value}']")
+            ?.GetAttribute("content")?.Trim();
 
     internal static string? GetMeaningfulHeadingText(
         string? textContent,
@@ -1126,6 +1142,16 @@ public sealed class WebsiteHealthMonitorService(
                     issues);
             }
 
+            if (enabledCheckKeys.Contains("social-preview") &&
+                !page.IsNoIndex &&
+                !WebsiteHealthRecommendationBuilder.IsUtilityPage(page.Url))
+            {
+                AddSocialPreviewObservation(
+                    page,
+                    observations,
+                    issues);
+            }
+
             if (enabledCheckKeys.Contains("image-alt"))
             {
                 var genericAltCount = page.Images.Count(image =>
@@ -1196,6 +1222,99 @@ public sealed class WebsiteHealthMonitorService(
                 observations,
                 issues);
         }
+    }
+
+    private static void AddSocialPreviewObservation(
+        PageSnapshot page,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var missingFields = GetMissingSocialPreviewFields(
+            page.OpenGraphTitle,
+            page.OpenGraphDescription,
+            page.OpenGraphImage,
+            page.OpenGraphUrl,
+            page.TwitterCard);
+        var healthy = missingFields.Count == 0;
+        observations.Add(new Observation(
+            "social-preview",
+            "Social sharing preview",
+            "Content",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            (decimal)missingFields.Count,
+            "missing fields",
+            page.Url.ToString(),
+            healthy
+                ? "Open Graph title, description, image, URL, and Twitter card are present."
+                : $"Missing: {string.Join(", ", missingFields)}."));
+        if (healthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            "social-preview",
+            "Social sharing preview is incomplete",
+            $"The page is missing {string.Join(", ", missingFields)}. Shared links may appear without useful page-specific text or imagery.",
+            page.Url.ToString(),
+            WebsiteHealthIssueSeverity.Info,
+            WebsiteHealthRecommendationBuilder.SocialPreview(
+                page.Url,
+                page.Title,
+                page.Heading,
+                page.IntroductoryText,
+                page.MetaDescription,
+                page.OpenGraphTitle,
+                page.OpenGraphDescription,
+                page.OpenGraphImage,
+                page.OpenGraphUrl,
+                page.TwitterCard)));
+    }
+
+    internal static IReadOnlyList<string> GetMissingSocialPreviewFields(
+        string? openGraphTitle,
+        string? openGraphDescription,
+        string? openGraphImage,
+        string? openGraphUrl,
+        string? twitterCard)
+    {
+        var fields = new List<string>();
+        if (string.IsNullOrWhiteSpace(openGraphTitle))
+        {
+            fields.Add("og:title");
+        }
+
+        if (string.IsNullOrWhiteSpace(openGraphDescription))
+        {
+            fields.Add("og:description");
+        }
+
+        if (!Uri.TryCreate(
+                openGraphImage,
+                UriKind.Absolute,
+                out var image) ||
+            image.Scheme is not ("http" or "https"))
+        {
+            fields.Add("og:image");
+        }
+
+        if (!Uri.TryCreate(
+                openGraphUrl,
+                UriKind.Absolute,
+                out var socialUrl) ||
+            socialUrl.Scheme != Uri.UriSchemeHttps)
+        {
+            fields.Add("og:url");
+        }
+
+        if (string.IsNullOrWhiteSpace(twitterCard))
+        {
+            fields.Add("twitter:card");
+        }
+
+        return fields;
     }
 
     private static void AddHeadingObservation(
@@ -2236,6 +2355,11 @@ public sealed class WebsiteHealthMonitorService(
         string? MetaDescription,
         string? Canonical,
         StructuredDataAnalysis StructuredData,
+        string? OpenGraphTitle,
+        string? OpenGraphDescription,
+        string? OpenGraphImage,
+        string? OpenGraphUrl,
+        string? TwitterCard,
         string? RobotsDirective,
         bool IsNoIndex,
         IReadOnlyList<WebsiteHealthMissingImage> MissingImages,

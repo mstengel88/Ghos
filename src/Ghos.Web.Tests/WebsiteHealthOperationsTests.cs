@@ -593,6 +593,40 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void SocialPreview_UsesLiveProductCopyAndSafeThemeSearchGuidance()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.SocialPreview(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/clear-stone"),
+                "Clear Stone | Green Hills Supply",
+                "Clear Stone",
+                "Clear stone supports drainage projects and durable bases.",
+                "Shop clear stone for drainage projects, landscaping, and durable bases.",
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        Assert.Contains(
+            "Clear Stone | Green Hills Supply",
+            recommendation.SuggestedValue);
+        Assert.Contains(
+            "Shop clear stone for drainage projects",
+            recommendation.SuggestedValue);
+        Assert.Contains(
+            "Products → open this product",
+            recommendation.FixLocation);
+        Assert.Contains(
+            "search the entire theme",
+            recommendation.FixLocation);
+        Assert.DoesNotContain(
+            "social-meta-tags.liquid",
+            recommendation.FixLocation);
+    }
+
+    [Fact]
     public void WebsiteHealthIssueExport_IncludesComparisonAndShopifyFields()
     {
         var csv = WebsiteHealthIssueExportBuilder.BuildCsv(
