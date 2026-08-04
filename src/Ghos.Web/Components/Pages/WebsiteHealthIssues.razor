@@ -1007,7 +1007,7 @@ else
     };
 
     private static string FormatDate(DateTime date) =>
-        date.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+        WebsiteHealthTimeFormatter.FormatTimestamp(date);
 
     private static string CharacterCount(string value) =>
         $"{value.Length} character{(value.Length == 1 ? "" : "s")}";

@@ -31,6 +31,10 @@ each recommended change. Collection pagination variants are grouped into one
 base-collection metadata finding, so a manager is not asked to edit pages 2,
 3, and 5 independently.
 
+Website Health stores timestamps in UTC and displays them in
+**America/Chicago** Central time. The interface automatically shows CST or CDT
+as daylight-saving time changes.
+
 The content scan checks more than presence. It flags page titles outside the
 20–60 character range, meta descriptions outside the 70–160 character range,
 and exact duplicate titles or descriptions across indexable pages in the

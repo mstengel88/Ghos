@@ -9,6 +9,28 @@ namespace Ghos.Web.Tests;
 public sealed class WebsiteHealthOperationsTests
 {
     [Theory]
+    [InlineData(
+        "2026-08-04T13:55:00Z",
+        "Aug 4, 2026 8:55 AM CDT")]
+    [InlineData(
+        "2026-01-15T18:00:00Z",
+        "Jan 15, 2026 12:00 PM CST")]
+    public void WebsiteHealthTimeFormatter_UsesChicagoCentralTime(
+        string utcValue,
+        string expected)
+    {
+        var formatted =
+            WebsiteHealthTimeFormatter.FormatTimestamp(
+                DateTime.Parse(
+                    utcValue,
+                    null,
+                    System.Globalization.DateTimeStyles
+                        .AdjustToUniversal));
+
+        Assert.Equal(expected, formatted);
+    }
+
+    [Theory]
     [InlineData(" /collections/all ", "/collections/all")]
     [InlineData("/products/stone?variant=1", "/products/stone?variant=1")]
     public void NormalizeKeyPagePath_AcceptsRelativeSitePaths(
