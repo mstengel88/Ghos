@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -574,11 +575,7 @@ public sealed class WebsiteHealthMonitorService(
             .Select(image => new WebsiteHealthMissingImage(
                 image.GetAttribute("src") ??
                     image.GetAttribute("data-src"),
-                image.GetAttribute("title") ??
-                    image.GetAttribute("aria-label") ??
-                    image.ParentElement?.GetAttribute("aria-label") ??
-                    image.ParentElement?.GetAttribute("title") ??
-                    image.ParentElement?.TextContent,
+                GetImageContext(image, url),
                 url.ToString()))
             .ToList();
         var images = document.QuerySelectorAll("img[alt]")
@@ -586,11 +583,7 @@ public sealed class WebsiteHealthMonitorService(
                 image.GetAttribute("src") ??
                     image.GetAttribute("data-src"),
                 image.GetAttribute("alt")?.Trim() ?? "",
-                image.GetAttribute("title") ??
-                    image.GetAttribute("aria-label") ??
-                    image.ParentElement?.GetAttribute("aria-label") ??
-                    image.ParentElement?.GetAttribute("title") ??
-                    image.ParentElement?.TextContent,
+                GetImageContext(image, url),
                 url.ToString()))
             .Where(image =>
                 !string.IsNullOrWhiteSpace(image.AltText))
@@ -702,6 +695,79 @@ public sealed class WebsiteHealthMonitorService(
 
         return null;
     }
+
+    private static string? GetImageContext(
+        IElement image,
+        Uri pageUrl)
+    {
+        var currentAlt = NormalizeImageContext(
+            image.GetAttribute("alt"));
+        var interactive = FindInteractiveAncestor(image);
+        var candidates = new List<string?>
+        {
+            image.GetAttribute("data-product-title"),
+            image.GetAttribute("data-title"),
+            image.GetAttribute("title"),
+            image.GetAttribute("aria-label"),
+            interactive?.GetAttribute("aria-label"),
+            interactive?.GetAttribute("title"),
+            image.Closest("figure")?.QuerySelector("figcaption")
+                ?.TextContent
+        };
+        var ancestor = image.ParentElement;
+        for (var depth = 0;
+            ancestor is not null && depth < 4;
+            ancestor = ancestor.ParentElement, depth++)
+        {
+            candidates.Add(
+                ancestor.QuerySelector(
+                    "[data-product-title], [data-title], h1, h2, h3, h4")
+                    ?.TextContent);
+            candidates.Add(ancestor.TextContent);
+        }
+
+        candidates.Add(GetLinkedImageTopic(interactive, pageUrl));
+        return candidates
+            .Select(NormalizeImageContext)
+            .FirstOrDefault(candidate =>
+                candidate.Length is >= 3 and <= 125 &&
+                !candidate.Equals(
+                    currentAlt,
+                    StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? GetLinkedImageTopic(
+        IElement? interactive,
+        Uri pageUrl)
+    {
+        var href = interactive?.GetAttribute("href");
+        if (string.IsNullOrWhiteSpace(href) ||
+            !Uri.TryCreate(pageUrl, href, out var linked))
+        {
+            return null;
+        }
+
+        var segment = linked.AbsolutePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .LastOrDefault();
+        if (string.IsNullOrWhiteSpace(segment))
+        {
+            return null;
+        }
+
+        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
+            Uri.UnescapeDataString(segment)
+                .Replace('-', ' ')
+                .Replace('_', ' '));
+    }
+
+    private static string NormalizeImageContext(string? value) =>
+        string.Join(
+            ' ',
+            WebUtility.HtmlDecode(value ?? "")
+                .Split(
+                    [' ', '\r', '\n', '\t'],
+                    StringSplitOptions.RemoveEmptyEntries));
 
     private static Uri? ResolveLink(Uri currentPage, string href)
     {

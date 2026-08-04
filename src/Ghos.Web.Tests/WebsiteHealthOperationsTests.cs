@@ -238,6 +238,32 @@ public sealed class WebsiteHealthOperationsTests
             recommendation.FixLocation);
     }
 
+    [Fact]
+    public void ImageAltQuality_DoesNotRecommendStockLibraryFilenames()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.ImageAltQuality(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/mulch"),
+                "Mulch",
+                "Mulch",
+                "Green Hills Supply",
+                [
+                    new WebsiteHealthImage(
+                        "https://cdn.example.com/iStock-1402995921.jpg",
+                        "Green Hills Supply",
+                        null)
+                ],
+                true);
+
+        Assert.Contains(
+            "alt=\"Mulch\"",
+            recommendation.SuggestedValue);
+        Assert.DoesNotContain(
+            "alt=\"Istock\"",
+            recommendation.SuggestedValue);
+    }
+
     [Theory]
     [InlineData(false, null, false, false, true)]
     [InlineData(true, "Red mulch product bag", false, false, false)]

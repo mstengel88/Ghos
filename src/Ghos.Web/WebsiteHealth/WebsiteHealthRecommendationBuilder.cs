@@ -899,6 +899,12 @@ internal static class WebsiteHealthRecommendationBuilder
         var normalized = value.ToLowerInvariant();
         return normalized is "image" or "photo" or "picture" or "thumbnail" ||
             normalized.Contains("untitled design", StringComparison.Ordinal) ||
+            normalized.Contains("blank logo", StringComparison.Ordinal) ||
+            normalized.StartsWith("istock", StringComparison.Ordinal) ||
+            normalized.StartsWith("depositphotos", StringComparison.Ordinal) ||
+            normalized.StartsWith("shutterstock", StringComparison.Ordinal) ||
+            normalized.StartsWith("getty", StringComparison.Ordinal) ||
+            normalized.StartsWith("adobe stock", StringComparison.Ordinal) ||
             normalized.StartsWith("img", StringComparison.Ordinal) ||
             normalized.StartsWith("dsc", StringComparison.Ordinal);
     }
