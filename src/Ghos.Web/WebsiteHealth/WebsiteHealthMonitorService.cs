@@ -917,7 +917,7 @@ public sealed class WebsiteHealthMonitorService(
                         page.Title,
                         page.Heading,
                         page.IntroductoryText,
-                        page.MetaDescription.Length));
+                        page.MetaDescription));
             }
 
             if (enabledCheckKeys.Contains("canonical"))

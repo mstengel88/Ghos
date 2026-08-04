@@ -93,17 +93,22 @@ internal static class WebsiteHealthRecommendationBuilder
         string? title,
         string? heading,
         string? introductoryText,
-        int currentLength)
+        string currentDescription)
     {
+        var currentLength = NormalizeText(currentDescription).Length;
         var problem = currentLength < 70
             ? "The current meta description is too short to communicate the page's value in search results."
             : "The current meta description is likely to be truncated in search results.";
+        var sourceExplanation = currentLength < 70
+            ? "The suggestion keeps the useful existing wording and expands it with page-specific context."
+            : "The suggestion is condensed from the current live description, preserving its specific products, uses, and benefits.";
         return new WebsiteHealthRecommendation(
-            $"{problem} Replace it with unique, useful copy of roughly 120–155 characters.",
-            BuildDescription(
+            $"{problem} {sourceExplanation} Review the result for accuracy before publishing.",
+            BuildTailoredDescription(
                 url,
                 GetPageTopic(url, heading, title),
-                introductoryText),
+                introductoryText,
+                currentDescription),
             GetShopifySeoLocation(url),
             GetShopifySeoDocumentation(url));
     }
@@ -318,6 +323,36 @@ internal static class WebsiteHealthRecommendationBuilder
         }
 
         return EnsureSentence(TruncateAtWord(description, 155));
+    }
+
+    private static string BuildTailoredDescription(
+        Uri url,
+        string topic,
+        string? introductoryText,
+        string? currentDescription)
+    {
+        var current = NormalizeText(currentDescription);
+        if (current.Length >= 70)
+        {
+            return FitSearchDescription(current);
+        }
+
+        var fallback = BuildDescription(url, topic, introductoryText);
+        if (current.Length < 20)
+        {
+            return fallback;
+        }
+
+        var combined =
+            $"{current.TrimEnd(' ', '.', '!', '?')}—{fallback}";
+        return FitSearchDescription(combined);
+    }
+
+    private static string FitSearchDescription(string value)
+    {
+        var fitted = TruncateAtWord(value, 154)
+            .TrimEnd(' ', ',', ';', ':', '-', '—', '.', '!', '?');
+        return $"{fitted}.";
     }
 
     private static string BuildTitle(Uri url, string? heading)
