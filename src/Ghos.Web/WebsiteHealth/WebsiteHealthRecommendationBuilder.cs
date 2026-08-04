@@ -10,7 +10,8 @@ internal sealed record WebsiteHealthRecommendation(
 
 internal sealed record WebsiteHealthMissingImage(
     string? Source,
-    string? Context);
+    string? Context,
+    string? PageUrl = null);
 
 internal static class WebsiteHealthRecommendationBuilder
 {
@@ -102,7 +103,10 @@ internal static class WebsiteHealthRecommendationBuilder
             .Take(8)
             .Select((image, index) =>
             {
-                var sourceLabel = GetImageLabel(image.Source, index + 1);
+                var sourceLabel = GetImageLabel(
+                    image.Source,
+                    image.PageUrl,
+                    index + 1);
                 var altText = BuildImageAltText(
                     topic,
                     image.Context,
@@ -273,7 +277,10 @@ internal static class WebsiteHealthRecommendationBuilder
         return TruncateAtWord(pageTopic, 125);
     }
 
-    private static string GetImageLabel(string? source, int number)
+    private static string GetImageLabel(
+        string? source,
+        string? pageUrl,
+        int number)
     {
         var absoluteSource = source?.StartsWith(
             "//",
@@ -286,9 +293,15 @@ internal static class WebsiteHealthRecommendationBuilder
         }
 
         var filename = Path.GetFileName(uri.AbsolutePath);
-        return string.IsNullOrWhiteSpace(filename)
+        var label = string.IsNullOrWhiteSpace(filename)
             ? $"Image {number}"
             : WebUtility.UrlDecode(filename);
+        if (Uri.TryCreate(pageUrl, UriKind.Absolute, out var page))
+        {
+            label += $" on {page.PathAndQuery}";
+        }
+
+        return label;
     }
 
     private static string? GetFilenameTopic(string? source)
@@ -302,13 +315,6 @@ internal static class WebsiteHealthRecommendationBuilder
             ? uri.AbsolutePath
             : source;
         var filename = Path.GetFileNameWithoutExtension(path);
-        if (filename.Contains(
-            "untitled_design",
-            StringComparison.OrdinalIgnoreCase))
-        {
-            return $"{BrandName} logo";
-        }
-
         return string.IsNullOrWhiteSpace(filename)
             ? null
             : HumanizeSlug(filename);
@@ -373,6 +379,7 @@ internal static class WebsiteHealthRecommendationBuilder
     {
         var normalized = value.ToLowerInvariant();
         return normalized is "image" or "photo" or "picture" or "thumbnail" ||
+            normalized.Contains("untitled design", StringComparison.Ordinal) ||
             normalized.StartsWith("img", StringComparison.Ordinal) ||
             normalized.StartsWith("dsc", StringComparison.Ordinal);
     }
