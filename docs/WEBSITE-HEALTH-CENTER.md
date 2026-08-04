@@ -44,6 +44,13 @@ open the blog → Search engine listing preview**, not through a presumed Liquid
 template. Individual blog posts continue to point to their own search engine
 listing editor.
 
+Shopify's `/collections/all` route is a built-in catalog page. GHOS never
+recommends renaming an existing collection to take over that handle, because a
+theme section can reference the existing handle and disappear when it changes.
+The catalog recommendation instead explains how to create a separate smart
+collection titled **All** with the `/all` handle. Stores that do not use the
+catalog route can remove it from monitored key pages or suppress the finding.
+
 Administrators and Managers can copy a suggested value directly from the
 finding and select **Verify fix** after publishing the Shopify change. GHOS
 runs a fresh live check and reports whether that specific issue resolved or is
