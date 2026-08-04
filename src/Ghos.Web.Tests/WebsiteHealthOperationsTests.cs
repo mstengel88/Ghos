@@ -947,6 +947,18 @@ public sealed class WebsiteHealthOperationsTests
         "Premium Blend Mulch | Triple-Ground Mulch for Landscape Beds & Gardens – Green Hills Supply",
         "Premium Blend Mulch",
         "Triple-Ground for Beds & Gardens")]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/custom-sand-soil-blend",
+        "Custom Sand Soil Blend",
+        "Custom Sand & Soil Blends | Soil Mixes for Lawns, Garden & Landscaping – Green Hills Supply",
+        "Custom Sand Soil Blend",
+        "Lawns & Gardens")]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/top-soil",
+        "Lawn & Garden Topsoil",
+        "Lawn & Garden Topsoil | Premium Topsoil for Seeding, Sod & Lawn Repair – Green Hills Supply",
+        "Lawn & Garden Topsoil",
+        "Seeding, Sod & Lawn Repair")]
     public void TitleLength_PreservesProductIntentInTailoredSuggestion(
         string url,
         string heading,
