@@ -250,6 +250,16 @@ public sealed partial class DispatchQuoteDataSyncService(
                 row.ContractorTier2Price ?? row.Tier2Price;
             variant.PickupVendor =
                 Clean(row.PickupVendor) ?? variant.PickupVendor;
+            variant.UnitLabel =
+                Clean(row.UnitLabel) ??
+                Clean(row.PriceUnitLabel) ??
+                variant.UnitLabel;
+            if (row.WeightGrams is > 0)
+            {
+                variant.PalletWeightLbs = (int)Math.Round(
+                    row.WeightGrams.Value / 453.59237m,
+                    MidpointRounding.AwayFromZero);
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -286,6 +296,8 @@ public sealed partial class DispatchQuoteDataSyncService(
                 ? row.TruckCapacity
                 : 22m;
             rule.VendorSource = Clean(row.VendorSource);
+            rule.DeliveryMode = NormalizeDeliveryMode(row.DeliveryMode);
+            rule.CapacityUnit = NormalizeCapacityUnit(row.CapacityUnit);
             rule.IsActive = row.IsActive;
             rule.SortOrder = row.SortOrder;
         }
@@ -634,6 +646,21 @@ public sealed partial class DispatchQuoteDataSyncService(
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+    private static string NormalizeDeliveryMode(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            "paver" or "pavers" or "pallet" or "pallets" => "paver",
+            _ => "bulk"
+        };
+
+    private static string NormalizeCapacityUnit(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            "weight" or "weight_lb" or "weight_lbs" or
+                "pounds" or "lbs" or "lb" => "weight_lb",
+            _ => "quantity"
+        };
+
     private static DateTime ToUtc(DateTime value) =>
         value.Kind == DateTimeKind.Utc
             ? value
@@ -708,6 +735,9 @@ public sealed partial class DispatchQuoteDataSyncService(
 
         [JsonPropertyName("pallet_weight_lbs")]
         public int? PalletWeightLbs { get; init; }
+
+        [JsonPropertyName("weight_grams")]
+        public decimal? WeightGrams { get; init; }
     }
 
     private sealed class MaterialRuleRow
@@ -716,6 +746,8 @@ public sealed partial class DispatchQuoteDataSyncService(
         [JsonPropertyName("material_name")] public string MaterialName { get; init; } = string.Empty;
         [JsonPropertyName("truck_capacity")] public decimal TruckCapacity { get; init; }
         [JsonPropertyName("vendor_source")] public string? VendorSource { get; init; }
+        [JsonPropertyName("delivery_mode")] public string? DeliveryMode { get; init; }
+        [JsonPropertyName("capacity_unit")] public string? CapacityUnit { get; init; }
         [JsonPropertyName("is_active")] public bool IsActive { get; init; } = true;
         [JsonPropertyName("sort_order")] public int SortOrder { get; init; }
     }

@@ -413,6 +413,12 @@ public sealed class QuoteMaterialRule
 
     public decimal TruckCapacity { get; set; } = 22m;
 
+    [MaxLength(16)]
+    public string DeliveryMode { get; set; } = "bulk";
+
+    [MaxLength(16)]
+    public string CapacityUnit { get; set; } = "quantity";
+
     [MaxLength(160)]
     public string? VendorSource { get; set; }
 

@@ -8,7 +8,8 @@ namespace Ghos.Web.ProjectTools;
 public sealed record QuoteDeliveryItem(
     string? Sku,
     decimal Quantity,
-    string? PickupVendor);
+    string? PickupVendor,
+    decimal? UnitWeightPounds = null);
 
 public sealed record QuoteDeliveryRequest(
     string AddressLine1,
@@ -116,7 +117,9 @@ public sealed class QuoteDeliveryService(
                 group.OriginAddress,
                 group.MaterialName,
                 group.LoadKey,
-                group.TruckCapacity
+                group.TruckCapacity,
+                group.DeliveryMode,
+                group.CapacityUnit
             })
             .Select(group => new DeliveryGroup(
                 group.Key.OriginLabel,
@@ -124,7 +127,10 @@ public sealed class QuoteDeliveryService(
                 group.Key.MaterialName,
                 group.Key.LoadKey,
                 group.Key.TruckCapacity,
-                group.Sum(item => item.Quantity)))
+                group.Key.DeliveryMode,
+                group.Key.CapacityUnit,
+                group.Sum(item => item.LoadQuantity),
+                group.Sum(item => item.DisplayQuantity)))
             .ToList();
         if (groups.Count == 0)
         {
@@ -134,6 +140,9 @@ public sealed class QuoteDeliveryService(
                 "Material",
                 "material",
                 DefaultTruckCapacity,
+                "bulk",
+                "quantity",
+                1m,
                 1m));
         }
 
@@ -207,8 +216,11 @@ public sealed class QuoteDeliveryService(
             {
                 source = group.OriginLabel,
                 material = group.MaterialName,
-                quantity = group.Quantity,
+                quantity = group.DisplayQuantity,
+                loadQuantity = group.Quantity,
                 truckCapacity = group.TruckCapacity,
+                deliveryMode = group.DeliveryMode,
+                capacityUnit = group.CapacityUnit,
                 loads,
                 loopMinutes = Math.Round(loopMinutes),
                 loopMiles = Math.Round(loopMiles, 1),
@@ -292,6 +304,14 @@ public sealed class QuoteDeliveryService(
                     vendorLabel,
                     StringComparison.OrdinalIgnoreCase)) ??
             defaultOrigin;
+        var deliveryMode = NormalizeDeliveryMode(rule?.DeliveryMode);
+        var capacityUnit = NormalizeCapacityUnit(rule?.CapacityUnit);
+        var loadQuantity = item.Quantity;
+        if (capacityUnit == "weight_lb" &&
+            item.UnitWeightPounds is > 0)
+        {
+            loadQuantity = item.Quantity * item.UnitWeightPounds.Value;
+        }
 
         return new DeliveryGroup(
             origin.Label,
@@ -303,8 +323,26 @@ public sealed class QuoteDeliveryService(
             rule?.TruckCapacity > 0
                 ? rule.TruckCapacity
                 : DefaultTruckCapacity,
+            deliveryMode,
+            capacityUnit,
+            loadQuantity,
             item.Quantity);
     }
+
+    private static string NormalizeDeliveryMode(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            "paver" or "pavers" or "pallet" or "pallets" => "paver",
+            _ => "bulk"
+        };
+
+    private static string NormalizeCapacityUnit(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            "weight" or "weight_lb" or "weight_lbs" or
+                "pounds" or "lbs" or "lb" => "weight_lb",
+            _ => "quantity"
+        };
 
     private async Task<List<List<DistancePoint?>>?> GetMatrixAsync(
         IReadOnlyList<string> origins,
@@ -370,7 +408,13 @@ public sealed class QuoteDeliveryService(
         string MaterialName,
         string LoadKey,
         decimal TruckCapacity,
-        decimal Quantity);
+        string DeliveryMode,
+        string CapacityUnit,
+        decimal LoadQuantity,
+        decimal DisplayQuantity)
+    {
+        public decimal Quantity => LoadQuantity;
+    }
 
     private sealed record DistancePoint(decimal Minutes, decimal Miles);
 
