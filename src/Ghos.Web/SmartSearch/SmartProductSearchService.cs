@@ -69,6 +69,7 @@ public sealed class SmartProductSearchService(
             .ThenBy(result => result.Title)
             .Take(Math.Clamp(limit, 1, 24))
             .ToList();
+        var topResult = results.FirstOrDefault();
         var searchEvent = new SmartSearchEvent
         {
             Query = Truncate(plan.OriginalQuery, 300),
@@ -77,7 +78,20 @@ public sealed class SmartProductSearchService(
                 string.Join(" · ", plan.Intents),
                 500),
             Source = Truncate(source, 32),
-            ResultCount = results.Count
+            ResultCount = results.Count,
+            TopResultTitle = TruncateNullable(
+                topResult?.Title,
+                200),
+            TopResultConfidence = TruncateNullable(
+                topResult?.Confidence,
+                16),
+            UnmatchedIntentSummary = TruncateNullable(
+                topResult is null
+                    ? null
+                    : string.Join(
+                        " · ",
+                        topResult.UnmatchedIntents),
+                500)
         };
         dbContext.SmartSearchEvents.Add(searchEvent);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -150,12 +164,36 @@ public sealed class SmartProductSearchService(
             .ThenBy(item => item.Query)
             .Take(8)
             .ToList();
+        var reviewQueries = events
+            .Where(NeedsReview)
+            .GroupBy(item => item.NormalizedQuery)
+            .Select(group =>
+            {
+                var latest = group.First();
+                return new SmartSearchReviewStat(
+                    latest.Query,
+                    group.Count(),
+                    latest.ResultCount,
+                    latest.TopResultTitle,
+                    latest.TopResultConfidence,
+                    latest.UnmatchedIntentSummary,
+                    BuildReviewRecommendation(
+                        latest.ResultCount,
+                        latest.TopResultTitle,
+                        latest.UnmatchedIntentSummary));
+            })
+            .OrderByDescending(item => item.Searches)
+            .ThenBy(item => item.Query)
+            .Take(8)
+            .ToList();
         return new SmartSearchAnalyticsSnapshot(
             events.Count,
             events.Count(item => item.ResultCount == 0),
+            events.Count(NeedsReview),
             events.Count(item => item.SelectedProductId is not null),
             topQueries,
-            zeroQueries);
+            zeroQueries,
+            reviewQueries);
     }
 
     private static SmartProductSearchResult Score(
@@ -324,6 +362,66 @@ public sealed class SmartProductSearchService(
             ? value
             : value[..maximumLength];
 
+    private static string? TruncateNullable(
+        string? value,
+        int maximumLength) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : Truncate(value, maximumLength);
+
+    private static bool NeedsReview(SmartSearchEvent searchEvent) =>
+        searchEvent.ResultCount == 0 ||
+        (!string.IsNullOrWhiteSpace(
+                searchEvent.TopResultConfidence) &&
+            !string.Equals(
+                searchEvent.TopResultConfidence,
+                "High",
+                StringComparison.OrdinalIgnoreCase));
+
+    internal static string BuildReviewRecommendation(
+        int resultCount,
+        string? topResultTitle,
+        string? unmatchedIntentSummary)
+    {
+        if (resultCount == 0)
+        {
+            return "No products matched. If this is another name for a " +
+                "stocked material, map it to the exact product or category " +
+                "wording below. Otherwise, treat it as customer demand for " +
+                "something the catalog does not currently confirm.";
+        }
+
+        var title = string.IsNullOrWhiteSpace(topResultTitle)
+            ? "The top result"
+            : $"“{topResultTitle}”";
+        var missing = FriendlyIntentList(unmatchedIntentSummary);
+        if (missing.Length > 0)
+        {
+            return $"{title} does not confirm {missing}. If the product " +
+                "truly satisfies those requirements, add the facts to its " +
+                "Shopify tags, description, or GHOS Best Uses. Otherwise, " +
+                "leave the search unconfirmed rather than forcing a match.";
+        }
+
+        return $"{title} matched using limited catalog wording. Add a " +
+            "precise alternate name or Shopify tag if the match is correct. " +
+            "Create a synonym only when both terms mean the same thing.";
+    }
+
+    private static string FriendlyIntentList(string? intentSummary) =>
+        string.Join(
+            ", ",
+            (intentSummary ?? "")
+                .Split(
+                    " · ",
+                    StringSplitOptions.RemoveEmptyEntries |
+                        StringSplitOptions.TrimEntries)
+                .Select(intent =>
+                    intent.Contains(':')
+                        ? intent.Split(':', 2)[1].Trim()
+                        : intent)
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
     private sealed record SearchField(
         string Label,
         string? Value,
@@ -338,6 +436,17 @@ public sealed record SmartSearchQueryStat(
 public sealed record SmartSearchAnalyticsSnapshot(
     int Searches,
     int ZeroResultSearches,
+    int SearchesNeedingReview,
     int ProductSelections,
     IReadOnlyList<SmartSearchQueryStat> TopQueries,
-    IReadOnlyList<SmartSearchQueryStat> ZeroResultQueries);
+    IReadOnlyList<SmartSearchQueryStat> ZeroResultQueries,
+    IReadOnlyList<SmartSearchReviewStat> ReviewQueries);
+
+public sealed record SmartSearchReviewStat(
+    string Query,
+    int Searches,
+    int ResultCount,
+    string? TopResultTitle,
+    string? TopResultConfidence,
+    string? UnmatchedIntentSummary,
+    string Recommendation);

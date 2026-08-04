@@ -20,6 +20,15 @@ public sealed class SmartSearchEvent
 
     public int ResultCount { get; set; }
 
+    [MaxLength(200)]
+    public string? TopResultTitle { get; set; }
+
+    [MaxLength(16)]
+    public string? TopResultConfidence { get; set; }
+
+    [MaxLength(500)]
+    public string? UnmatchedIntentSummary { get; set; }
+
     public DateTime SearchedAtUtc { get; set; } = DateTime.UtcNow;
 
     public Guid? SelectedProductId { get; set; }
