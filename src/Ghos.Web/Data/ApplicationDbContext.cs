@@ -88,6 +88,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<SmartSearchEvent> SmartSearchEvents =>
         Set<SmartSearchEvent>();
 
+    public DbSet<SmartSearchSynonymRule> SmartSearchSynonymRules =>
+        Set<SmartSearchSynonymRule>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -441,6 +444,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             });
             searchEvent.HasIndex(item => item.NormalizedQuery);
             searchEvent.HasIndex(item => item.SelectedProductId);
+        });
+
+        builder.Entity<SmartSearchSynonymRule>(rule =>
+        {
+            rule.HasIndex(item => new
+            {
+                item.NormalizedPhrase,
+                item.NormalizedExpansion
+            }).IsUnique();
+            rule.HasIndex(item => item.IsActive);
         });
 
         builder.Entity<ProductMaterialProfile>(profile =>

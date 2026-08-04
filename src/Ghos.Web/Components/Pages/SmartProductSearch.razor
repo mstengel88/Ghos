@@ -2,6 +2,9 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.Marketing)]
 @inject SmartProductSearchService SearchService
+@inject SmartSearchTuningService TuningService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Smart Product Search | GHOS</PageTitle>
 
@@ -12,7 +15,7 @@
         <p>Test the same intent-aware search that can power the Green Hills storefront.</p>
     </div>
     <div class="library-stat">
-        <strong>@SmartSearchSynonymLibrary.SynonymMappingCount.ToString("N0")</strong>
+        <strong>@TotalMappingCount.ToString("N0")</strong>
         <span>landscape search mappings</span>
     </div>
 </div>
@@ -92,6 +95,12 @@
         <section class="panel no-results">
             <strong>No confident product matches</strong>
             <span>Try a use, project, material, color, or size. GHOS does not invent products that are not in Shopify.</span>
+            @if (CanTuneSearch)
+            {
+                <button type="button" class="tune-shortcut" @onclick="() => PrepareRule(Query)">
+                    Teach GHOS this phrase
+                </button>
+            }
         </section>
     }
     else
@@ -175,14 +184,100 @@
             {
                 @foreach (var item in Analytics.ZeroResultQueries)
                 {
-                    <button type="button"
-                            @onclick="() => SearchExampleAsync(item.Query)">
-                        <span>@item.Query</span>
-                        <strong>@item.Searches</strong>
-                    </button>
+                    <div class="insight-row">
+                        <button type="button"
+                                @onclick="() => SearchExampleAsync(item.Query)">
+                            <span>@item.Query</span>
+                            <strong>@item.Searches</strong>
+                        </button>
+                        @if (CanTuneSearch)
+                        {
+                            <button type="button"
+                                    class="tune-link"
+                                    @onclick="() => PrepareRule(item.Query)">
+                                Tune
+                            </button>
+                        }
+                    </div>
                 }
             }
         </article>
+    </section>
+}
+
+@if (CanTuneSearch)
+{
+    <section class="panel tuning-panel" id="search-tuning">
+        <div class="tuning-heading">
+            <div>
+                <span class="panel-label">SEARCH TUNING</span>
+                <h3>Teach GHOS customer language</h3>
+                <p>Connect a phrase customers use to wording already found in your product catalog.</p>
+            </div>
+            <strong>@Rules.Count(rule => rule.IsActive) active rules</strong>
+        </div>
+
+        <div class="rule-builder">
+            <label>
+                Customer phrase
+                <input @bind="NewPhrase"
+                       maxlength="120"
+                       placeholder="Example: crusher dust" />
+            </label>
+            <span aria-hidden="true">→</span>
+            <label>
+                Search as
+                <input @bind="NewExpansion"
+                       maxlength="120"
+                       placeholder="Example: stone screenings" />
+            </label>
+            <button type="button"
+                    disabled="@(TuningBusy ||
+                        NewPhrase.Trim().Length < 2 ||
+                        NewExpansion.Trim().Length < 2)"
+                    @onclick="AddRuleAsync">
+                @(TuningBusy ? "Saving…" : "Add rule")
+            </button>
+        </div>
+        <p class="rule-help">
+            Use a real product, material, or category phrase—not a sentence you want shown to customers.
+        </p>
+
+        @if (!string.IsNullOrWhiteSpace(TuningMessage))
+        {
+            <div class="tuning-message" role="status">@TuningMessage</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(TuningError))
+        {
+            <div class="search-alert" role="alert">@TuningError</div>
+        }
+
+        @if (Rules.Count == 0)
+        {
+            <div class="empty-rules">
+                No custom rules yet. Built-in landscape terminology remains active.
+            </div>
+        }
+        else
+        {
+            <div class="rule-list">
+                @foreach (var rule in Rules)
+                {
+                    <div class="rule-row @(rule.IsActive ? "" : "inactive")">
+                        <div>
+                            <strong>@rule.Phrase</strong>
+                            <span>search as</span>
+                            <strong>@rule.Expansion</strong>
+                        </div>
+                        <button type="button"
+                                disabled="@TuningBusy"
+                                @onclick="() => ToggleRuleAsync(rule)">
+                            @(rule.IsActive ? "Disable" : "Enable")
+                        </button>
+                    </div>
+                }
+            </div>
+        }
     </section>
 }
 
@@ -201,9 +296,37 @@
     private string? ErrorMessage { get; set; }
     private SmartProductSearchResponse? Response { get; set; }
     private SmartSearchAnalyticsSnapshot? Analytics { get; set; }
+    private List<SmartSearchSynonymRule> Rules { get; set; } = [];
+    private bool CanTuneSearch { get; set; }
+    private string CurrentUserId { get; set; } = "";
+    private string NewPhrase { get; set; } = "";
+    private string NewExpansion { get; set; } = "";
+    private bool TuningBusy { get; set; }
+    private string? TuningMessage { get; set; }
+    private string? TuningError { get; set; }
 
-    protected override async Task OnInitializedAsync() =>
+    private int TotalMappingCount =>
+        SmartSearchSynonymLibrary.SynonymMappingCount +
+        Rules.Count(rule => rule.IsActive);
+
+    protected override async Task OnInitializedAsync()
+    {
         Analytics = await SearchService.GetAnalyticsAsync();
+        var authenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        CurrentUserId = authenticationState.User.FindFirstValue(
+            ClaimTypes.NameIdentifier) ?? "";
+        CanTuneSearch = (await AuthorizationService.AuthorizeAsync(
+            authenticationState.User,
+            GhosPolicies.Management)).Succeeded;
+        if (CanTuneSearch)
+        {
+            await LoadRulesAsync();
+        }
+    }
+
+    private async Task LoadRulesAsync() =>
+        Rules = (await TuningService.GetRulesAsync()).ToList();
 
     private async Task HandleKeyDownAsync(KeyboardEventArgs eventArgs)
     {
@@ -244,6 +367,86 @@
         finally
         {
             Searching = false;
+        }
+    }
+
+    private void PrepareRule(string phrase)
+    {
+        NewPhrase = phrase.Trim();
+        NewExpansion = "";
+        TuningMessage = null;
+        TuningError = null;
+    }
+
+    private async Task AddRuleAsync()
+    {
+        if (!CanTuneSearch || TuningBusy)
+        {
+            return;
+        }
+
+        TuningBusy = true;
+        TuningMessage = null;
+        TuningError = null;
+        try
+        {
+            var added = await TuningService.AddRuleAsync(
+                NewPhrase,
+                NewExpansion,
+                CurrentUserId);
+            NewPhrase = "";
+            NewExpansion = "";
+            TuningMessage =
+                $"GHOS will now search “{added.Expansion}” when a customer uses “{added.Phrase}”.";
+            await LoadRulesAsync();
+        }
+        catch (ValidationException exception)
+        {
+            TuningError = exception.Message;
+        }
+        catch
+        {
+            TuningError =
+                "GHOS could not save this search rule. Try again.";
+        }
+        finally
+        {
+            TuningBusy = false;
+        }
+    }
+
+    private async Task ToggleRuleAsync(SmartSearchSynonymRule rule)
+    {
+        if (!CanTuneSearch || TuningBusy)
+        {
+            return;
+        }
+
+        TuningBusy = true;
+        TuningMessage = null;
+        TuningError = null;
+        try
+        {
+            if (!await TuningService.SetActiveAsync(
+                rule.Id,
+                !rule.IsActive))
+            {
+                TuningError = "That search rule no longer exists.";
+                return;
+            }
+
+            TuningMessage =
+                $"Rule “{rule.Phrase}” was {(rule.IsActive ? "disabled" : "enabled")}.";
+            await LoadRulesAsync();
+        }
+        catch
+        {
+            TuningError =
+                "GHOS could not update this search rule. Try again.";
+        }
+        finally
+        {
+            TuningBusy = false;
         }
     }
 

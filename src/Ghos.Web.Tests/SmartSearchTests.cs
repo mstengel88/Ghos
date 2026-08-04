@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Ghos.Web.SmartSearch;
 using Xunit;
 
@@ -85,5 +86,61 @@ public sealed class SmartSearchTests
             plan);
 
         Assert.DoesNotContain("Material: Crushed stone", matches);
+    }
+
+    [Fact]
+    public void Plan_AppliesAnActiveCustomCustomerPhrase()
+    {
+        var plan = SmartSearchSynonymLibrary.Plan(
+            "I need crusher dust",
+            [new SmartSearchCustomSynonym(
+                "crusher dust",
+                "stone screenings")]);
+
+        Assert.Contains("stone screenings", plan.ExpandedTerms);
+        Assert.Contains(
+            "Custom: crusher dust → stone screenings",
+            plan.Intents);
+    }
+
+    [Fact]
+    public void Plan_DoesNotApplyCustomPhraseInsideAnotherWord()
+    {
+        var plan = SmartSearchSynonymLibrary.Plan(
+            "dustpan",
+            [new SmartSearchCustomSynonym(
+                "dust",
+                "stone screenings")]);
+
+        Assert.DoesNotContain("stone screenings", plan.ExpandedTerms);
+        Assert.DoesNotContain(
+            plan.Intents,
+            intent => intent.StartsWith("Custom:"));
+    }
+
+    [Theory]
+    [InlineData("  Crusher   Dust  ", "crusher dust")]
+    [InlineData("3/8 STONE", "3/8 stone")]
+    public void Tuning_NormalizesCustomerRules(
+        string value,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            SmartSearchTuningService.NormalizeRequired(
+                value,
+                "Customer phrase"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("!")]
+    [InlineData("a")]
+    public void Tuning_RejectsUnusableCustomerRules(string value)
+    {
+        Assert.Throws<ValidationException>(() =>
+            SmartSearchTuningService.NormalizeRequired(
+                value,
+                "Customer phrase"));
     }
 }

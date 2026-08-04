@@ -58,6 +58,7 @@ builder.Services.AddScoped<ShopifyDraftOrderService>();
 builder.Services.AddSingleton<CatalogSyncCoordinator>();
 builder.Services.AddScoped<ShopifySyncService>();
 builder.Services.AddScoped<SmartProductSearchService>();
+builder.Services.AddScoped<SmartSearchTuningService>();
 builder.Services.Configure<BackupStatusOptions>(
     builder.Configuration.GetSection(BackupStatusOptions.SectionName));
 builder.Services.Configure<WinterWatchAdminOptions>(
