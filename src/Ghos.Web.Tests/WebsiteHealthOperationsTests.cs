@@ -467,20 +467,20 @@ public sealed class WebsiteHealthOperationsTests
             "does not replace your separate collections landing page",
             recommendation.Guidance);
         Assert.Contains(
+            "new Collections experience",
+            recommendation.Guidance);
+        Assert.Contains(
             "If no editable All collection exists",
             recommendation.FixLocation,
             StringComparison.Ordinal);
         Assert.Contains(
-            "brand-new form",
+            "default Products source",
             recommendation.FixLocation);
         Assert.Contains(
-            "does not show an editable type choice after",
+            "Add condition (not Add products)",
             recommendation.FixLocation);
         Assert.Contains(
-            "Smart",
-            recommendation.FixLocation);
-        Assert.Contains(
-            "Automated",
+            "no Smart or Manual type selector",
             recommendation.FixLocation);
         Assert.Contains(
             "Leave your existing collections landing page",
@@ -497,7 +497,7 @@ public sealed class WebsiteHealthOperationsTests
         "/promoting-marketing/seo/adding-keywords")]
     [InlineData(
         "https://www.greenhillssupply.com/collections/all",
-        "/change-catalog-page")]
+        "/collections/create-collection")]
     [InlineData(
         "https://www.greenhillssupply.com/collections/mulch",
         "/collections/make-collections-available")]
