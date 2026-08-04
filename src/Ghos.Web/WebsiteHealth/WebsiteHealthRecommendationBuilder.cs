@@ -74,7 +74,11 @@ internal static class WebsiteHealthRecommendationBuilder
             ? "Add one visible H1 heading that names this page. The wording below is tailored from the current page title and URL; confirm it matches what customers see."
             : $"Keep one H1 heading for “{topic}” and change the other {headingCount - 1} H1 heading{(headingCount == 2 ? "" : "s")} to H2 or H3. Do not hide duplicate headings with CSS.";
         var suggestedValue = isMissingOrEmpty
-            ? $"<h1>{WebUtility.HtmlEncode(topic)}</h1>"
+            ? url.AbsolutePath.Equals(
+                "/pages/accessibility",
+                StringComparison.OrdinalIgnoreCase)
+                ? $"<h1 class=\"h2 text-center\">{WebUtility.HtmlEncode(topic)}</h1>"
+                : $"<h1>{WebUtility.HtmlEncode(topic)}</h1>"
             : $"Keep as H1: \"{topic}\"\nChange the other {headingCount - 1} H1 heading{(headingCount == 2 ? "" : "s")} to H2 or H3.";
         var currentValue = headingCount switch
         {
@@ -504,6 +508,13 @@ internal static class WebsiteHealthRecommendationBuilder
     private static string GetShopifyHeadingLocation(Uri url)
     {
         var path = url.AbsolutePath;
+        if (path.Equals(
+            "/pages/accessibility",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Online Store → Themes → Customize → use the top page selector to open Pages → Accessibility → add a Custom liquid section immediately above the Rich text section → paste the suggested H1 → clear “Accessibility Statement” from the existing Rich text Heading field so the title appears once";
+        }
+
         var contentArea = path.StartsWith(
             "/products/",
             StringComparison.OrdinalIgnoreCase)

@@ -586,11 +586,17 @@ public sealed class WebsiteHealthMonitorService(
             document.QuerySelectorAll("p")
                 .Select(element => element.TextContent?.Trim())
                 .FirstOrDefault(text => text?.Length >= 50);
+        var primaryHeading = document.QuerySelector("h1");
 
         return new PageSnapshot(
             url,
             document.Title?.Trim(),
-            document.QuerySelector("h1")?.TextContent?.Trim(),
+            GetMeaningfulHeadingText(
+                primaryHeading?.TextContent,
+                primaryHeading?.GetAttribute("aria-label"),
+                primaryHeading?.QuerySelectorAll("img[alt]")
+                    .Select(image => image.GetAttribute("alt")) ??
+                    []),
             document.QuerySelectorAll("h1").Length,
             introductoryText,
             document.QuerySelector("meta[name='description']")
@@ -606,6 +612,23 @@ public sealed class WebsiteHealthMonitorService(
                     StringComparison.OrdinalIgnoreCase) == true,
             missingImages,
             links);
+    }
+
+    internal static string? GetMeaningfulHeadingText(
+        string? textContent,
+        string? ariaLabel,
+        IEnumerable<string?> imageAltTexts)
+    {
+        var candidates = new[] { textContent, ariaLabel }
+            .Concat(imageAltTexts);
+        return candidates
+            .Select(candidate => string.Join(
+                ' ',
+                (candidate ?? "").Split(
+                    [' ', '\r', '\n', '\t'],
+                    StringSplitOptions.RemoveEmptyEntries)))
+            .FirstOrDefault(candidate =>
+                !string.IsNullOrWhiteSpace(candidate));
     }
 
     private static bool ShouldReportMissingImageAlt(IElement image)
