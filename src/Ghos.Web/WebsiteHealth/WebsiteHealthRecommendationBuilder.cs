@@ -6,7 +6,8 @@ namespace Ghos.Web.WebsiteHealth;
 
 internal sealed record WebsiteHealthRecommendation(
     string Guidance,
-    string? SuggestedValue);
+    string? SuggestedValue,
+    string? FixLocation = null);
 
 internal sealed record WebsiteHealthMissingImage(
     string? Source,
@@ -28,7 +29,8 @@ internal static class WebsiteHealthRecommendationBuilder
 
         return new WebsiteHealthRecommendation(
             "Add one concise, unique HTML title that leads with the page topic and ends with the Green Hills Supply brand. Keep it near 50–60 characters and avoid repeating the same title on other pages.",
-            TruncateAtWord(title, 60));
+            TruncateAtWord(title, 60),
+            GetShopifySeoLocation(url));
     }
 
     internal static WebsiteHealthRecommendation MissingMetaDescription(
@@ -41,7 +43,8 @@ internal static class WebsiteHealthRecommendationBuilder
         {
             return new WebsiteHealthRecommendation(
                 "This is a utility page, so it should not compete in search results. Add a noindex directive instead of marketing copy; the monitor will stop expecting a meta description once the page is intentionally excluded from indexing.",
-                """<meta name="robots" content="noindex,follow">""");
+                """<meta name="robots" content="noindex,follow">""",
+                "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head> with a cart/search condition");
         }
 
         var topic = GetPageTopic(url, heading, title);
@@ -51,7 +54,8 @@ internal static class WebsiteHealthRecommendationBuilder
             introductoryText);
         return new WebsiteHealthRecommendation(
             "Add a unique meta description that explains what a customer will find on this page and gives them a reason to click. Aim for roughly 120–155 characters and do not reuse it across paginated or related pages.",
-            description);
+            description,
+            GetShopifySeoLocation(url));
     }
 
     internal static WebsiteHealthRecommendation MissingCanonical(Uri url)
@@ -63,7 +67,8 @@ internal static class WebsiteHealthRecommendationBuilder
 
         return new WebsiteHealthRecommendation(
             "Add a self-referencing canonical URL in the page head. Remove tracking and pagination parameters unless this page intentionally represents a distinct indexable result.",
-            $"""<link rel="canonical" href="{WebUtility.HtmlEncode(canonical)}">""");
+            $"""<link rel="canonical" href="{WebUtility.HtmlEncode(canonical)}">""",
+            "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head>");
     }
 
     internal static WebsiteHealthRecommendation MissingSchema(
@@ -89,7 +94,8 @@ internal static class WebsiteHealthRecommendationBuilder
 
         return new WebsiteHealthRecommendation(
             "Add valid JSON-LD that describes this page. The suggested WebPage markup is a safe baseline; product pages should be expanded with Product, Offer, price, availability, image, SKU, and review data from Shopify.",
-            $"<script type=\"application/ld+json\">\n{schema}\n</script>");
+            $"<script type=\"application/ld+json\">\n{schema}\n</script>",
+            "Shopify Admin → Online Store → Themes → … → Edit code → the relevant template or structured-data snippet");
     }
 
     internal static WebsiteHealthRecommendation MissingImageAltText(
@@ -132,7 +138,8 @@ internal static class WebsiteHealthRecommendationBuilder
 
         return new WebsiteHealthRecommendation(
             "Give each meaningful image short alt text describing what the customer needs to understand. Use alt=\"\" only for genuinely decorative images, and avoid phrases such as “image of” or keyword stuffing.",
-            string.Join(Environment.NewLine, suggestions));
+            string.Join(Environment.NewLine, suggestions),
+            "Shopify Admin → open the product, collection, page, or theme section that owns this image → edit the image alt text");
     }
 
     internal static WebsiteHealthRecommendation BrokenLink(
@@ -144,7 +151,8 @@ internal static class WebsiteHealthRecommendationBuilder
             : $"returned HTTP {statusCode}";
         return new WebsiteHealthRecommendation(
             $"Find every page linking to this target. Because it {status}, update the link to the closest live replacement, add a permanent redirect when the content moved, or remove the link when no replacement exists.",
-            target.ToString());
+            target.ToString(),
+            "Shopify Admin → Content or Online Store → Navigation/Pages/Themes → open the content containing this link");
     }
 
     internal static WebsiteHealthRecommendation AvailabilityFailure(
@@ -171,7 +179,22 @@ internal static class WebsiteHealthRecommendationBuilder
             _ => target.ToString()
         };
 
-        return new WebsiteHealthRecommendation(guidance, suggestedValue);
+        var fixLocation = key switch
+        {
+            "robots" =>
+                "Shopify Admin → Online Store → Themes → … → Edit code → templates/robots.txt.liquid",
+            "sitemap" =>
+                "Shopify generates sitemap.xml automatically; review product/page publishing and contact Shopify Support if the route is unavailable",
+            "ssl" =>
+                "Shopify Admin → Settings → Domains → open the production domain",
+            _ =>
+                "Shopify Admin → Online Store and Domains, plus the current theme/deployment status"
+        };
+
+        return new WebsiteHealthRecommendation(
+            guidance,
+            suggestedValue,
+            fixLocation);
     }
 
     private static string BuildDescription(
@@ -371,9 +394,56 @@ internal static class WebsiteHealthRecommendationBuilder
             .Select(NormalizeText)
             .FirstOrDefault(value => value.Length >= 3);
 
-    private static bool IsUtilityPage(Uri url) =>
+    internal static bool IsUtilityPage(Uri url) =>
         url.AbsolutePath.Equals("/cart", StringComparison.OrdinalIgnoreCase) ||
         url.AbsolutePath.Equals("/search", StringComparison.OrdinalIgnoreCase);
+
+    internal static string GetShopifySeoLocation(Uri url)
+    {
+        var path = url.AbsolutePath.TrimEnd('/');
+        if (path.Length == 0)
+        {
+            return "Shopify Admin → Online Store → Preferences → Social sharing image and SEO";
+        }
+
+        if (path.Equals(
+            "/collections/all",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Products → Collections → create or open All → Search engine listing → Edit website SEO; keep the handle /all";
+        }
+
+        if (path.StartsWith(
+            "/collections/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Products → Collections → open this collection → Search engine listing → Edit website SEO";
+        }
+
+        if (path.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Products → open this product → Search engine listing → Edit";
+        }
+
+        if (path.Equals("/blogs/news", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head> for the blog index";
+        }
+
+        if (path.StartsWith("/blogs/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Content → Blog posts → open this post → Search engine listing → Edit";
+        }
+
+        if (path.StartsWith("/pages/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Online Store → Pages → open this page → Search engine listing → Edit website SEO";
+        }
+
+        return "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head>";
+    }
 
     private static bool LooksGeneric(string value)
     {

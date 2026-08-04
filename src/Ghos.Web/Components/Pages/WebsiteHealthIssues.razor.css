@@ -358,6 +358,33 @@
     font-size: .62rem;
 }
 
+.fix-location {
+    margin-top: 9px;
+    padding: 9px 10px;
+    border: 1px solid rgba(126, 167, 27, .25);
+    border-radius: 7px;
+    background: var(--ghos-surface);
+}
+
+.fix-location span,
+.fix-location strong {
+    display: block;
+}
+
+.fix-location span {
+    margin-bottom: 4px;
+    color: var(--ghos-accent-text);
+    font-size: .48rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+
+.fix-location strong {
+    color: var(--ghos-text);
+    font-size: .59rem;
+    line-height: 1.45;
+}
+
 .finding-main .recommendation > p {
     margin: 7px 0 0;
     color: var(--ghos-text-secondary);

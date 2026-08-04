@@ -195,6 +195,47 @@ public sealed class WebsiteHealthOperationsTests
             normalized);
     }
 
+    [Theory]
+    [InlineData(
+        "https://www.greenhillssupply.com/",
+        "Online Store → Preferences")]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/all",
+        "create or open All")]
+    [InlineData(
+        "https://www.greenhillssupply.com/blogs/news",
+        "layout/theme.liquid")]
+    public void GetShopifySeoLocation_IdentifiesExactAdminSurface(
+        string url,
+        string expectedText)
+    {
+        var location =
+            WebsiteHealthRecommendationBuilder.GetShopifySeoLocation(
+                new Uri(url));
+
+        Assert.Contains(expectedText, location);
+    }
+
+    [Theory]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/all?page=2",
+        "https://www.greenhillssupply.com/collections/all")]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch?page=3",
+        "https://www.greenhillssupply.com/collections/mulch")]
+    [InlineData(
+        "https://www.greenhillssupply.com/search?q=stone",
+        "https://www.greenhillssupply.com/search?q=stone")]
+    public void NormalizeMetadataTarget_GroupsOnlyCollectionPagination(
+        string input,
+        string expected)
+    {
+        var normalized = WebsiteHealthMonitorService.NormalizeMetadataTarget(
+            new Uri(input));
+
+        Assert.Equal(expected, normalized);
+    }
+
     [Fact]
     public void MissingCanonical_RemovesQueryParameters()
     {
