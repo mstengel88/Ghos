@@ -2898,7 +2898,12 @@ public sealed class WebsiteHealthMonitorService(
             .Where(group =>
                 group.Select(item => item.AssetKey)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Count() >= 3))
+                    .Count() >= 3 &&
+                group.Select(item =>
+                        GetLogicalImageSubjectKey(item.Image.Source))
+                    .Where(subject => subject.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count() >= 2))
         {
             var distinctAssets = altGroup
                 .GroupBy(
@@ -3024,6 +3029,47 @@ public sealed class WebsiteHealthMonitorService(
         }
 
         return normalizedUrl;
+    }
+
+    internal static string GetLogicalImageSubjectKey(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return "";
+        }
+
+        var path = Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)
+            ? sourceUri.AbsolutePath
+            : source;
+        var filename = WebUtility.UrlDecode(
+            Path.GetFileNameWithoutExtension(path));
+        if (string.IsNullOrWhiteSpace(filename))
+        {
+            return "";
+        }
+
+        var withoutGuids = Regex.Replace(
+            filename,
+            @"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}",
+            " ",
+            RegexOptions.IgnoreCase);
+        var separated = Regex.Replace(
+            withoutGuids,
+            @"(?<=[a-z])(?=[A-Z])",
+            " ")
+            .Replace('_', ' ')
+            .Replace('-', ' ');
+        var withoutVariants = Regex.Replace(
+            separated,
+            @"\b(?:small|medium|large|thumb|thumbnail|mobile|desktop|xs|sm|md|lg|xl|2xl|\d+)\b",
+            " ",
+            RegexOptions.IgnoreCase);
+        return string.Join(
+            ' ',
+            Regex.Matches(
+                    withoutVariants.ToLowerInvariant(),
+                    @"[a-z]+")
+                .Select(match => match.Value));
     }
 
     private static void AddPresenceObservation(

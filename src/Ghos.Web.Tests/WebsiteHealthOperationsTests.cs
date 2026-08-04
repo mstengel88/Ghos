@@ -916,6 +916,69 @@ public sealed class WebsiteHealthOperationsTests
             recommendation.SuggestedValue);
     }
 
+    [Theory]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/1-stone",
+        "#1 Stone",
+        "#1 Stone | Clean Limestone Gravel for Drainage & Landscape Features – Green Hills Supply",
+        "Limestone Gravel",
+        "Drainage")]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/black-mulch",
+        "Midnight Black Mulch",
+        "Colored Hardwood Mulch | Premium Dyed Mulch for Landscape Bed & Garden – Green Hills Supply",
+        "Midnight Black Mulch",
+        "Beds & Gardens")]
+    public void TitleLength_PreservesProductIntentInTailoredSuggestion(
+        string url,
+        string heading,
+        string currentTitle,
+        string expectedTopic,
+        string expectedIntent)
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.TitleLength(
+                new Uri(url),
+                heading,
+                currentTitle);
+
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.InRange(recommendation.SuggestedValue.Length, 20, 60);
+        Assert.Contains(
+            expectedTopic,
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            expectedIntent,
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(
+            @"(?:\band\b|\bfor\b|\bwith\b|&|\|)$",
+            recommendation.SuggestedValue);
+    }
+
+    [Theory]
+    [InlineData(
+        "https://cdn.shopify.com/files/AlpineStone_2.png",
+        "alpine stone")]
+    [InlineData(
+        "https://cdn.shopify.com/files/Alpine_Stone_Medium_1.png",
+        "alpine stone")]
+    [InlineData(
+        "https://cdn.shopify.com/files/Alpine_Stone_Large_e23088e6-0a03-45ed-b684-6eb05c1c38ff.png",
+        "alpine stone")]
+    [InlineData(
+        "https://cdn.shopify.com/files/American_Heritage_Large.png",
+        "american heritage")]
+    public void ImageAltQuality_NormalizesResponsiveVariantFilenames(
+        string source,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            WebsiteHealthMonitorService.GetLogicalImageSubjectKey(source));
+    }
+
     [Fact]
     public void MetaDescriptionLength_ProducesDistinctCollectionSpecificCopy()
     {

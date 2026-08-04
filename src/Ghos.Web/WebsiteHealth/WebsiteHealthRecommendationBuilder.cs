@@ -59,8 +59,8 @@ internal static class WebsiteHealthRecommendationBuilder
             ? "The current title is too short to explain the page clearly in search results."
             : "The current title is likely to be truncated in search results.";
         return new WebsiteHealthRecommendation(
-            $"{problem} Replace it with a unique title near 50–60 characters that leads with the page topic and ends with the Green Hills Supply brand.",
-            BuildTitle(url, heading),
+            $"{problem} The suggested title is condensed from the current live title, preserving the product, material, and strongest customer use instead of replacing it with generic copy. It includes the Green Hills Supply brand when the useful detail still fits.",
+            BuildTailoredTitle(url, heading, currentTitle),
             GetShopifySeoLocation(url),
             GetShopifySeoDocumentation(url),
             NormalizeText(currentTitle));
@@ -922,6 +922,83 @@ internal static class WebsiteHealthRecommendationBuilder
             ? "Green Hills Supply | Landscape & Outdoor Materials"
             : $"{topic} | {BrandName}";
         return TruncateAtWord(title, 60);
+    }
+
+    private static string BuildTailoredTitle(
+        Uri url,
+        string? heading,
+        string currentTitle)
+    {
+        var normalizedTitle = NormalizeText(currentTitle);
+        var segments = Regex
+            .Split(normalizedTitle, @"\s*(?:\||[–—])\s*")
+            .Select(segment => NormalizeText(segment.Replace(
+                BrandName,
+                "",
+                StringComparison.OrdinalIgnoreCase)))
+            .Where(segment => segment.Length > 0)
+            .ToList();
+        var topic = !string.IsNullOrWhiteSpace(heading)
+            ? GetPageTopic(url, heading, null)
+            : segments.FirstOrDefault() ?? GetPageTopic(url, null, null);
+        var descriptor = segments
+            .Skip(1)
+            .FirstOrDefault(segment =>
+                !segment.Equals(topic, StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(descriptor))
+        {
+            return BuildTitle(url, topic);
+        }
+
+        descriptor = CompactTitleDescriptor(descriptor);
+        var tailored = TrimDanglingTitleWords(
+            TruncateAtWord($"{topic} | {descriptor}", 60));
+        var branded = $"{tailored} | {BrandName}";
+        return branded.Length <= 60
+            ? branded
+            : tailored;
+    }
+
+    private static string CompactTitleDescriptor(string descriptor)
+    {
+        var compact = NormalizeText(descriptor);
+        var replacements = new[]
+        {
+            ("Landscape Features", "Landscaping"),
+            ("Landscape Bed & Garden", "Beds & Gardens"),
+            ("Landscape Bed and Garden", "Beds & Gardens"),
+            ("Landscape Project", "Landscaping"),
+            ("Light-Duty Projects", "Paths"),
+            ("Construction Project", "Construction"),
+            ("Outdoor Spaces", "Outdoor Areas")
+        };
+        foreach (var replacement in replacements)
+        {
+            compact = compact.Replace(
+                replacement.Item1,
+                replacement.Item2,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        return compact;
+    }
+
+    private static string TrimDanglingTitleWords(string title)
+    {
+        var trimmed = title;
+        while (Regex.IsMatch(
+            trimmed,
+            @"(?:\s+(?:and|for|of|the|with|to|in)|\s*&|\s*[|–—])$",
+            RegexOptions.IgnoreCase))
+        {
+            trimmed = Regex.Replace(
+                trimmed,
+                @"(?:\s+(?:and|for|of|the|with|to|in)|\s*&|\s*[|–—])$",
+                "",
+                RegexOptions.IgnoreCase).TrimEnd();
+        }
+
+        return trimmed;
     }
 
     private static string GetShopifyHeadingLocation(Uri url)
