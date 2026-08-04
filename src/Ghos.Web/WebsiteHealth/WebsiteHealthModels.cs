@@ -173,6 +173,9 @@ public sealed class WebsiteHealthIssue
     [MaxLength(6000)]
     public string? SuggestedValue { get; set; }
 
+    [MaxLength(1000)]
+    public string? FixLocation { get; set; }
+
     public MonitoredSite MonitoredSite { get; set; } = null!;
 }
 

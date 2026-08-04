@@ -26,6 +26,11 @@ specific titles, meta descriptions, image alt text, canonical tags, JSON-LD,
 robots.txt content, and broken-link guidance. A later crawl refreshes the
 recommendation when the source page changes.
 
+The Issue Center also stores and displays the exact Shopify Admin surface for
+each recommended change. Collection pagination variants are grouped into one
+base-collection metadata finding, so a manager is not asked to edit pages 2,
+3, and 5 independently.
+
 Image accessibility checks distinguish a missing alt attribute from an
 intentional `alt=""`. Empty alt text is accepted for decorative images and for
 images inside links or buttons that already have an accessible name. Genuine
@@ -90,6 +95,7 @@ The migrations are:
 20260803225113_AddWebsiteHealthCenter
 20260803232802_AddWebsiteHealthIssueTriage
 20260803234045_AddWebsiteHealthRecommendations
+20260804003828_AddWebsiteHealthFixLocations
 ```
 
 To apply it explicitly from a machine with the .NET 10 SDK:

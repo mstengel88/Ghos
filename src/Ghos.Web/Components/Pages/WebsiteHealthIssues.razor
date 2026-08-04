@@ -162,6 +162,13 @@ else
                                                 <span>RECOMMENDED FIX</span>
                                                 <strong>What to change</strong>
                                             </div>
+                                            @if (!string.IsNullOrWhiteSpace(issue.FixLocation))
+                                            {
+                                                <div class="fix-location">
+                                                    <span>WHERE TO MAKE THIS CHANGE</span>
+                                                    <strong>@issue.FixLocation</strong>
+                                                </div>
+                                            }
                                             <p>@issue.Recommendation</p>
                                             @if (!string.IsNullOrWhiteSpace(issue.SuggestedValue))
                                             {

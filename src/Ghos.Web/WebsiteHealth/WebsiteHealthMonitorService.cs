@@ -865,7 +865,8 @@ public sealed class WebsiteHealthMonitorService(
                             page.Url,
                             page.Title,
                             page.Heading,
-                            page.IntroductoryText));
+                            page.IntroductoryText),
+                    createIssue: false);
             }
 
             if (enabledCheckKeys.Contains("canonical"))
@@ -925,6 +926,65 @@ public sealed class WebsiteHealthMonitorService(
         {
             AddGroupedImageAltIssues(pageSnapshots, issues);
         }
+
+        if (enabledCheckKeys.Contains("meta-description"))
+        {
+            AddGroupedMetaDescriptionIssues(pageSnapshots, issues);
+        }
+    }
+
+    private static void AddGroupedMetaDescriptionIssues(
+        IReadOnlyCollection<PageSnapshot> pages,
+        ICollection<DetectedIssue> issues)
+    {
+        var missingPages = pages.Where(page =>
+            !page.IsNoIndex &&
+            string.IsNullOrWhiteSpace(page.MetaDescription));
+        foreach (var pageGroup in missingPages.GroupBy(
+            page => NormalizeMetadataTarget(page.Url),
+            StringComparer.OrdinalIgnoreCase))
+        {
+            var first = pageGroup
+                .OrderBy(page => page.Url.Query.Length)
+                .First();
+            var target = new Uri(pageGroup.Key);
+            var pageCount = pageGroup.Count();
+            var isUtility =
+                WebsiteHealthRecommendationBuilder.IsUtilityPage(target);
+            issues.Add(new DetectedIssue(
+                "meta-description",
+                isUtility
+                    ? "Utility page should be excluded from search"
+                    : "Missing meta description",
+                pageCount == 1
+                    ? "A meta description was not detected on this page."
+                    : $"A meta description was not detected across " +
+                        $"{pageCount} crawled pagination variants. " +
+                        "Make one change to the base collection.",
+                target.ToString(),
+                WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.MissingMetaDescription(
+                    target,
+                    first.Title,
+                    first.Heading,
+                    first.IntroductoryText)));
+        }
+    }
+
+    internal static string NormalizeMetadataTarget(Uri url)
+    {
+        if (url.AbsolutePath.StartsWith(
+                "/collections/",
+                StringComparison.OrdinalIgnoreCase) &&
+            url.Query.Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Any(part => part.TrimStart('?').StartsWith(
+                    "page=",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return url.GetLeftPart(UriPartial.Path);
+        }
+
+        return url.ToString();
     }
 
     private static void AddGroupedImageAltIssues(
@@ -1004,7 +1064,8 @@ public sealed class WebsiteHealthMonitorService(
         ICollection<Observation> observations,
         ICollection<DetectedIssue> issues,
         WebsiteHealthIssueSeverity severity = WebsiteHealthIssueSeverity.Warning,
-        WebsiteHealthRecommendation? recommendation = null)
+        WebsiteHealthRecommendation? recommendation = null,
+        bool createIssue = true)
     {
         observations.Add(new Observation(
             key,
@@ -1017,7 +1078,7 @@ public sealed class WebsiteHealthMonitorService(
             "present",
             url.ToString(),
             present ? "Detected." : issueTitle));
-        if (!present)
+        if (!present && createIssue)
         {
             issues.Add(new DetectedIssue(
                 key,
@@ -1169,6 +1230,9 @@ public sealed class WebsiteHealthMonitorService(
                     SuggestedValue = Truncate(
                         detected.Recommendation?.SuggestedValue,
                         6000),
+                    FixLocation = Truncate(
+                        detected.Recommendation?.FixLocation,
+                        1000),
                     Severity = detected.Severity,
                     FirstDetectedAtUtc = detectedAtUtc,
                     LastDetectedAtUtc = detectedAtUtc,
@@ -1185,6 +1249,9 @@ public sealed class WebsiteHealthMonitorService(
                 existing.SuggestedValue = Truncate(
                     detected.Recommendation?.SuggestedValue,
                     6000);
+                existing.FixLocation = Truncate(
+                    detected.Recommendation?.FixLocation,
+                    1000);
                 existing.Severity = detected.Severity;
                 existing.LastDetectedAtUtc = detectedAtUtc;
                 existing.LastSeenRunId = runId;
