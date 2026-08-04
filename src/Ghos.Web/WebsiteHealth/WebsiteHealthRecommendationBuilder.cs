@@ -22,14 +22,34 @@ internal static class WebsiteHealthRecommendationBuilder
         Uri url,
         string? heading)
     {
-        var topic = GetPageTopic(url, heading, null);
-        var title = url.AbsolutePath == "/"
-            ? "Green Hills Supply | Landscape & Outdoor Materials"
-            : $"{topic} | {BrandName}";
-
         return new WebsiteHealthRecommendation(
             "Add one concise, unique HTML title that leads with the page topic and ends with the Green Hills Supply brand. Keep it near 50–60 characters and avoid repeating the same title on other pages.",
-            TruncateAtWord(title, 60),
+            BuildTitle(url, heading),
+            GetShopifySeoLocation(url));
+    }
+
+    internal static WebsiteHealthRecommendation TitleLength(
+        Uri url,
+        string? heading,
+        int currentLength)
+    {
+        var problem = currentLength < 20
+            ? "The current title is too short to explain the page clearly in search results."
+            : "The current title is likely to be truncated in search results.";
+        return new WebsiteHealthRecommendation(
+            $"{problem} Replace it with a unique title near 50–60 characters that leads with the page topic and ends with the Green Hills Supply brand.",
+            BuildTitle(url, heading),
+            GetShopifySeoLocation(url));
+    }
+
+    internal static WebsiteHealthRecommendation DuplicateTitle(
+        Uri url,
+        string? heading,
+        Uri matchingUrl)
+    {
+        return new WebsiteHealthRecommendation(
+            $"This title also appears on {matchingUrl.PathAndQuery}. Give this page a distinct title based on its own subject so search engines and customers can tell the pages apart.",
+            BuildTitle(url, heading),
             GetShopifySeoLocation(url));
     }
 
@@ -55,6 +75,41 @@ internal static class WebsiteHealthRecommendationBuilder
         return new WebsiteHealthRecommendation(
             "Add a unique meta description that explains what a customer will find on this page and gives them a reason to click. Aim for roughly 120–155 characters and do not reuse it across paginated or related pages.",
             description,
+            GetShopifySeoLocation(url));
+    }
+
+    internal static WebsiteHealthRecommendation MetaDescriptionLength(
+        Uri url,
+        string? title,
+        string? heading,
+        string? introductoryText,
+        int currentLength)
+    {
+        var problem = currentLength < 70
+            ? "The current meta description is too short to communicate the page's value in search results."
+            : "The current meta description is likely to be truncated in search results.";
+        return new WebsiteHealthRecommendation(
+            $"{problem} Replace it with unique, useful copy of roughly 120–155 characters.",
+            BuildDescription(
+                url,
+                GetPageTopic(url, heading, title),
+                introductoryText),
+            GetShopifySeoLocation(url));
+    }
+
+    internal static WebsiteHealthRecommendation DuplicateMetaDescription(
+        Uri url,
+        string? title,
+        string? heading,
+        string? introductoryText,
+        Uri matchingUrl)
+    {
+        return new WebsiteHealthRecommendation(
+            $"This description also appears on {matchingUrl.PathAndQuery}. Replace it with copy that describes only this page and gives customers a specific reason to visit it.",
+            BuildDescription(
+                url,
+                GetPageTopic(url, heading, title),
+                introductoryText),
             GetShopifySeoLocation(url));
     }
 
@@ -250,6 +305,15 @@ internal static class WebsiteHealthRecommendationBuilder
         }
 
         return EnsureSentence(TruncateAtWord(description, 155));
+    }
+
+    private static string BuildTitle(Uri url, string? heading)
+    {
+        var topic = GetPageTopic(url, heading, null);
+        var title = url.AbsolutePath == "/"
+            ? "Green Hills Supply | Landscape & Outdoor Materials"
+            : $"{topic} | {BrandName}";
+        return TruncateAtWord(title, 60);
     }
 
     private static string GetPageTopic(

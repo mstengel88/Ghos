@@ -491,7 +491,11 @@ else
     {
         "image-alt" => "Missing image alt text",
         "meta-description" => "Missing meta descriptions",
+        "meta-description-length" => "Meta description length",
+        "duplicate-meta-description" => "Duplicate meta descriptions",
         "title" => "Missing page titles",
+        "title-length" => "Page title length",
+        "duplicate-title" => "Duplicate page titles",
         "canonical" => "Missing canonical URLs",
         "schema" => "Missing structured data",
         "internal-link" => "Broken internal links",
@@ -503,6 +507,10 @@ else
     {
         "image-alt" => "IM",
         "meta-description" => "MD",
+        "meta-description-length" => "ML",
+        "duplicate-meta-description" => "DM",
+        "title-length" => "TL",
+        "duplicate-title" => "DT",
         "internal-link" => "↗",
         "ssl" => "◇",
         _ => "!"
@@ -511,7 +519,11 @@ else
     private static string SuggestionLabel(string key) => key switch
     {
         "title" => "SUGGESTED TITLE",
+        "title-length" => "SUGGESTED TITLE",
+        "duplicate-title" => "SUGGESTED TITLE",
         "meta-description" => "SUGGESTED DESCRIPTION",
+        "meta-description-length" => "SUGGESTED DESCRIPTION",
+        "duplicate-meta-description" => "SUGGESTED DESCRIPTION",
         "image-alt" => "SUGGESTED ALT TEXT",
         "canonical" => "SUGGESTED CANONICAL TAG",
         "schema" => "SUGGESTED JSON-LD",
