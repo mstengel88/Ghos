@@ -929,6 +929,24 @@ public sealed class WebsiteHealthOperationsTests
         "Colored Hardwood Mulch | Premium Dyed Mulch for Landscape Bed & Garden – Green Hills Supply",
         "Midnight Black Mulch",
         "Beds & Gardens")]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/3-8-base",
+        "3/8\" Base",
+        "3/8\" Base | Crushed Limestone Base for Paths & Light-Duty Projects – Green Hills Supply",
+        "3/8\" Base",
+        "Paths & Light Projects")]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/american-heritage",
+        "American Heritage",
+        "American Heritage Stone | Decorative Landscape Rock for Beds & Accents – Green Hills Supply",
+        "American Heritage Stone",
+        "Landscape Rock")]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/premium-blend-mulch",
+        "Premium Blend Mulch",
+        "Premium Blend Mulch | Triple-Ground Mulch for Landscape Beds & Gardens – Green Hills Supply",
+        "Premium Blend Mulch",
+        "Triple-Ground for Beds & Gardens")]
     public void TitleLength_PreservesProductIntentInTailoredSuggestion(
         string url,
         string heading,
