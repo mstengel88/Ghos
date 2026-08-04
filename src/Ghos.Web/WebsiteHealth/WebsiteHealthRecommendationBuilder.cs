@@ -17,6 +17,12 @@ internal sealed record WebsiteHealthMissingImage(
     string? Context,
     string? PageUrl = null);
 
+internal sealed record WebsiteHealthImage(
+    string? Source,
+    string AltText,
+    string? Context,
+    string? PageUrl = null);
+
 internal static class WebsiteHealthRecommendationBuilder
 {
     private const string BrandName = "Green Hills Supply";
@@ -281,8 +287,82 @@ internal static class WebsiteHealthRecommendationBuilder
         return new WebsiteHealthRecommendation(
             "Give each meaningful image short alt text describing what the customer needs to understand. Use alt=\"\" only for genuinely decorative images, and avoid phrases such as “image of” or keyword stuffing.",
             string.Join(Environment.NewLine, suggestions),
-            "Shopify Admin → open the product, collection, page, or theme section that owns this image → edit the image alt text",
+            GetShopifyImageAltLocation(pageUrl),
             "https://help.shopify.com/en/manual/products/product-media/add-alt-text");
+    }
+
+    internal static WebsiteHealthRecommendation ImageAltQuality(
+        Uri pageUrl,
+        string? title,
+        string? heading,
+        string currentAltText,
+        IReadOnlyList<WebsiteHealthImage> images,
+        bool isReusedAcrossAssets)
+    {
+        var topic = GetPageTopic(pageUrl, heading, title);
+        var uniqueImages = images
+            .GroupBy(
+                image => image.Source ?? image.PageUrl ?? "",
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Take(8)
+            .ToList();
+        var suggestions = uniqueImages
+            .Select((image, index) =>
+            {
+                var sourceLabel = GetImageLabel(
+                    image.Source,
+                    image.PageUrl,
+                    index + 1);
+                var altText = BuildImageAltText(
+                    topic,
+                    image.Context,
+                    image.Source);
+                return $"{sourceLabel}: alt=\"{altText}\"";
+            })
+            .ToList();
+        if (images.Count > uniqueImages.Count)
+        {
+            suggestions.Add(
+                $"+ {images.Count - uniqueImages.Count} more image(s) to review");
+        }
+
+        var guidance = isReusedAcrossAssets
+            ? "This same alt text is attached to different image files. Keep identical alt text only when the images communicate the same thing. Otherwise, describe each image’s specific product, color, material, or purpose; decorative images should use alt=\"\"."
+            : "This alt text is too generic or looks like a filename, so it does not explain the image to customers using assistive technology. Replace it with a short description of the useful visual information, or use alt=\"\" when the image is decorative.";
+        return new WebsiteHealthRecommendation(
+            guidance,
+            string.Join(Environment.NewLine, suggestions),
+            GetShopifyImageAltLocation(pageUrl),
+            "https://help.shopify.com/en/manual/products/product-media/add-alt-text",
+            $"Current alt text: \"{NormalizeText(currentAltText)}\"");
+    }
+
+    private static string GetShopifyImageAltLocation(Uri pageUrl)
+    {
+        var path = pageUrl.AbsolutePath;
+        if (path.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Products → open the product matching this URL → Media → select the affected image → Edit alt text";
+        }
+
+        if (path.StartsWith(
+            "/collections/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → if this is a product-card image, Products → open the product shown → Media → select the image → Edit alt text; if it is the collection banner, Products → Collections → open this collection → edit the collection image";
+        }
+
+        if (path.StartsWith(
+            "/pages/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "Shopify Admin → Online Store → Pages → open the page matching this URL → edit the content image; if the image comes from a theme section, Online Store → Themes → Customize → open this page template → select the image section";
+        }
+
+        return "Shopify Admin → Online Store → Themes → Customize → open the affected page/template → select the section containing this image; for product media, use Products → open the product → Media → select the image → Edit alt text";
     }
 
     internal static WebsiteHealthRecommendation BrokenLink(
