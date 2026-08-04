@@ -63,6 +63,12 @@ of a Content Security Policy. Findings point to Shopify domain status and
 Cloudflare response-header rules because these protections are delivered by the
 platform/CDN; GHOS never recommends pasting HTTP headers into Liquid markup.
 
+Product structured-data validation goes beyond detecting an `@type` value.
+For every crawled product page, GHOS checks the Product name, image, page URL,
+offers, price, ISO currency, and availability. Repair guidance requires live
+Shopify product and variant values so price and inventory markup cannot drift
+from what customers can actually purchase.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,

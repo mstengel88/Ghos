@@ -21,7 +21,17 @@ internal sealed record StructuredDataAnalysis(
     int BlockCount,
     int ValidBlockCount,
     int InvalidBlockCount,
-    IReadOnlySet<string> SchemaTypes);
+    IReadOnlySet<string> SchemaTypes,
+    ProductStructuredDataAnalysis Product);
+
+internal sealed record ProductStructuredDataAnalysis(
+    bool HasName,
+    bool HasImage,
+    bool HasOffers,
+    bool HasPrice,
+    bool HasPriceCurrency,
+    bool HasAvailability,
+    IReadOnlyList<string> ProductUrls);
 
 internal sealed record SitemapAnalysis(
     bool IsValidXml,
@@ -2032,9 +2042,14 @@ public sealed class WebsiteHealthMonitorService(
         var missingExpectedType = GetMissingExpectedSchemaType(
             page.Url,
             page.StructuredData.SchemaTypes);
+        var productProblems = GetProductSchemaProblems(
+            page.Url,
+            page.StructuredData.SchemaTypes,
+            page.StructuredData.Product);
         var healthy =
             page.StructuredData.InvalidBlockCount == 0 &&
-            missingExpectedType is null;
+            missingExpectedType is null &&
+            productProblems.Count == 0;
         var details = new List<string>();
         if (page.StructuredData.InvalidBlockCount > 0)
         {
@@ -2046,6 +2061,8 @@ public sealed class WebsiteHealthMonitorService(
         {
             details.Add($"{missingExpectedType} schema was not detected");
         }
+
+        details.AddRange(productProblems);
 
         observations.Add(new Observation(
             "schema-quality",
@@ -2078,7 +2095,8 @@ public sealed class WebsiteHealthMonitorService(
             WebsiteHealthRecommendationBuilder.SchemaQuality(
                 page.Url,
                 page.StructuredData.InvalidBlockCount,
-                missingExpectedType)));
+                missingExpectedType,
+                productProblems)));
     }
 
     internal static StructuredDataAnalysis AnalyzeStructuredData(
@@ -2089,6 +2107,7 @@ public sealed class WebsiteHealthMonitorService(
         var invalidBlockCount = 0;
         var schemaTypes = new HashSet<string>(
             StringComparer.OrdinalIgnoreCase);
+        var productSignals = new ProductSignalAccumulator();
         foreach (var block in blocks)
         {
             blockCount++;
@@ -2102,6 +2121,9 @@ public sealed class WebsiteHealthMonitorService(
             {
                 using var document = JsonDocument.Parse(block);
                 CollectSchemaTypes(document.RootElement, schemaTypes);
+                CollectProductSignals(
+                    document.RootElement,
+                    productSignals);
                 validBlockCount++;
             }
             catch (JsonException)
@@ -2114,7 +2136,236 @@ public sealed class WebsiteHealthMonitorService(
             blockCount,
             validBlockCount,
             invalidBlockCount,
-            schemaTypes);
+            schemaTypes,
+            new ProductStructuredDataAnalysis(
+                productSignals.HasName,
+                productSignals.HasImage,
+                productSignals.HasOffers,
+                productSignals.HasPrice,
+                productSignals.HasPriceCurrency,
+                productSignals.HasAvailability,
+                productSignals.ProductUrls));
+    }
+
+    private static void CollectProductSignals(
+        JsonElement element,
+        ProductSignalAccumulator signals)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (HasSchemaType(element, "Product"))
+            {
+                signals.HasName |= HasMeaningfulProperty(
+                    element,
+                    "name");
+                signals.HasImage |= HasMeaningfulProperty(
+                    element,
+                    "image");
+                if (element.TryGetProperty(
+                        "offers",
+                        out var offers) &&
+                    HasMeaningfulValue(offers))
+                {
+                    signals.HasOffers = true;
+                    signals.HasPrice |=
+                        ContainsMeaningfulProperty(
+                            offers,
+                            "price") ||
+                        ContainsMeaningfulProperty(
+                            offers,
+                            "lowPrice");
+                    signals.HasPriceCurrency |=
+                        ContainsMeaningfulProperty(
+                            offers,
+                            "priceCurrency");
+                    signals.HasAvailability |=
+                        ContainsMeaningfulProperty(
+                            offers,
+                            "availability");
+                }
+
+                if (element.TryGetProperty(
+                        "url",
+                        out var productUrl) &&
+                    productUrl.ValueKind == JsonValueKind.String &&
+                    productUrl.GetString() is { Length: > 0 } url)
+                {
+                    signals.ProductUrls.Add(url);
+                }
+            }
+
+            foreach (var property in element.EnumerateObject())
+            {
+                CollectProductSignals(
+                    property.Value,
+                    signals);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                CollectProductSignals(item, signals);
+            }
+        }
+    }
+
+    private static bool HasSchemaType(
+        JsonElement element,
+        string expectedType)
+    {
+        if (!element.TryGetProperty("@type", out var type))
+        {
+            return false;
+        }
+
+        return type.ValueKind switch
+        {
+            JsonValueKind.String =>
+                type.GetString()?.Equals(
+                    expectedType,
+                    StringComparison.OrdinalIgnoreCase) == true,
+            JsonValueKind.Array => type
+                .EnumerateArray()
+                .Any(value =>
+                    value.ValueKind == JsonValueKind.String &&
+                    value.GetString()?.Equals(
+                        expectedType,
+                        StringComparison.OrdinalIgnoreCase) == true),
+            _ => false
+        };
+    }
+
+    private static bool HasMeaningfulProperty(
+        JsonElement element,
+        string propertyName) =>
+        element.TryGetProperty(
+            propertyName,
+            out var value) &&
+        HasMeaningfulValue(value);
+
+    private static bool HasMeaningfulValue(JsonElement value) =>
+        value.ValueKind switch
+        {
+            JsonValueKind.String =>
+                !string.IsNullOrWhiteSpace(value.GetString()),
+            JsonValueKind.Number => true,
+            JsonValueKind.Object =>
+                value.EnumerateObject().Any(),
+            JsonValueKind.Array =>
+                value.GetArrayLength() > 0,
+            _ => false
+        };
+
+    private static bool ContainsMeaningfulProperty(
+        JsonElement element,
+        string propertyName)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.Name.Equals(
+                        propertyName,
+                        StringComparison.OrdinalIgnoreCase) &&
+                    HasMeaningfulValue(property.Value))
+                {
+                    return true;
+                }
+
+                if (ContainsMeaningfulProperty(
+                        property.Value,
+                        propertyName))
+                {
+                    return true;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            return element.EnumerateArray().Any(item =>
+                ContainsMeaningfulProperty(
+                    item,
+                    propertyName));
+        }
+
+        return false;
+    }
+
+    internal static IReadOnlyList<string> GetProductSchemaProblems(
+        Uri pageUrl,
+        IReadOnlySet<string> schemaTypes,
+        ProductStructuredDataAnalysis product)
+    {
+        if (!pageUrl.AbsolutePath.StartsWith(
+                "/products/",
+                StringComparison.OrdinalIgnoreCase) ||
+            !schemaTypes.Contains("Product"))
+        {
+            return [];
+        }
+
+        var problems = new List<string>();
+        if (!product.HasName)
+        {
+            problems.Add("Product name is missing");
+        }
+
+        if (!product.HasImage)
+        {
+            problems.Add("Product image is missing");
+        }
+
+        if (!product.HasOffers)
+        {
+            problems.Add("Product offers are missing");
+        }
+        else
+        {
+            if (!product.HasPrice)
+            {
+                problems.Add("Offer price is missing");
+            }
+
+            if (!product.HasPriceCurrency)
+            {
+                problems.Add("Offer priceCurrency is missing");
+            }
+
+            if (!product.HasAvailability)
+            {
+                problems.Add("Offer availability is missing");
+            }
+        }
+
+        var hasMatchingUrl = product.ProductUrls.Any(value =>
+            Uri.TryCreate(
+                pageUrl,
+                value,
+                out var productUrl) &&
+            NormalizeCanonicalHost(productUrl.Host).Equals(
+                NormalizeCanonicalHost(pageUrl.Host),
+                StringComparison.OrdinalIgnoreCase) &&
+            productUrl.AbsolutePath.TrimEnd('/').Equals(
+                pageUrl.AbsolutePath.TrimEnd('/'),
+                StringComparison.OrdinalIgnoreCase));
+        if (!hasMatchingUrl)
+        {
+            problems.Add("Product URL does not match this page");
+        }
+
+        return problems;
+    }
+
+    private sealed class ProductSignalAccumulator
+    {
+        internal bool HasName { get; set; }
+        internal bool HasImage { get; set; }
+        internal bool HasOffers { get; set; }
+        internal bool HasPrice { get; set; }
+        internal bool HasPriceCurrency { get; set; }
+        internal bool HasAvailability { get; set; }
+        internal List<string> ProductUrls { get; } = [];
     }
 
     private static void CollectSchemaTypes(
