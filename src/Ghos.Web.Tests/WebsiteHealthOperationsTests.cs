@@ -106,7 +106,7 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
-    public void MissingMetaDescription_DistinguishesPaginatedCollections()
+    public void MissingMetaDescription_UsesOneCatalogDescriptionForPagination()
     {
         var recommendation =
             WebsiteHealthRecommendationBuilder.MissingMetaDescription(
@@ -116,7 +116,13 @@ public sealed class WebsiteHealthOperationsTests
                 "All products",
                 null);
 
-        Assert.Contains("page 3", recommendation.SuggestedValue);
+        Assert.Equal(
+            "Shop Green Hills Supply for aggregate, decorative stone, mulch, sand, bagged landscape materials, tools, ice melt, and water-conditioning products.",
+            recommendation.SuggestedValue);
+        Assert.InRange(
+            recommendation.SuggestedValue!.Length,
+            120,
+            155);
     }
 
     [Fact]
@@ -425,7 +431,7 @@ public sealed class WebsiteHealthOperationsTests
         "Online Store → Preferences")]
     [InlineData(
         "https://www.greenhillssupply.com/collections/all",
-        "create a separate smart collection")]
+        "search for All")]
     [InlineData(
         "https://www.greenhillssupply.com/blogs/news",
         "Manage blogs")]
@@ -455,11 +461,21 @@ public sealed class WebsiteHealthOperationsTests
                 null);
 
         Assert.Contains(
-            "Do not rename",
+            "exists even when no All collection appears",
             recommendation.Guidance);
         Assert.Contains(
-            "separate smart collection",
+            "does not replace your separate collections landing page",
+            recommendation.Guidance);
+        Assert.Contains(
+            "if it does not",
             recommendation.FixLocation);
+        Assert.Contains(
+            "Leave your existing collections landing page",
+            recommendation.FixLocation);
+        Assert.DoesNotContain(
+            "change any menu link",
+            recommendation.FixLocation,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
