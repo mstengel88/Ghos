@@ -11,6 +11,7 @@ using Ghos.Web.Exports;
 using Ghos.Web.Marketing;
 using Ghos.Web.ProjectTools;
 using Ghos.Web.Shopify;
+using Ghos.Web.SmartSearch;
 using Ghos.Web.WinterWatch;
 using Ghos.Web.WebsiteHealth;
 using Microsoft.AspNetCore.DataProtection;
@@ -56,6 +57,7 @@ builder.Services.AddHttpClient<ShopifyDraftOrderClient>(client =>
 builder.Services.AddScoped<ShopifyDraftOrderService>();
 builder.Services.AddSingleton<CatalogSyncCoordinator>();
 builder.Services.AddScoped<ShopifySyncService>();
+builder.Services.AddScoped<SmartProductSearchService>();
 builder.Services.Configure<BackupStatusOptions>(
     builder.Configuration.GetSection(BackupStatusOptions.SectionName));
 builder.Services.Configure<WinterWatchAdminOptions>(
@@ -246,6 +248,15 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
+    options.AddPolicy("storefront-search", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 });
 
 builder.Services.AddRazorComponents()
@@ -272,6 +283,7 @@ app.MapBackupStatusEndpoints();
 app.MapCsvExportEndpoints();
 app.MapMarketingCreativeEndpoints();
 app.MapMarketingPublicationPackageEndpoints();
+app.MapSmartSearchEndpoints();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

@@ -1,0 +1,160 @@
+@page "/smart-search"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Marketing)]
+@inject SmartProductSearchService SearchService
+
+<PageTitle>Smart Product Search | GHOS</PageTitle>
+
+<div class="search-heading">
+    <div>
+        <span class="panel-label">SMART PRODUCT SEARCH</span>
+        <h2>Help customers find the right material</h2>
+        <p>Test the same intent-aware search that can power the Green Hills storefront.</p>
+    </div>
+    <div class="library-stat">
+        <strong>@SmartSearchSynonymLibrary.SynonymMappingCount.ToString("N0")</strong>
+        <span>landscape search mappings</span>
+    </div>
+</div>
+
+<section class="panel search-lab">
+    <label for="smart-search-query">What is the customer trying to find or build?</label>
+    <div class="search-box">
+        <input id="smart-search-query"
+               @bind="Query"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDownAsync"
+               type="search"
+               placeholder="Try: gray stone for a driveway, patio base, drainage gravel…" />
+        <button type="button"
+                disabled="@(Searching || Query.Trim().Length < 2)"
+                @onclick="SearchAsync">
+            @(Searching ? "Searching…" : "Search products")
+        </button>
+    </div>
+    <div class="examples">
+        <span>Try:</span>
+        @foreach (var example in Examples)
+        {
+            <button type="button" @onclick="() => SearchExampleAsync(example)">
+                @example
+            </button>
+        }
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="search-alert" role="alert">@ErrorMessage</div>
+}
+
+@if (Response is not null)
+{
+    <section class="search-summary">
+        <div>
+            <span>UNDERSTOOD AS</span>
+            @if (Response.Intents.Count == 0)
+            {
+                <strong>Direct catalog match</strong>
+            }
+            else
+            {
+                <strong>@string.Join(" · ", Response.Intents)</strong>
+            }
+        </div>
+        <strong>@Response.Results.Count result@(Response.Results.Count == 1 ? "" : "s")</strong>
+    </section>
+
+    @if (Response.Results.Count == 0)
+    {
+        <section class="panel no-results">
+            <strong>No confident product matches</strong>
+            <span>Try a use, project, material, color, or size. GHOS does not invent products that are not in Shopify.</span>
+        </section>
+    }
+    else
+    {
+        <section class="result-grid">
+            @foreach (var result in Response.Results)
+            {
+                <article class="panel product-result">
+                    @if (!string.IsNullOrWhiteSpace(result.ImageUrl))
+                    {
+                        <img src="@result.ImageUrl" alt="" loading="lazy" />
+                    }
+                    <div>
+                        <h3>@result.Title</h3>
+                        @if (result.StartingPrice is not null)
+                        {
+                            <strong class="price">From @result.StartingPrice.Value.ToString("C")</strong>
+                        }
+                        <p>@result.Description</p>
+                        <div class="reasons">
+                            @foreach (var reason in result.MatchReasons)
+                            {
+                                <span>@reason</span>
+                            }
+                        </div>
+                        <a href="@result.ProductUrl" target="_blank" rel="noopener noreferrer">
+                            View live product ↗
+                        </a>
+                    </div>
+                </article>
+            }
+        </section>
+    }
+}
+
+@code {
+    private static readonly string[] Examples =
+    [
+        "stone for a driveway",
+        "gray patio material",
+        "gravel for drainage",
+        "small decorative rock",
+        "bulk ice melt"
+    ];
+
+    private string Query { get; set; } = "";
+    private bool Searching { get; set; }
+    private string? ErrorMessage { get; set; }
+    private SmartProductSearchResponse? Response { get; set; }
+
+    private async Task HandleKeyDownAsync(KeyboardEventArgs eventArgs)
+    {
+        if (eventArgs.Key == "Enter")
+        {
+            await SearchAsync();
+        }
+    }
+
+    private async Task SearchExampleAsync(string example)
+    {
+        Query = example;
+        await SearchAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        if (Searching || Query.Trim().Length < 2)
+        {
+            return;
+        }
+
+        Searching = true;
+        ErrorMessage = null;
+        try
+        {
+            Response = await SearchService.SearchAsync(Query);
+        }
+        catch
+        {
+            ErrorMessage =
+                "GHOS could not search the synced Shopify catalog. Try again.";
+        }
+        finally
+        {
+            Searching = false;
+        }
+    }
+}
