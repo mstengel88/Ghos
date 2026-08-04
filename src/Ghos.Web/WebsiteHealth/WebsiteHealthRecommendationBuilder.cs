@@ -68,18 +68,28 @@ internal static class WebsiteHealthRecommendationBuilder
         int headingCount)
     {
         var topic = GetPageTopic(url, heading, title);
-        var guidance = headingCount == 0
+        var isMissingOrEmpty = headingCount <= 1 &&
+            string.IsNullOrWhiteSpace(heading);
+        var guidance = isMissingOrEmpty
             ? "Add one visible H1 heading that names this page. The wording below is tailored from the current page title and URL; confirm it matches what customers see."
             : $"Keep one H1 heading for “{topic}” and change the other {headingCount - 1} H1 heading{(headingCount == 2 ? "" : "s")} to H2 or H3. Do not hide duplicate headings with CSS.";
-        var suggestedValue = headingCount == 0
+        var suggestedValue = isMissingOrEmpty
             ? $"<h1>{WebUtility.HtmlEncode(topic)}</h1>"
             : $"Keep as H1: \"{topic}\"\nChange the other {headingCount - 1} H1 heading{(headingCount == 2 ? "" : "s")} to H2 or H3.";
+        var currentValue = headingCount switch
+        {
+            0 => "No H1 element detected.",
+            1 when string.IsNullOrWhiteSpace(heading) =>
+                "One H1 element detected, but it has no readable text.",
+            _ => $"{headingCount} H1 elements detected. First H1: {heading}"
+        };
 
         return new WebsiteHealthRecommendation(
             guidance,
             suggestedValue,
             GetShopifyHeadingLocation(url),
-            "https://help.shopify.com/en/manual/online-store/themes/customizing-themes");
+            "https://help.shopify.com/en/manual/online-store/themes/customizing-themes",
+            currentValue);
     }
 
     internal static WebsiteHealthRecommendation MissingMetaDescription(
