@@ -1098,6 +1098,56 @@ public sealed class WebsiteHealthOperationsTests
                 StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void MetaDescriptionLength_LeadsWithTheProductIdentifyingSentence()
+    {
+        const string current =
+            "Floral Natural Cedar Mulch is a convenient 2 cu. ft. bagged mulch that adds a clean, natural cedar finish to garden beds, tree rings, and landscape borders. It helps retain moisture, suppress weeds, and protect soil while giving small projects and seasonal touch-ups a polished look.";
+
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/bagged-natural-cedar-mulch"),
+                "Floral Natural Cedar Mulch",
+                "Floral Natural Cedar Mulch",
+                null,
+                current);
+
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.StartsWith(
+            "Floral Natural Cedar Mulch",
+            recommendation.SuggestedValue);
+        Assert.False(recommendation.SuggestedValue.StartsWith(
+            "It helps",
+            StringComparison.OrdinalIgnoreCase));
+        Assert.InRange(recommendation.SuggestedValue.Length, 70, 155);
+    }
+
+    [Fact]
+    public void MetaDescriptionLength_DoesNotSplitMeasurementAbbreviations()
+    {
+        const string current =
+            "Bagged Traffic Bond (1/2 cu. ft. bag) is a compactable crushed stone base material ideal for small repairs, leveling, and touch-up projects. It packs down tight to create a firm, stable surface for driveway patching and walkway preparation.";
+
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/bagged-traffic-bond-gravel"),
+                "Bagged Traffic Bond",
+                "Bagged Traffic Bond",
+                null,
+                current);
+
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.StartsWith(
+            "Bagged Traffic Bond",
+            recommendation.SuggestedValue);
+        Assert.False(recommendation.SuggestedValue.StartsWith(
+            "bag)",
+            StringComparison.OrdinalIgnoreCase));
+        Assert.InRange(recommendation.SuggestedValue.Length, 70, 155);
+    }
+
     [Theory]
     [InlineData(
         "https://www.greenhillssupply.com/collections/all?page=2",
