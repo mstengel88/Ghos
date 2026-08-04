@@ -13,20 +13,8 @@ public static class SmartSearchEndpoints
                     [FromQuery] string? q,
                     [FromQuery] int? limit,
                     SmartProductSearchService searchService,
-                    HttpContext httpContext,
                     CancellationToken cancellationToken) =>
                 {
-                    var origin =
-                        httpContext.Request.Headers.Origin.ToString();
-                    if (origin is
-                        "https://greenhillssupply.com" or
-                        "https://www.greenhillssupply.com")
-                    {
-                        httpContext.Response.Headers.AccessControlAllowOrigin =
-                            origin;
-                        httpContext.Response.Headers.Vary = "Origin";
-                    }
-
                     var response = await searchService.SearchAsync(
                         q,
                         limit is null or 0 ? 8 : limit.Value,
@@ -35,6 +23,23 @@ public static class SmartSearchEndpoints
                     return Results.Ok(response);
                 })
             .AllowAnonymous()
+            .RequireCors("storefront-search-cors")
+            .RequireRateLimiting("storefront-search");
+
+        endpoints.MapGet(
+                "/api/storefront/search/suggestions",
+                async (
+                    [FromQuery] string? q,
+                    [FromQuery] int? limit,
+                    SmartSearchSuggestionService suggestionService,
+                    CancellationToken cancellationToken) =>
+                    Results.Ok(
+                        await suggestionService.GetSuggestionsAsync(
+                            q,
+                            limit is null or 0 ? 8 : limit.Value,
+                            cancellationToken)))
+            .AllowAnonymous()
+            .RequireCors("storefront-search-cors")
             .RequireRateLimiting("storefront-search");
 
         endpoints.MapPost(
@@ -51,6 +56,7 @@ public static class SmartSearchEndpoints
                         ? Results.NoContent()
                         : Results.NotFound())
             .AllowAnonymous()
+            .RequireCors("storefront-search-cors")
             .RequireRateLimiting("storefront-search");
 
         return endpoints;

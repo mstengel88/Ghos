@@ -287,6 +287,67 @@ public sealed class SmartSearchTests
         Assert.Null(correction);
     }
 
+    [Fact]
+    public void Suggestions_PrioritizeActiveCatalogProducts()
+    {
+        var suggestions = SmartSearchSuggestionRanker.Rank(
+            "drive",
+            [
+                new(
+                    "Driveway materials",
+                    "Search"),
+                new(
+                    "Driveway Stone #2",
+                    "Product",
+                    "Bulk Stone",
+                    "https://greenhillssupply.com/products/2-stone")
+            ]);
+
+        Assert.Equal("Driveway Stone #2", suggestions[0].Text);
+        Assert.Equal("Product", suggestions[0].Kind);
+        Assert.Equal(
+            "https://greenhillssupply.com/products/2-stone",
+            suggestions[0].ProductUrl);
+    }
+
+    [Fact]
+    public void Suggestions_UseWordPrefixesWithoutFuzzyGuessing()
+    {
+        var suggestions = SmartSearchSuggestionRanker.Rank(
+            "grav",
+            [
+                new("Drainage Gravel", "Search"),
+                new("Garden Stone", "Search")
+            ]);
+
+        Assert.Single(suggestions);
+        Assert.Equal("Drainage Gravel", suggestions[0].Text);
+    }
+
+    [Fact]
+    public void Suggestions_DeduplicateEquivalentCatalogLanguage()
+    {
+        var suggestions = SmartSearchSuggestionRanker.Rank(
+            "mul",
+            [
+                new("Mulch", "Search"),
+                new("MULCH", "Popular", Popularity: 12)
+            ]);
+
+        Assert.Single(suggestions);
+        Assert.Equal("Popular", suggestions[0].Kind);
+    }
+
+    [Fact]
+    public void Suggestions_RequireAtLeastTwoCharacters()
+    {
+        var suggestions = SmartSearchSuggestionRanker.Rank(
+            "s",
+            [new("Stone", "Product")]);
+
+        Assert.Empty(suggestions);
+    }
+
     private static SmartProductSearchResult SearchResult(
         string confidence = "High",
         IReadOnlyList<string>? unmatchedIntents = null) =>

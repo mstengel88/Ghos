@@ -1,7 +1,9 @@
 @page "/smart-search"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.Marketing)]
+@implements IDisposable
 @inject SmartProductSearchService SearchService
+@inject SmartSearchSuggestionService SuggestionService
 @inject SmartSearchTuningService TuningService
 @inject SmartSearchMerchandisingService MerchandisingService
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -24,12 +26,55 @@
 <section class="panel search-lab">
     <label for="smart-search-query">What is the customer trying to find or build?</label>
     <div class="search-box">
-        <input id="smart-search-query"
-               @bind="Query"
-               @bind:event="oninput"
-               @onkeydown="HandleKeyDownAsync"
-               type="search"
-               placeholder="Try: gray stone for a driveway, patio base, drainage gravel…" />
+        <div class="search-input-wrap">
+            <input id="smart-search-query"
+                   value="@Query"
+                   @oninput="HandleQueryInputAsync"
+                   @onkeydown="HandleKeyDownAsync"
+                   type="search"
+                   autocomplete="off"
+                   aria-autocomplete="list"
+                   aria-controls="smart-search-suggestions"
+                   placeholder="Try: gray stone for a driveway, patio base, drainage gravel…" />
+            @if (Suggestions.Count > 0)
+            {
+                <div class="suggestion-menu"
+                     id="smart-search-suggestions"
+                     role="listbox">
+                    @foreach (var suggestion in Suggestions)
+                    {
+                        <button type="button"
+                                role="option"
+                                @onclick="() => SelectSuggestionAsync(suggestion)">
+                            @if (!string.IsNullOrWhiteSpace(
+                                suggestion.ImageUrl))
+                            {
+                                <img src="@suggestion.ImageUrl"
+                                     alt=""
+                                     loading="lazy" />
+                            }
+                            <span>
+                                <strong>@suggestion.Text</strong>
+                                <small>
+                                    @suggestion.Kind
+                                    @if (!string.IsNullOrWhiteSpace(
+                                        suggestion.Subtitle))
+                                    {
+                                        <text> · @suggestion.Subtitle</text>
+                                    }
+                                </small>
+                            </span>
+                        </button>
+                    }
+                </div>
+            }
+            else if (LoadingSuggestions)
+            {
+                <div class="suggestion-loading" role="status">
+                    Finding catalog suggestions…
+                </div>
+            }
+        </div>
         <button type="button"
                 disabled="@(Searching || Query.Trim().Length < 2)"
                 @onclick="SearchAsync">
@@ -443,6 +488,9 @@
     ];
 
     private string Query { get; set; } = "";
+    private IReadOnlyList<SmartSearchSuggestion> Suggestions { get; set; } = [];
+    private CancellationTokenSource? SuggestionCancellation { get; set; }
+    private bool LoadingSuggestions { get; set; }
     private bool Searching { get; set; }
     private string? ErrorMessage { get; set; }
     private SmartProductSearchResponse? Response { get; set; }
@@ -510,9 +558,61 @@
         }
     }
 
+    private async Task HandleQueryInputAsync(ChangeEventArgs eventArgs)
+    {
+        Query = eventArgs.Value?.ToString() ?? "";
+        SuggestionCancellation?.Cancel();
+        SuggestionCancellation?.Dispose();
+        SuggestionCancellation = new CancellationTokenSource();
+        var cancellationToken = SuggestionCancellation.Token;
+        if (Query.Trim().Length < 2)
+        {
+            Suggestions = [];
+            LoadingSuggestions = false;
+            return;
+        }
+
+        LoadingSuggestions = true;
+        Suggestions = [];
+        try
+        {
+            await Task.Delay(180, cancellationToken);
+            Suggestions =
+                await SuggestionService.GetSuggestionsAsync(
+                    Query,
+                    7,
+                    cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            Suggestions = [];
+        }
+        finally
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                LoadingSuggestions = false;
+            }
+        }
+    }
+
+    private async Task SelectSuggestionAsync(
+        SmartSearchSuggestion suggestion)
+    {
+        Query = suggestion.Text;
+        Suggestions = [];
+        SuggestionCancellation?.Cancel();
+        await SearchAsync();
+    }
+
     private async Task SearchExampleAsync(string example)
     {
         Query = example;
+        Suggestions = [];
+        SuggestionCancellation?.Cancel();
         await SearchAsync();
     }
 
@@ -524,6 +624,8 @@
         }
 
         Searching = true;
+        Suggestions = [];
+        SuggestionCancellation?.Cancel();
         ErrorMessage = null;
         try
         {
@@ -743,4 +845,10 @@
         Analytics is null || Analytics.Searches == 0
             ? "—"
             : $"{Analytics.ProductSelections * 100m / Analytics.Searches:0}%";
+
+    public void Dispose()
+    {
+        SuggestionCancellation?.Cancel();
+        SuggestionCancellation?.Dispose();
+    }
 }
