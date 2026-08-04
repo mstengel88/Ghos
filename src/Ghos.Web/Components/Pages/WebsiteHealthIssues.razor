@@ -18,7 +18,14 @@
         <h2>Website issues</h2>
         <p>Prioritize findings, document ownership, and suppress known exceptions without losing history.</p>
     </div>
-    <span class="last-refresh">Latest crawl data</span>
+    <div class="issue-heading-actions">
+        <span class="last-refresh">Latest crawl data</span>
+        <button type="button"
+                disabled="@(Busy || Issues.Count == 0)"
+                @onclick="DownloadFixListAsync">
+            Download fix list
+        </button>
+    </div>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(ErrorMessage))
@@ -415,6 +422,43 @@ else
                 issue.Id);
             ErrorMessage =
                 "The suggestion could not be copied automatically. Select the text and copy it manually.";
+        }
+    }
+
+    private async Task DownloadFixListAsync()
+    {
+        ErrorMessage = null;
+        SuccessMessage = null;
+        var filteredIssues = GetFilteredIssues();
+        if (filteredIssues.Count == 0)
+        {
+            ErrorMessage =
+                "No issues match the current filters. Change the filters before downloading.";
+            return;
+        }
+
+        try
+        {
+            var csv = WebsiteHealthIssueExportBuilder.BuildCsv(
+                filteredIssues);
+            var filename =
+                $"ghos-website-fixes-{DateTime.Now:yyyy-MM-dd}.csv";
+            await JS.InvokeVoidAsync(
+                "ghos.downloadText",
+                filename,
+                csv,
+                "text/csv;charset=utf-8");
+            SuccessMessage =
+                $"Downloaded {filteredIssues.Count} filtered issue" +
+                $"{(filteredIssues.Count == 1 ? "" : "s")}.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(
+                exception,
+                "Unable to export Website Health issues.");
+            ErrorMessage =
+                "The fix list could not be downloaded. Try again.";
         }
     }
 

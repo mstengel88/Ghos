@@ -31,6 +31,28 @@
     font-size: .65rem;
 }
 
+.issue-heading-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.issue-heading-actions button {
+    padding: 9px 11px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 7px;
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text-secondary);
+    font-size: .62rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.issue-heading-actions button:disabled {
+    cursor: wait;
+    opacity: .6;
+}
+
 .issue-alert {
     margin-bottom: 14px;
     padding: 12px 14px;
@@ -541,6 +563,12 @@
     }
 
     .issue-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .issue-heading-actions {
+        width: 100%;
         align-items: flex-start;
         flex-direction: column;
     }

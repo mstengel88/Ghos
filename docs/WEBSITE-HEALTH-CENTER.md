@@ -50,6 +50,11 @@ suggested replacement, with character counts for both. This comparison is
 historical issue data, so managers can review exactly what the scanner observed
 before copying a recommendation into Shopify.
 
+The **Download fix list** action exports the currently filtered Issue Center
+view as a UTF-8 CSV. It includes current and suggested values, character counts,
+status, severity, Shopify location, official documentation, and triage notes.
+CSV cells are quoted and spreadsheet-formula prefixes are neutralized.
+
 Blog-index metadata is managed through **Content → Blog posts → Manage blogs →
 open the blog → Search engine listing preview**, not through a presumed Liquid
 template. Individual blog posts continue to point to their own search engine
