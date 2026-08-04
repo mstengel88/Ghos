@@ -160,6 +160,24 @@ else
                                             @issue.AffectedUrl ↗
                                         </a>
                                     }
+                                    @if (GetImagePreviewUrl(issue) is { } imagePreviewUrl)
+                                    {
+                                        <figure class="image-issue-preview">
+                                            <a href="@imagePreviewUrl"
+                                               target="_blank"
+                                               rel="noopener noreferrer"
+                                               aria-label="Open affected image in a new tab">
+                                                <img src="@imagePreviewUrl"
+                                                     alt=""
+                                                     loading="lazy"
+                                                     decoding="async" />
+                                            </a>
+                                            <figcaption>
+                                                <strong>Affected image</strong>
+                                                <span>Compare the picture with every proposed alt value before copying it.</span>
+                                            </figcaption>
+                                        </figure>
+                                    }
                                     <div class="finding-meta">
                                         <span>First seen @FormatDate(issue.FirstDetectedAtUtc)</span>
                                         <span>Last seen @FormatDate(issue.LastDetectedAtUtc)</span>
@@ -187,6 +205,19 @@ else
                                                 </div>
                                             }
                                             <p>@issue.Recommendation</p>
+                                            @if (issue.CheckKey == "image-alt")
+                                            {
+                                                <div class="suggestion-source">
+                                                    <span>CONTEXT-BASED SUGGESTION</span>
+                                                    <p>
+                                                        GHOS uses the image’s product, collection, link, and section text.
+                                                        It does not guess from stock-photo filenames. Repeated wording is
+                                                        acceptable only when the pictures communicate the same useful
+                                                        information; otherwise, edit the reviewed copy to describe the
+                                                        visible material, color, setting, or action.
+                                                    </p>
+                                                </div>
+                                            }
                                             @if (!string.IsNullOrWhiteSpace(issue.SuggestedValue))
                                             {
                                                 <div class="value-comparison @(
@@ -503,6 +534,28 @@ else
             ErrorMessage =
                 "The suggestion could not be copied automatically. Select the text and copy it manually.";
         }
+    }
+
+    private static string? GetImagePreviewUrl(WebsiteHealthIssue issue)
+    {
+        if (issue.CheckKey != "image-alt" ||
+            !Uri.TryCreate(
+                issue.AffectedUrl,
+                UriKind.Absolute,
+                out var affectedUri) ||
+            affectedUri.Scheme != Uri.UriSchemeHttps)
+        {
+            return null;
+        }
+
+        var extension = Path.GetExtension(affectedUri.AbsolutePath);
+        return extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".webp", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
+                ? affectedUri.ToString()
+                : null;
     }
 
     private async Task SaveReviewedValueAsync(WebsiteHealthIssue issue)
