@@ -109,6 +109,7 @@ public static class DatabaseInitializer
             ("canonical-quality", "Canonical URL quality", "Discoverability", null, 5),
             ("indexability", "Search indexability", "Discoverability", null, 7),
             ("schema", "Structured data", "Discoverability", null, 3),
+            ("schema-quality", "Structured data quality", "Discoverability", null, 4),
             ("key-page", "Catalog", "Availability", "/collections/all", 5),
             ("key-page", "Search", "Availability", "/search", 5),
             ("key-page", "Cart", "Availability", "/cart", 5)

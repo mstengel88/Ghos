@@ -518,6 +518,81 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void StructuredDataAnalysis_ParsesNestedTypesAndCountsMalformedBlocks()
+    {
+        var analysis = WebsiteHealthMonitorService.AnalyzeStructuredData(
+        [
+            """
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "offers": {
+                "@type": ["Offer", "AggregateOffer"]
+              }
+            }
+            """,
+            """{"@context":"https://schema.org","@type":"""
+        ]);
+
+        Assert.Equal(2, analysis.BlockCount);
+        Assert.Equal(1, analysis.ValidBlockCount);
+        Assert.Equal(1, analysis.InvalidBlockCount);
+        Assert.Contains("Product", analysis.SchemaTypes);
+        Assert.Contains("Offer", analysis.SchemaTypes);
+        Assert.Contains("AggregateOffer", analysis.SchemaTypes);
+    }
+
+    [Theory]
+    [InlineData(
+        "https://www.greenhillssupply.com/",
+        "Organization",
+        "WebSite")]
+    [InlineData(
+        "https://www.greenhillssupply.com/products/black-mulch",
+        "Offer",
+        "Product")]
+    [InlineData(
+        "https://www.greenhillssupply.com/blogs/news/mulch-guide",
+        "WebPage",
+        "Article")]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
+        "Organization",
+        null)]
+    public void StructuredDataAnalysis_RequiresOnlyPageAppropriateSchema(
+        string url,
+        string presentType,
+        string? expectedMissingType)
+    {
+        var missingType =
+            WebsiteHealthMonitorService.GetMissingExpectedSchemaType(
+                new Uri(url),
+                new HashSet<string>(
+                    [presentType],
+                    StringComparer.OrdinalIgnoreCase));
+
+        Assert.Equal(expectedMissingType, missingType);
+    }
+
+    [Fact]
+    public void SchemaQualityGuidance_SearchesThemeWithoutInventingAFile()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.SchemaQuality(
+                new Uri(
+                    "https://www.greenhillssupply.com/blogs/news/mulch-guide"),
+                0,
+                "Article");
+
+        Assert.Contains("Expected schema type: Article", recommendation.SuggestedValue);
+        Assert.Contains("search the entire theme", recommendation.FixLocation);
+        Assert.DoesNotContain(
+            "blog.liquid",
+            recommendation.FixLocation,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void WebsiteHealthIssueExport_IncludesComparisonAndShopifyFields()
     {
         var csv = WebsiteHealthIssueExportBuilder.BuildCsv(
