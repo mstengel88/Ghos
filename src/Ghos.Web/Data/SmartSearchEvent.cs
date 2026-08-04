@@ -29,6 +29,14 @@ public sealed class SmartSearchEvent
     [MaxLength(500)]
     public string? UnmatchedIntentSummary { get; set; }
 
+    [MaxLength(300)]
+    public string? CorrectedQuery { get; set; }
+
+    [MaxLength(500)]
+    public string? CorrectionSummary { get; set; }
+
+    public bool CorrectionApplied { get; set; }
+
     public DateTime SearchedAtUtc { get; set; } = DateTime.UtcNow;
 
     public Guid? SelectedProductId { get; set; }

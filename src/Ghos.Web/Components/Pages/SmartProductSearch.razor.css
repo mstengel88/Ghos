@@ -120,7 +120,7 @@
 .analytics-strip {
     margin-top: 12px;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 9px;
 }
 
@@ -148,6 +148,40 @@
     display: flex;
     justify-content: space-between;
     gap: 12px;
+}
+
+.correction-notice {
+    margin: 14px 0 4px;
+    padding: 12px 14px;
+    border: 1px solid var(--ghos-accent);
+    border-radius: 9px;
+    background: var(--ghos-accent-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.correction-notice div span,
+.correction-notice div strong {
+    display: block;
+}
+
+.correction-notice div span {
+    color: var(--ghos-accent-text);
+    font-size: .48rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+
+.correction-notice div strong {
+    margin-top: 3px;
+    font-size: .68rem;
+}
+
+.correction-notice small {
+    color: var(--ghos-text-muted);
+    font-size: .54rem;
 }
 
 .search-summary div span,
@@ -664,6 +698,11 @@
 
     .analytics-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .correction-notice {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .rule-builder {
