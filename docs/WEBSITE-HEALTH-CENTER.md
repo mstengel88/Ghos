@@ -31,6 +31,12 @@ each recommended change. Collection pagination variants are grouped into one
 base-collection metadata finding, so a manager is not asked to edit pages 2,
 3, and 5 independently.
 
+Administrators and Managers can copy a suggested value directly from the
+finding and select **Verify fix** after publishing the Shopify change. GHOS
+runs a fresh live check and reports whether that specific issue resolved or is
+still present. Verification uses the same single-run coordinator, timeouts,
+rate limits, and crawl boundaries as scheduled monitoring.
+
 Image accessibility checks distinguish a missing alt attribute from an
 intentional `alt=""`. Empty alt text is accepted for decorative images and for
 images inside links or buttons that already have an accessible name. Genuine
