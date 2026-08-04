@@ -298,6 +298,10 @@ public sealed class WebsiteHealthOperationsTests
             StringComparison.OrdinalIgnoreCase);
         Assert.InRange(recommendation.SuggestedValue.Length, 120, 155);
         Assert.EndsWith(".", recommendation.SuggestedValue);
+        Assert.DoesNotContain(
+            "our.",
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
         Assert.Contains(
             "condensed from the current live description",
             recommendation.Guidance);
@@ -334,6 +338,10 @@ public sealed class WebsiteHealthOperationsTests
         Assert.NotEqual(
             aggregate.SuggestedValue,
             mulch.SuggestedValue);
+        Assert.DoesNotEndWith(
+            "convenient.",
+            mulch.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
