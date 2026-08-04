@@ -120,14 +120,16 @@ public static class DatabaseInitializer
                 continue;
             }
 
-            site.Checks.Add(new WebsiteCheck
+            var check = new WebsiteCheck
             {
                 Key = definition.Item1,
                 DisplayName = definition.Item2,
                 Category = definition.Item3,
                 TargetPath = definition.Item4,
                 Weight = definition.Item5
-            });
+            };
+            site.Checks.Add(check);
+            dbContext.WebsiteChecks.Add(check);
         }
 
         await dbContext.SaveChangesAsync();
