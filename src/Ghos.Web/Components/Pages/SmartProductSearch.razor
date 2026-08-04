@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = GhosPolicies.Marketing)]
 @inject SmartProductSearchService SearchService
 @inject SmartSearchTuningService TuningService
+@inject SmartSearchMerchandisingService MerchandisingService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IAuthorizationService AuthorizationService
 
@@ -122,6 +123,13 @@
                         <span class="confidence @result.Confidence.ToLowerInvariant()">
                             @result.Confidence confidence
                         </span>
+                        @if (!string.IsNullOrWhiteSpace(
+                            result.MerchandisingLabel))
+                        {
+                            <span class="merchandising-badge">
+                                @result.MerchandisingLabel
+                            </span>
+                        }
                         @if (result.StartingPrice is not null)
                         {
                             <strong class="price">From @result.StartingPrice.Value.ToString("C")</strong>
@@ -142,12 +150,21 @@
                                         intent => intent.Split(':', 2)[1].Trim()))
                             </small>
                         }
-                        <a href="@result.ProductUrl"
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           @onclick="() => RecordSelectionAsync(result)">
-                            View live product ↗
-                        </a>
+                        <div class="product-actions">
+                            <a href="@result.ProductUrl"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               @onclick="() => RecordSelectionAsync(result)">
+                                View live product ↗
+                            </a>
+                            @if (CanTuneSearch)
+                            {
+                                <button type="button"
+                                        @onclick="() => PrepareMerchandising(result)">
+                                    Merchandise
+                                </button>
+                            }
+                        </div>
                     </div>
                 </article>
             }
@@ -301,6 +318,100 @@
                 }
             </div>
         }
+
+        <div class="merchandising-section" id="search-merchandising">
+            <div class="tuning-heading">
+                <div>
+                    <span class="panel-label">MERCHANDISING</span>
+                    <h3>Control ranking for an exact search</h3>
+                    <p>Pin or boost a product only when it already qualifies as an organic match.</p>
+                </div>
+                <strong>@MerchandisingRules.Count(rule => rule.IsActive) active rules</strong>
+            </div>
+
+            <div class="merchandising-builder">
+                <label>
+                    Exact customer search
+                    <input @bind="MerchandisingQuery"
+                           maxlength="120"
+                           placeholder="Example: driveway stone" />
+                </label>
+                <label>
+                    Product
+                    <select @bind="SelectedMerchandisingProductId">
+                        <option value="@Guid.Empty">Choose a product</option>
+                        @foreach (var product in ProductOptions)
+                        {
+                            <option value="@product.ProductId">
+                                @product.Title
+                            </option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Ranking action
+                    <select @bind="SelectedMerchandisingRuleType">
+                        <option value="@SmartSearchMerchandisingRuleTypes.Pin">
+                            Pin to top
+                        </option>
+                        <option value="@SmartSearchMerchandisingRuleTypes.Boost">
+                            Boost ranking
+                        </option>
+                    </select>
+                </label>
+                <button type="button"
+                        disabled="@(MerchandisingBusy ||
+                            MerchandisingQuery.Trim().Length < 2 ||
+                            SelectedMerchandisingProductId == Guid.Empty)"
+                        @onclick="AddMerchandisingRuleAsync">
+                    @(MerchandisingBusy ? "Saving…" : "Add ranking rule")
+                </button>
+            </div>
+            <p class="rule-help">
+                Rules match the complete normalized search phrase. They change ordering—not product confidence or confirmed attributes.
+            </p>
+
+            @if (!string.IsNullOrWhiteSpace(MerchandisingMessage))
+            {
+                <div class="tuning-message" role="status">
+                    @MerchandisingMessage
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(MerchandisingError))
+            {
+                <div class="search-alert" role="alert">
+                    @MerchandisingError
+                </div>
+            }
+
+            @if (MerchandisingRules.Count == 0)
+            {
+                <div class="empty-rules">
+                    No ranking rules yet. Organic relevance controls every result.
+                </div>
+            }
+            else
+            {
+                <div class="rule-list">
+                    @foreach (var rule in MerchandisingRules)
+                    {
+                        <div class="rule-row @(rule.IsActive ? "" : "inactive")">
+                            <div>
+                                <strong>@rule.QueryPhrase</strong>
+                                <span>→</span>
+                                <strong>@(rule.Product.ShopifyTitle ?? rule.Product.Name)</strong>
+                                <span class="rule-type">@RuleTypeLabel(rule.RuleType)</span>
+                            </div>
+                            <button type="button"
+                                    disabled="@MerchandisingBusy"
+                                    @onclick="() => ToggleMerchandisingRuleAsync(rule)">
+                                @(rule.IsActive ? "Disable" : "Enable")
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     </section>
 }
 
@@ -320,6 +431,8 @@
     private SmartProductSearchResponse? Response { get; set; }
     private SmartSearchAnalyticsSnapshot? Analytics { get; set; }
     private List<SmartSearchSynonymRule> Rules { get; set; } = [];
+    private List<SmartSearchMerchandisingRule> MerchandisingRules { get; set; } = [];
+    private List<SmartSearchProductOption> ProductOptions { get; set; } = [];
     private bool CanTuneSearch { get; set; }
     private string CurrentUserId { get; set; } = "";
     private string NewPhrase { get; set; } = "";
@@ -327,6 +440,13 @@
     private bool TuningBusy { get; set; }
     private string? TuningMessage { get; set; }
     private string? TuningError { get; set; }
+    private string MerchandisingQuery { get; set; } = "";
+    private Guid SelectedMerchandisingProductId { get; set; }
+    private string SelectedMerchandisingRuleType { get; set; } =
+        SmartSearchMerchandisingRuleTypes.Pin;
+    private bool MerchandisingBusy { get; set; }
+    private string? MerchandisingMessage { get; set; }
+    private string? MerchandisingError { get; set; }
 
     private int TotalMappingCount =>
         SmartSearchSynonymLibrary.SynonymMappingCount +
@@ -344,12 +464,26 @@
             GhosPolicies.Management)).Succeeded;
         if (CanTuneSearch)
         {
-            await LoadRulesAsync();
+            await LoadManagementDataAsync();
         }
     }
 
     private async Task LoadRulesAsync() =>
         Rules = (await TuningService.GetRulesAsync()).ToList();
+
+    private async Task LoadManagementDataAsync()
+    {
+        var synonymTask = TuningService.GetRulesAsync();
+        var merchandisingTask = MerchandisingService.GetRulesAsync();
+        var productsTask = MerchandisingService.GetProductOptionsAsync();
+        await Task.WhenAll(
+            synonymTask,
+            merchandisingTask,
+            productsTask);
+        Rules = synonymTask.Result.ToList();
+        MerchandisingRules = merchandisingTask.Result.ToList();
+        ProductOptions = productsTask.Result.ToList();
+    }
 
     private async Task HandleKeyDownAsync(KeyboardEventArgs eventArgs)
     {
@@ -472,6 +606,107 @@
             TuningBusy = false;
         }
     }
+
+    private void PrepareMerchandising(
+        SmartProductSearchResult result)
+    {
+        MerchandisingQuery = Query.Trim();
+        SelectedMerchandisingProductId = result.ProductId;
+        SelectedMerchandisingRuleType =
+            SmartSearchMerchandisingRuleTypes.Pin;
+        MerchandisingMessage = null;
+        MerchandisingError = null;
+    }
+
+    private async Task AddMerchandisingRuleAsync()
+    {
+        if (!CanTuneSearch || MerchandisingBusy)
+        {
+            return;
+        }
+
+        MerchandisingBusy = true;
+        MerchandisingMessage = null;
+        MerchandisingError = null;
+        try
+        {
+            var added =
+                await MerchandisingService.AddRuleAsync(
+                    MerchandisingQuery,
+                    SelectedMerchandisingProductId,
+                    SelectedMerchandisingRuleType,
+                    CurrentUserId);
+            var product = ProductOptions.Single(item =>
+                item.ProductId == added.ProductId);
+            MerchandisingMessage =
+                $"{product.Title} will be {RuleTypePastTense(added.RuleType)} " +
+                $"for the exact search “{added.QueryPhrase}” when it is an organic match.";
+            MerchandisingQuery = "";
+            SelectedMerchandisingProductId = Guid.Empty;
+            await LoadManagementDataAsync();
+        }
+        catch (ValidationException exception)
+        {
+            MerchandisingError = exception.Message;
+        }
+        catch
+        {
+            MerchandisingError =
+                "GHOS could not save this ranking rule. Try again.";
+        }
+        finally
+        {
+            MerchandisingBusy = false;
+        }
+    }
+
+    private async Task ToggleMerchandisingRuleAsync(
+        SmartSearchMerchandisingRule rule)
+    {
+        if (!CanTuneSearch || MerchandisingBusy)
+        {
+            return;
+        }
+
+        MerchandisingBusy = true;
+        MerchandisingMessage = null;
+        MerchandisingError = null;
+        try
+        {
+            if (!await MerchandisingService.SetActiveAsync(
+                rule.Id,
+                !rule.IsActive))
+            {
+                MerchandisingError =
+                    "That ranking rule no longer exists.";
+                return;
+            }
+
+            MerchandisingMessage =
+                $"Ranking rule “{rule.QueryPhrase}” was " +
+                $"{(rule.IsActive ? "disabled" : "enabled")}.";
+            await LoadManagementDataAsync();
+        }
+        catch
+        {
+            MerchandisingError =
+                "GHOS could not update this ranking rule. Try again.";
+        }
+        finally
+        {
+            MerchandisingBusy = false;
+        }
+    }
+
+    private static string RuleTypeLabel(string ruleType) =>
+        ruleType == SmartSearchMerchandisingRuleTypes.Pin
+            ? "Pinned to top"
+            : "Ranking boosted";
+
+    private static string RuleTypePastTense(string ruleType) =>
+        ruleType == SmartSearchMerchandisingRuleTypes.Pin
+            ? "pinned to the top"
+            : "boosted";
 
     private async Task RecordSelectionAsync(
         SmartProductSearchResult result)

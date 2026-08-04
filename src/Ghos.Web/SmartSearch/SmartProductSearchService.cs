@@ -15,7 +15,10 @@ public sealed record SmartProductSearchResult(
     string Confidence,
     IReadOnlyList<string> MatchedIntents,
     IReadOnlyList<string> UnmatchedIntents,
-    IReadOnlyList<string> MatchReasons);
+    IReadOnlyList<string> MatchReasons,
+    string? MerchandisingLabel,
+    int MerchandisingBoost,
+    int? PinnedPosition);
 
 public sealed record SmartProductSearchResponse(
     Guid? SearchEventId,
@@ -50,6 +53,16 @@ public sealed class SmartProductSearchService(
             return Empty(plan, customSynonyms.Count);
         }
 
+        var merchandisingRules =
+            await dbContext.SmartSearchMerchandisingRules
+                .AsNoTracking()
+                .Where(rule =>
+                    rule.IsActive &&
+                    rule.NormalizedQueryPhrase ==
+                        plan.NormalizedQuery)
+                .ToDictionaryAsync(
+                    rule => rule.ProductId,
+                    cancellationToken);
         var products = await dbContext.Products
             .AsNoTracking()
             .Include(product => product.ProductCategory)
@@ -65,7 +78,14 @@ public sealed class SmartProductSearchService(
         var results = products
             .Select(product => Score(product, plan))
             .Where(result => result.Score > 0)
-            .OrderByDescending(result => result.Score)
+            .Select(result => ApplyMerchandising(
+                result,
+                merchandisingRules.GetValueOrDefault(
+                    result.ProductId)))
+            .OrderBy(result =>
+                result.PinnedPosition ?? int.MaxValue)
+            .ThenByDescending(result =>
+                result.Score + result.MerchandisingBoost)
             .ThenBy(result => result.Title)
             .Take(Math.Clamp(limit, 1, 24))
             .ToList();
@@ -311,7 +331,41 @@ public sealed class SmartProductSearchService(
             GetConfidence(plan.IntentMatches.Count, matchedIntents.Count, score),
             matchedIntents,
             unmatchedIntents,
-            reasons.Take(3).ToList());
+            reasons.Take(3).ToList(),
+            null,
+            0,
+            null);
+    }
+
+    internal static SmartProductSearchResult ApplyMerchandising(
+        SmartProductSearchResult result,
+        SmartSearchMerchandisingRule? rule)
+    {
+        if (rule is null)
+        {
+            return result;
+        }
+
+        return string.Equals(
+            rule.RuleType,
+            SmartSearchMerchandisingRuleTypes.Pin,
+            StringComparison.Ordinal)
+            ? result with
+            {
+                MerchandisingLabel = "Pinned for this search",
+                PinnedPosition = Math.Clamp(
+                    rule.PinPosition,
+                    1,
+                    24)
+            }
+            : result with
+            {
+                MerchandisingLabel = "Ranking boosted",
+                MerchandisingBoost = Math.Clamp(
+                    rule.BoostPoints,
+                    1,
+                    500)
+            };
     }
 
     internal static IReadOnlyList<string> EvaluateIntentMatches(

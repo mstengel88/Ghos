@@ -91,6 +91,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<SmartSearchSynonymRule> SmartSearchSynonymRules =>
         Set<SmartSearchSynonymRule>();
 
+    public DbSet<SmartSearchMerchandisingRule>
+        SmartSearchMerchandisingRules =>
+            Set<SmartSearchMerchandisingRule>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -454,6 +458,21 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 item.NormalizedExpansion
             }).IsUnique();
             rule.HasIndex(item => item.IsActive);
+        });
+
+        builder.Entity<SmartSearchMerchandisingRule>(rule =>
+        {
+            rule.HasIndex(item => new
+            {
+                item.NormalizedQueryPhrase,
+                item.ProductId
+            }).IsUnique();
+            rule.HasIndex(item => item.IsActive);
+            rule.HasIndex(item => item.ProductId);
+            rule.HasOne(item => item.Product)
+                .WithMany()
+                .HasForeignKey(item => item.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<ProductMaterialProfile>(profile =>
