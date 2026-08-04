@@ -16,6 +16,18 @@ globalThis.ghos = {
         document.execCommand("copy");
         input.remove();
     },
+    downloadText: (filename, value, contentType = "text/plain;charset=utf-8") => {
+        const blob = new Blob([String(value ?? "")], { type: contentType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = String(filename || "download.txt");
+        link.style.display = "none";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+    },
     quoteAddressAutocomplete: (() => {
         let googlePlacesPromise = null;
         const instances = new Map();

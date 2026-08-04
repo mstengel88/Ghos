@@ -278,6 +278,52 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void WebsiteHealthIssueExport_IncludesComparisonAndShopifyFields()
+    {
+        var csv = WebsiteHealthIssueExportBuilder.BuildCsv(
+        [
+            new WebsiteHealthIssue
+            {
+                CheckKey = "meta-description-length",
+                Severity = WebsiteHealthIssueSeverity.Warning,
+                AffectedUrl =
+                    "https://www.greenhillssupply.com/collections/mulch",
+                CurrentValue = "A long current description.",
+                SuggestedValue = "A tailored mulch description.",
+                FixLocation = "Shopify Admin → Products → Collections",
+                FixDocumentationUrl =
+                    "https://help.shopify.com/collections",
+                TriageNote = "Review with marketing."
+            }
+        ]);
+
+        Assert.StartsWith("\uFEFF", csv);
+        Assert.Contains("\"Meta description length\"", csv);
+        Assert.Contains("\"A long current description.\"", csv);
+        Assert.Contains("\"27\"", csv);
+        Assert.Contains("\"A tailored mulch description.\"", csv);
+        Assert.Contains("\"Shopify Admin → Products → Collections\"", csv);
+        Assert.Contains("\"Review with marketing.\"", csv);
+    }
+
+    [Fact]
+    public void WebsiteHealthIssueExport_NeutralizesSpreadsheetFormulas()
+    {
+        var csv = WebsiteHealthIssueExportBuilder.BuildCsv(
+        [
+            new WebsiteHealthIssue
+            {
+                CheckKey = "meta-description",
+                SuggestedValue = "=HYPERLINK(\"https://example.com\")"
+            }
+        ]);
+
+        Assert.Contains(
+            "\"'=HYPERLINK(\"\"https://example.com\"\")\"",
+            csv);
+    }
+
+    [Fact]
     public void MetaDescriptionLength_CondensesTheCurrentLiveCollectionCopy()
     {
         const string current =
