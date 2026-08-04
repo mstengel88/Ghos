@@ -363,6 +363,11 @@ internal static class WebsiteHealthRecommendationBuilder
             return "Shopify Admin → Online Store → Pages → open the page matching this URL → edit the content image; if the image comes from a theme section, Online Store → Themes → Customize → open this page template → select the image section";
         }
 
+        if (path is "" or "/")
+        {
+            return "Shopify Admin → Online Store → Themes → Customize → Home page → open the Slideshow or Collection tabs section → select the affected slide/block and its image. If the section has no alt-text field, open Content → Files → search for the filename shown in GHOS → open the image → edit its alt text";
+        }
+
         return "Shopify Admin → Online Store → Themes → Customize → open the affected page/template → select the section containing this image; for product media, use Products → open the product → Media → select the image → Edit alt text";
     }
 

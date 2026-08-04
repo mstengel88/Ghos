@@ -266,6 +266,29 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void ImageAltQuality_PointsHomepageImagesToRealShopifySections()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.ImageAltQuality(
+                new Uri("https://www.greenhillssupply.com/"),
+                "Green Hills Supply",
+                "Green Hills Supply",
+                "Green Hills Supply",
+                [
+                    new WebsiteHealthImage(
+                        "https://cdn.example.com/hero.jpg",
+                        "Green Hills Supply",
+                        "Decorative Stone")
+                ],
+                true);
+
+        Assert.Contains("Home page", recommendation.FixLocation);
+        Assert.Contains("Slideshow", recommendation.FixLocation);
+        Assert.Contains("Collection tabs", recommendation.FixLocation);
+        Assert.Contains("Content → Files", recommendation.FixLocation);
+    }
+
+    [Fact]
     public async Task ImageContext_UsesLinkedCollectionBeforeNavigationText()
     {
         var document = await new HtmlParser().ParseDocumentAsync(
