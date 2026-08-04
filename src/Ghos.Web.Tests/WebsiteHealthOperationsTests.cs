@@ -277,6 +277,65 @@ public sealed class WebsiteHealthOperationsTests
         Assert.Null(documentation);
     }
 
+    [Fact]
+    public void MetaDescriptionLength_CondensesTheCurrentLiveCollectionCopy()
+    {
+        const string current =
+            "Our aggregate materials provide the strong, stable foundation your project demands. From crushed limestone and gravel to base and drainage stone, our aggregates are ideal for driveways, concrete prep, utility work, compaction, and structural fill. Available in bulk for pickup or delivery, we supply consistent, high-quality materials.";
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/aggregate"),
+                "Aggregate",
+                "Aggregate",
+                null,
+                current);
+
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.Contains(
+            "crushed limestone",
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.InRange(recommendation.SuggestedValue.Length, 120, 155);
+        Assert.EndsWith(".", recommendation.SuggestedValue);
+        Assert.Contains(
+            "condensed from the current live description",
+            recommendation.Guidance);
+    }
+
+    [Fact]
+    public void MetaDescriptionLength_ProducesDistinctCollectionSpecificCopy()
+    {
+        var aggregate =
+            WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/aggregate"),
+                "Aggregate",
+                "Aggregate",
+                null,
+                "Build reliable driveways and project bases with crushed limestone, gravel, drainage stone, and compactable aggregate available for pickup or delivery throughout the region.");
+        var mulch =
+            WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/mulch"),
+                "Mulch",
+                "Mulch",
+                null,
+                "Finish planting beds with natural hardwood mulch, rich dark mulch, and long-lasting decorative options that retain moisture and give landscapes a polished appearance.");
+
+        Assert.Contains(
+            "crushed limestone",
+            aggregate.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "hardwood mulch",
+            mulch.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.NotEqual(
+            aggregate.SuggestedValue,
+            mulch.SuggestedValue);
+    }
+
     [Theory]
     [InlineData(
         "https://www.greenhillssupply.com/collections/all?page=2",

@@ -39,6 +39,12 @@ characters, and repeated whitespace. Paginated collection URLs are treated as
 one metadata target to prevent duplicate work. Each finding includes unique
 replacement wording and the correct Shopify editing surface.
 
+For an overlong meta description, GHOS condenses the page's current live copy
+instead of replacing it with a generic category template. The result preserves
+page-specific products, applications, and benefits, decodes HTML entities,
+ends on a word boundary, and remains within 155 characters. Short descriptions
+retain useful existing wording and add page-specific context.
+
 Blog-index metadata is managed through **Content → Blog posts → Manage blogs →
 open the blog → Search engine listing preview**, not through a presumed Liquid
 template. Individual blog posts continue to point to their own search engine
