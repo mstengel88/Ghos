@@ -183,11 +183,14 @@ public sealed class WebsiteHealthMonitorService(
                     "title",
                     "title-length",
                     "duplicate-title",
+                    "heading",
                     "meta-description",
                     "meta-description-length",
                     "duplicate-meta-description",
                     "image-alt",
                     "canonical",
+                    "canonical-quality",
+                    "indexability",
                     "schema"
                 ]);
             var queue = new Queue<Uri>();
@@ -588,6 +591,7 @@ public sealed class WebsiteHealthMonitorService(
             url,
             document.Title?.Trim(),
             document.QuerySelector("h1")?.TextContent?.Trim(),
+            document.QuerySelectorAll("h1").Length,
             introductoryText,
             document.QuerySelector("meta[name='description']")
                 ?.GetAttribute("content")?.Trim(),
@@ -595,8 +599,9 @@ public sealed class WebsiteHealthMonitorService(
                 ?.GetAttribute("href")?.Trim(),
             document.QuerySelectorAll("script[type='application/ld+json']").Length,
             document.QuerySelector("meta[name='robots']")
-                ?.GetAttribute("content")
-                ?.Contains(
+                ?.GetAttribute("content")?.Trim(),
+            document.QuerySelector("meta[name='robots']")
+                ?.GetAttribute("content")?.Contains(
                     "noindex",
                     StringComparison.OrdinalIgnoreCase) == true,
             missingImages,
@@ -878,6 +883,14 @@ public sealed class WebsiteHealthMonitorService(
                         page.Title));
             }
 
+            if (enabledCheckKeys.Contains("heading"))
+            {
+                AddHeadingObservation(
+                    page,
+                    observations,
+                    issues);
+            }
+
             if (enabledCheckKeys.Contains("meta-description") &&
                 !page.IsNoIndex)
             {
@@ -934,6 +947,24 @@ public sealed class WebsiteHealthMonitorService(
                     recommendation:
                         WebsiteHealthRecommendationBuilder.MissingCanonical(
                             page.Url));
+            }
+
+            if (enabledCheckKeys.Contains("canonical-quality") &&
+                !string.IsNullOrWhiteSpace(page.Canonical))
+            {
+                AddCanonicalQualityObservation(
+                    page,
+                    observations,
+                    issues);
+            }
+
+            if (enabledCheckKeys.Contains("indexability") &&
+                !WebsiteHealthRecommendationBuilder.IsUtilityPage(page.Url))
+            {
+                AddIndexabilityObservation(
+                    page,
+                    observations,
+                    issues);
             }
 
             if (enabledCheckKeys.Contains("schema"))
@@ -1017,6 +1048,153 @@ public sealed class WebsiteHealthMonitorService(
                 observations,
                 issues);
         }
+    }
+
+    private static void AddHeadingObservation(
+        PageSnapshot page,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var healthy = page.HeadingCount == 1 &&
+            !string.IsNullOrWhiteSpace(page.Heading);
+        observations.Add(new Observation(
+            "heading",
+            "Primary page heading",
+            "Content",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            (decimal)page.HeadingCount,
+            "H1 headings",
+            page.Url.ToString(),
+            healthy
+                ? $"One H1 heading: {page.Heading}"
+                : page.HeadingCount == 0
+                    ? "No H1 heading was detected."
+                    : $"{page.HeadingCount} H1 headings were detected."));
+        if (healthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            "heading",
+            page.HeadingCount == 0
+                ? "Missing primary page heading"
+                : "Multiple primary page headings",
+            page.HeadingCount == 0
+                ? "Search engines and customers need one visible heading that clearly identifies this page."
+                : $"This page contains {page.HeadingCount} H1 headings. Keep one primary heading and change the others to H2 or H3.",
+            page.Url.ToString(),
+            WebsiteHealthIssueSeverity.Warning,
+            WebsiteHealthRecommendationBuilder.HeadingStructure(
+                page.Url,
+                page.Title,
+                page.Heading,
+                page.HeadingCount)));
+    }
+
+    private static void AddCanonicalQualityObservation(
+        PageSnapshot page,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var healthy = IsCanonicalHealthy(
+            page.Url,
+            page.Canonical);
+        observations.Add(new Observation(
+            "canonical-quality",
+            "Canonical URL quality",
+            "Discoverability",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            healthy ? 0m : 1m,
+            "issue",
+            page.Url.ToString(),
+            healthy
+                ? "Canonical URL is absolute, secure, and points to this page."
+                : $"Canonical value needs review: {page.Canonical}"));
+        if (healthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            "canonical-quality",
+            "Canonical URL needs improvement",
+            "The canonical should use HTTPS, stay on the production domain, omit tracking parameters and fragments, and identify this page.",
+            page.Url.ToString(),
+            WebsiteHealthIssueSeverity.Warning,
+            WebsiteHealthRecommendationBuilder.CanonicalQuality(
+                page.Url,
+                page.Canonical!)));
+    }
+
+    private static void AddIndexabilityObservation(
+        PageSnapshot page,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var healthy = !page.IsNoIndex;
+        observations.Add(new Observation(
+            "indexability",
+            "Search indexability",
+            "Discoverability",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Failed,
+            healthy ? 1m : 0m,
+            "indexable",
+            page.Url.ToString(),
+            healthy
+                ? "No noindex directive was detected."
+                : $"The page is blocked by: {page.RobotsDirective}"));
+        if (healthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            "indexability",
+            "Search indexing is blocked",
+            "This public storefront page contains a noindex directive, so search engines are being told not to include it in results.",
+            page.Url.ToString(),
+            WebsiteHealthIssueSeverity.Critical,
+            WebsiteHealthRecommendationBuilder.SearchIndexability(
+                page.Url,
+                page.RobotsDirective)));
+    }
+
+    internal static bool IsCanonicalHealthy(
+        Uri pageUrl,
+        string? canonical)
+    {
+        if (!Uri.TryCreate(canonical, UriKind.Absolute, out var target) ||
+            !target.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) ||
+            !target.Host.Equals(
+                pageUrl.Host,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrEmpty(target.Fragment))
+        {
+            return false;
+        }
+
+        var targetPath = target.AbsolutePath.TrimEnd('/');
+        var pagePath = pageUrl.AbsolutePath.TrimEnd('/');
+        if (!targetPath.Equals(pagePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return !target.Query.Split(
+                ['?', '&'],
+                StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2)[0])
+            .Any(key =>
+                key.StartsWith("utm_", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("gclid", StringComparison.OrdinalIgnoreCase) ||
+                key.Equals("fbclid", StringComparison.OrdinalIgnoreCase));
     }
 
     private static void AddMetadataLengthObservation(
@@ -1549,10 +1727,12 @@ public sealed class WebsiteHealthMonitorService(
         Uri Url,
         string? Title,
         string? Heading,
+        int HeadingCount,
         string? IntroductoryText,
         string? MetaDescription,
         string? Canonical,
         int SchemaBlockCount,
+        string? RobotsDirective,
         bool IsNoIndex,
         IReadOnlyList<WebsiteHealthMissingImage> MissingImages,
         IReadOnlySet<Uri> InternalLinks);

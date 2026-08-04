@@ -61,6 +61,27 @@ internal static class WebsiteHealthRecommendationBuilder
             GetShopifySeoDocumentation(url));
     }
 
+    internal static WebsiteHealthRecommendation HeadingStructure(
+        Uri url,
+        string? title,
+        string? heading,
+        int headingCount)
+    {
+        var topic = GetPageTopic(url, heading, title);
+        var guidance = headingCount == 0
+            ? "Add one visible H1 heading that names this page. The wording below is tailored from the current page title and URL; confirm it matches what customers see."
+            : $"Keep one H1 heading for “{topic}” and change the other {headingCount - 1} H1 heading{(headingCount == 2 ? "" : "s")} to H2 or H3. Do not hide duplicate headings with CSS.";
+        var suggestedValue = headingCount == 0
+            ? $"<h1>{WebUtility.HtmlEncode(topic)}</h1>"
+            : $"Keep as H1: \"{topic}\"\nChange the other {headingCount - 1} H1 heading{(headingCount == 2 ? "" : "s")} to H2 or H3.";
+
+        return new WebsiteHealthRecommendation(
+            guidance,
+            suggestedValue,
+            GetShopifyHeadingLocation(url),
+            "https://help.shopify.com/en/manual/online-store/themes/customizing-themes");
+    }
+
     internal static WebsiteHealthRecommendation MissingMetaDescription(
         Uri url,
         string? title,
@@ -146,6 +167,36 @@ internal static class WebsiteHealthRecommendationBuilder
             "Add a self-referencing canonical URL in the page head. Remove tracking and pagination parameters unless this page intentionally represents a distinct indexable result.",
             $"""<link rel="canonical" href="{WebUtility.HtmlEncode(canonical)}">""",
             "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head>");
+    }
+
+    internal static WebsiteHealthRecommendation CanonicalQuality(
+        Uri url,
+        string currentCanonical)
+    {
+        var canonical = url.GetLeftPart(UriPartial.Path).TrimEnd('/');
+        if (url.AbsolutePath == "/")
+        {
+            canonical += "/";
+        }
+
+        return new WebsiteHealthRecommendation(
+            "Replace the current canonical with the clean production URL shown below. Shopify normally generates this from canonical_url; remove hard-coded domain, tracking, or cross-page overrides that replace it.",
+            $"""<link rel="canonical" href="{WebUtility.HtmlEncode(canonical)}">""",
+            "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head>; search for canonical_url and rel=\"canonical\"",
+            "https://shopify.dev/docs/storefronts/themes/seo/metadata",
+            currentCanonical);
+    }
+
+    internal static WebsiteHealthRecommendation SearchIndexability(
+        Uri url,
+        string? currentDirective)
+    {
+        return new WebsiteHealthRecommendation(
+            "This page appears to be a public product, collection, article, or content page. Confirm it is active and published to the Online Store, then remove the noindex rule applying to it. A public Shopify page can use index,follow or omit the robots meta tag entirely.",
+            """<meta name="robots" content="index,follow">""",
+            GetShopifyIndexabilityLocation(url),
+            "https://help.shopify.com/en/manual/promoting-marketing/seo/hide-a-page-from-search-engines",
+            currentDirective);
     }
 
     internal static WebsiteHealthRecommendation MissingSchema(
@@ -438,6 +489,52 @@ internal static class WebsiteHealthRecommendationBuilder
             ? "Green Hills Supply | Landscape & Outdoor Materials"
             : $"{topic} | {BrandName}";
         return TruncateAtWord(title, 60);
+    }
+
+    private static string GetShopifyHeadingLocation(Uri url)
+    {
+        var path = url.AbsolutePath;
+        var contentArea = path.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase)
+            ? "the product template"
+            : path.StartsWith(
+                "/collections/",
+                StringComparison.OrdinalIgnoreCase)
+                ? "the collection template"
+                : path.StartsWith(
+                    "/blogs/",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "the blog or article template"
+                    : path.StartsWith(
+                        "/pages/",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "the page template"
+                        : "the home page template";
+        return $"Shopify Admin → Online Store → Themes → Customize → open {contentArea} → review heading sections; use Edit code only if the duplicate or missing H1 comes from the template";
+    }
+
+    private static string GetShopifyIndexabilityLocation(Uri url)
+    {
+        var path = url.AbsolutePath;
+        var resource = path.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase)
+            ? "Products → open this product → confirm Active and Online Store publishing"
+            : path.StartsWith(
+                "/collections/",
+                StringComparison.OrdinalIgnoreCase)
+                ? "Products → Collections → open this collection → confirm Online Store availability"
+                : path.StartsWith(
+                    "/blogs/",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "Content → Blog posts → open this article → confirm it is visible"
+                    : path.StartsWith(
+                        "/pages/",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "Online Store → Pages → open this page → confirm it is visible"
+                        : "Online Store → Themes → open the active theme";
+        return $"Shopify Admin → {resource}; if it is published, use Online Store → Themes → … → Edit code and search for noindex";
     }
 
     private static string GetPageTopic(
