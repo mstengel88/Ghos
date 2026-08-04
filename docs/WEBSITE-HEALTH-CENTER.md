@@ -51,6 +51,10 @@ The catalog recommendation instead explains how to create a separate smart
 collection titled **All** with the `/all` handle. Stores that do not use the
 catalog route can remove it from monitored key pages or suppress the finding.
 
+Supported Shopify remediation paths include a direct **Official Shopify
+instructions** link in the Issue Center. Theme-dependent or custom-code
+recommendations do not receive a documentation link.
+
 Administrators and Managers can copy a suggested value directly from the
 finding and select **Verify fix** after publishing the Shopify change. GHOS
 runs a fresh live check and reports whether that specific issue resolved or is
@@ -122,6 +126,7 @@ The migrations are:
 20260803232802_AddWebsiteHealthIssueTriage
 20260803234045_AddWebsiteHealthRecommendations
 20260804003828_AddWebsiteHealthFixLocations
+20260804011540_AddWebsiteHealthFixDocumentation
 ```
 
 To apply it explicitly from a machine with the .NET 10 SDK:

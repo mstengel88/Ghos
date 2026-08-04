@@ -240,6 +240,45 @@ public sealed class WebsiteHealthOperationsTests
 
     [Theory]
     [InlineData(
+        "https://www.greenhillssupply.com/",
+        "/promoting-marketing/seo/adding-keywords")]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/all",
+        "/change-catalog-page")]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
+        "/collections/make-collections-available")]
+    [InlineData(
+        "https://www.greenhillssupply.com/blogs/news",
+        "/blogs/adding-a-blog")]
+    [InlineData(
+        "https://www.greenhillssupply.com/blogs/news/mulch-guide",
+        "/working-with-blog-posts")]
+    public void GetShopifySeoDocumentation_UsesOfficialResourceDocumentation(
+        string url,
+        string expectedPath)
+    {
+        var documentation =
+            WebsiteHealthRecommendationBuilder.GetShopifySeoDocumentation(
+                new Uri(url));
+
+        Assert.NotNull(documentation);
+        Assert.StartsWith("https://help.shopify.com/", documentation);
+        Assert.Contains(expectedPath, documentation);
+    }
+
+    [Fact]
+    public void GetShopifySeoDocumentation_LeavesThemeDependentRoutesUnverified()
+    {
+        var documentation =
+            WebsiteHealthRecommendationBuilder.GetShopifySeoDocumentation(
+                new Uri("https://www.greenhillssupply.com/search"));
+
+        Assert.Null(documentation);
+    }
+
+    [Theory]
+    [InlineData(
         "https://www.greenhillssupply.com/collections/all?page=2",
         "https://www.greenhillssupply.com/collections/all")]
     [InlineData(

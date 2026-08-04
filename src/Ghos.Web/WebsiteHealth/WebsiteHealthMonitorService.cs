@@ -1457,6 +1457,9 @@ public sealed class WebsiteHealthMonitorService(
                     FixLocation = Truncate(
                         detected.Recommendation?.FixLocation,
                         1000),
+                    FixDocumentationUrl = Truncate(
+                        detected.Recommendation?.DocumentationUrl,
+                        1000),
                     Severity = detected.Severity,
                     FirstDetectedAtUtc = detectedAtUtc,
                     LastDetectedAtUtc = detectedAtUtc,
@@ -1475,6 +1478,9 @@ public sealed class WebsiteHealthMonitorService(
                     6000);
                 existing.FixLocation = Truncate(
                     detected.Recommendation?.FixLocation,
+                    1000);
+                existing.FixDocumentationUrl = Truncate(
+                    detected.Recommendation?.DocumentationUrl,
                     1000);
                 existing.Severity = detected.Severity;
                 existing.LastDetectedAtUtc = detectedAtUtc;

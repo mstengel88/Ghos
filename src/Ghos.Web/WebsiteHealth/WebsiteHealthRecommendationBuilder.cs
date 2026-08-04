@@ -7,7 +7,8 @@ namespace Ghos.Web.WebsiteHealth;
 internal sealed record WebsiteHealthRecommendation(
     string Guidance,
     string? SuggestedValue,
-    string? FixLocation = null);
+    string? FixLocation = null,
+    string? DocumentationUrl = null);
 
 internal sealed record WebsiteHealthMissingImage(
     string? Source,
@@ -25,7 +26,8 @@ internal static class WebsiteHealthRecommendationBuilder
         return new WebsiteHealthRecommendation(
             "Add one concise, unique HTML title that leads with the page topic and ends with the Green Hills Supply brand. Keep it near 50–60 characters and avoid repeating the same title on other pages.",
             BuildTitle(url, heading),
-            GetShopifySeoLocation(url));
+            GetShopifySeoLocation(url),
+            GetShopifySeoDocumentation(url));
     }
 
     internal static WebsiteHealthRecommendation TitleLength(
@@ -39,7 +41,8 @@ internal static class WebsiteHealthRecommendationBuilder
         return new WebsiteHealthRecommendation(
             $"{problem} Replace it with a unique title near 50–60 characters that leads with the page topic and ends with the Green Hills Supply brand.",
             BuildTitle(url, heading),
-            GetShopifySeoLocation(url));
+            GetShopifySeoLocation(url),
+            GetShopifySeoDocumentation(url));
     }
 
     internal static WebsiteHealthRecommendation DuplicateTitle(
@@ -50,7 +53,8 @@ internal static class WebsiteHealthRecommendationBuilder
         return new WebsiteHealthRecommendation(
             $"This title also appears on {matchingUrl.PathAndQuery}. Give this page a distinct title based on its own subject so search engines and customers can tell the pages apart.",
             BuildTitle(url, heading),
-            GetShopifySeoLocation(url));
+            GetShopifySeoLocation(url),
+            GetShopifySeoDocumentation(url));
     }
 
     internal static WebsiteHealthRecommendation MissingMetaDescription(
@@ -80,7 +84,8 @@ internal static class WebsiteHealthRecommendationBuilder
         return new WebsiteHealthRecommendation(
             guidance,
             description,
-            GetShopifySeoLocation(url));
+            GetShopifySeoLocation(url),
+            GetShopifySeoDocumentation(url));
     }
 
     internal static WebsiteHealthRecommendation MetaDescriptionLength(
@@ -99,7 +104,8 @@ internal static class WebsiteHealthRecommendationBuilder
                 url,
                 GetPageTopic(url, heading, title),
                 introductoryText),
-            GetShopifySeoLocation(url));
+            GetShopifySeoLocation(url),
+            GetShopifySeoDocumentation(url));
     }
 
     internal static WebsiteHealthRecommendation DuplicateMetaDescription(
@@ -115,7 +121,8 @@ internal static class WebsiteHealthRecommendationBuilder
                 url,
                 GetPageTopic(url, heading, title),
                 introductoryText),
-            GetShopifySeoLocation(url));
+            GetShopifySeoLocation(url),
+            GetShopifySeoDocumentation(url));
     }
 
     internal static WebsiteHealthRecommendation MissingCanonical(Uri url)
@@ -199,7 +206,8 @@ internal static class WebsiteHealthRecommendationBuilder
         return new WebsiteHealthRecommendation(
             "Give each meaningful image short alt text describing what the customer needs to understand. Use alt=\"\" only for genuinely decorative images, and avoid phrases such as “image of” or keyword stuffing.",
             string.Join(Environment.NewLine, suggestions),
-            "Shopify Admin → open the product, collection, page, or theme section that owns this image → edit the image alt text");
+            "Shopify Admin → open the product, collection, page, or theme section that owns this image → edit the image alt text",
+            "https://help.shopify.com/en/manual/products/product-media/add-alt-text");
     }
 
     internal static WebsiteHealthRecommendation BrokenLink(
@@ -521,6 +529,62 @@ internal static class WebsiteHealthRecommendationBuilder
         }
 
         return "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head>";
+    }
+
+    internal static string? GetShopifySeoDocumentation(Uri url)
+    {
+        var path = url.AbsolutePath.TrimEnd('/');
+        if (path.Length == 0)
+        {
+            return "https://help.shopify.com/en/manual/promoting-marketing/seo/adding-keywords";
+        }
+
+        if (path.Equals(
+            "/collections/all",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "https://help.shopify.com/en/manual/online-store/themes/customizing-themes/common-customizations/change-catalog-page";
+        }
+
+        if (path.StartsWith(
+            "/collections/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "https://help.shopify.com/en/manual/products/collections/make-collections-available";
+        }
+
+        if (path.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return "https://help.shopify.com/en/manual/products/add-update-products";
+        }
+
+        var segments = path.Split(
+            '/',
+            StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 2 &&
+            segments[0].Equals(
+                "blogs",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "https://help.shopify.com/en/manual/online-store/blogs/adding-a-blog";
+        }
+
+        if (segments.Length >= 3 &&
+            segments[0].Equals(
+                "blogs",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return "https://help.shopify.com/en/manual/online-store/blogs/writing-blogs/working-with-blog-posts";
+        }
+
+        if (path.StartsWith("/pages/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "https://help.shopify.com/en/manual/online-store/add-edit-pages";
+        }
+
+        return null;
     }
 
     private static bool LooksGeneric(string value)
