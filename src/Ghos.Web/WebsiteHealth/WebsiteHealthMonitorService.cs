@@ -31,6 +31,16 @@ internal sealed record SitemapAnalysis(
     int ExternalLocationCount,
     string? Error);
 
+internal sealed record SecurityHeaderAnalysis(
+    bool HasStrictTransportSecurity,
+    bool HasContentTypeProtection,
+    bool HasFramingProtection,
+    bool HasContentSecurityPolicy,
+    IReadOnlyList<string> MissingHeaders)
+{
+    internal bool IsHealthy => MissingHeaders.Count == 0;
+}
+
 public sealed class WebsiteHealthMonitorService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
     HttpClient httpClient,
@@ -102,6 +112,15 @@ public sealed class WebsiteHealthMonitorService(
             if (enabledCheckKeys.Contains("redirect-chain"))
             {
                 AddRedirectObservation(
+                    baseUri,
+                    homepage,
+                    observations,
+                    issues);
+            }
+
+            if (enabledCheckKeys.Contains("security-headers"))
+            {
+                AddSecurityHeaderObservation(
                     baseUri,
                     homepage,
                     observations,
@@ -571,6 +590,17 @@ public sealed class WebsiteHealthMonitorService(
                         response.Content,
                         timeout.Token)
                     : string.Empty;
+                var headers = response.Headers
+                    .Concat(response.Content.Headers)
+                    .GroupBy(
+                        header => header.Key,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => string.Join(
+                            ", ",
+                            group.SelectMany(header => header.Value)),
+                        StringComparer.OrdinalIgnoreCase);
                 return new FetchSnapshot(
                     (int)response.StatusCode,
                     response.IsSuccessStatusCode,
@@ -581,7 +611,8 @@ public sealed class WebsiteHealthMonitorService(
                     content,
                     null,
                     currentTarget,
-                    redirectCount);
+                    redirectCount,
+                    headers);
             }
 
             stopwatch.Stop();
@@ -1505,6 +1536,115 @@ public sealed class WebsiteHealthMonitorService(
                     asset.Pages,
                     snapshot.StatusCode)));
         }
+    }
+
+    private static void AddSecurityHeaderObservation(
+        Uri pageUrl,
+        FetchSnapshot snapshot,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var analysis = AnalyzeSecurityHeaders(
+            snapshot.Headers ??
+            new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase));
+        observations.Add(new Observation(
+            "security-headers",
+            "Storefront security headers",
+            "Security",
+            analysis.IsHealthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            (decimal)analysis.MissingHeaders.Count,
+            "missing protections",
+            pageUrl.ToString(),
+            analysis.IsHealthy
+                ? "HTTPS enforcement, MIME-sniffing protection, framing protection, and Content Security Policy are present."
+                : $"Missing or invalid: {string.Join(", ", analysis.MissingHeaders)}."));
+        if (analysis.IsHealthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            "security-headers",
+            "Storefront security headers need review",
+            $"Missing or invalid: {string.Join(", ", analysis.MissingHeaders)}.",
+            pageUrl.ToString(),
+            !analysis.HasStrictTransportSecurity ||
+                !analysis.HasFramingProtection
+                ? WebsiteHealthIssueSeverity.Critical
+                : WebsiteHealthIssueSeverity.Warning,
+            WebsiteHealthRecommendationBuilder.SecurityHeaders(
+                pageUrl,
+                analysis.MissingHeaders)));
+    }
+
+    internal static SecurityHeaderAnalysis AnalyzeSecurityHeaders(
+        IReadOnlyDictionary<string, string> headers)
+    {
+        string? GetHeader(string name) =>
+            headers.FirstOrDefault(header =>
+                header.Key.Equals(
+                    name,
+                    StringComparison.OrdinalIgnoreCase)).Value;
+
+        var strictTransportSecurity =
+            GetHeader("Strict-Transport-Security");
+        var contentTypeOptions =
+            GetHeader("X-Content-Type-Options");
+        var frameOptions = GetHeader("X-Frame-Options");
+        var contentSecurityPolicy =
+            GetHeader("Content-Security-Policy");
+        var hasStrictTransportSecurity =
+            !string.IsNullOrWhiteSpace(strictTransportSecurity) &&
+            Regex.IsMatch(
+                strictTransportSecurity,
+                @"(?:^|;)\s*max-age\s*=\s*[1-9]\d*",
+                RegexOptions.IgnoreCase);
+        var hasContentTypeProtection =
+            contentTypeOptions?.Contains(
+                "nosniff",
+                StringComparison.OrdinalIgnoreCase) == true;
+        var hasContentSecurityPolicy =
+            !string.IsNullOrWhiteSpace(contentSecurityPolicy);
+        var hasFramingProtection =
+            frameOptions?.Contains(
+                "DENY",
+                StringComparison.OrdinalIgnoreCase) == true ||
+            frameOptions?.Contains(
+                "SAMEORIGIN",
+                StringComparison.OrdinalIgnoreCase) == true ||
+            contentSecurityPolicy?.Contains(
+                "frame-ancestors",
+                StringComparison.OrdinalIgnoreCase) == true;
+        var missing = new List<string>();
+        if (!hasStrictTransportSecurity)
+        {
+            missing.Add("Strict-Transport-Security");
+        }
+
+        if (!hasContentTypeProtection)
+        {
+            missing.Add("X-Content-Type-Options: nosniff");
+        }
+
+        if (!hasFramingProtection)
+        {
+            missing.Add("framing protection");
+        }
+
+        if (!hasContentSecurityPolicy)
+        {
+            missing.Add("Content-Security-Policy");
+        }
+
+        return new SecurityHeaderAnalysis(
+            hasStrictTransportSecurity,
+            hasContentTypeProtection,
+            hasFramingProtection,
+            hasContentSecurityPolicy,
+            missing);
     }
 
     private static void AddContentObservations(
@@ -2867,7 +3007,8 @@ public sealed class WebsiteHealthMonitorService(
         string Content,
         string? Error,
         Uri? FinalUri = null,
-        int RedirectCount = 0);
+        int RedirectCount = 0,
+        IReadOnlyDictionary<string, string>? Headers = null);
 
     private sealed record PageSnapshot(
         Uri Url,

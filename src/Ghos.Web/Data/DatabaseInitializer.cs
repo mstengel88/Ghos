@@ -94,6 +94,7 @@ public static class DatabaseInitializer
             ("homepage", "Homepage availability", "Availability", (string?)null, 10),
             ("response-time", "Homepage response time", "Availability", null, 5),
             ("ssl", "SSL certificate", "Security", null, 10),
+            ("security-headers", "Storefront security headers", "Security", null, 6),
             ("robots", "robots.txt", "Discoverability", "/robots.txt", 4),
             ("robots-quality", "robots.txt quality", "Discoverability", "/robots.txt", 4),
             ("sitemap", "Sitemap", "Discoverability", "/sitemap.xml", 6),

@@ -57,6 +57,12 @@ keeps the same HTTPS path. Multi-hop chains, cross-domain destinations, and
 single redirects to another path are reported with the final replacement URL
 and Shopify navigation/URL-redirect locations.
 
+The homepage security-header check verifies active HSTS, MIME-sniffing
+protection, framing protection through X-Frame-Options or CSP, and the presence
+of a Content Security Policy. Findings point to Shopify domain status and
+Cloudflare response-header rules because these protections are delivered by the
+platform/CDN; GHOS never recommends pasting HTTP headers into Liquid markup.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,
