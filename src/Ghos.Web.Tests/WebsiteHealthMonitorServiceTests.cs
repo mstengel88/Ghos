@@ -128,6 +128,59 @@ public sealed class WebsiteHealthMonitorServiceTests
     }
 
     [Fact]
+    public void ParseSitemapDocument_ExtractsShopifyCustomerPages()
+    {
+        const string sitemap =
+            """
+            <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <url>
+                <loc>https://example.com/products/alpine-stone</loc>
+              </url>
+              <url>
+                <loc>https://example.com/collections/mulch</loc>
+              </url>
+            </urlset>
+            """;
+
+        var document =
+            WebsiteHealthMonitorService.ParseSitemapDocument(sitemap);
+
+        Assert.True(document.IsValidXml);
+        Assert.Equal("urlset", document.RootName);
+        Assert.Equal(
+            [
+                "https://example.com/products/alpine-stone",
+                "https://example.com/collections/mulch"
+            ],
+            document.Locations);
+    }
+
+    [Fact]
+    public void OrderCrawlTargets_PrioritizesUnvisitedProducts()
+    {
+        var previouslyChecked =
+            new Uri("https://example.com/products/alpine-stone");
+        var unseenProduct =
+            new Uri("https://example.com/products/american-heritage");
+        var unseenCollection =
+            new Uri("https://example.com/collections/mulch");
+        var lastEvaluated = new Dictionary<string, DateTime>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [WebsiteHealthMonitorService.NormalizeUrl(previouslyChecked)] =
+                DateTime.UtcNow
+        };
+
+        var ordered = WebsiteHealthMonitorService.OrderCrawlTargets(
+            [previouslyChecked, unseenCollection, unseenProduct],
+            lastEvaluated);
+
+        Assert.Equal(unseenProduct, ordered[0]);
+        Assert.Equal(previouslyChecked, ordered[1]);
+        Assert.Equal(unseenCollection, ordered[2]);
+    }
+
+    [Fact]
     public void NormalizeUrl_RemovesFragmentAndTrailingSlash()
     {
         var normalized = WebsiteHealthMonitorService.NormalizeUrl(

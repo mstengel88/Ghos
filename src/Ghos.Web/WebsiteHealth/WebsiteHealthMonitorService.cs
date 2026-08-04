@@ -41,6 +41,12 @@ internal sealed record SitemapAnalysis(
     int ExternalLocationCount,
     string? Error);
 
+internal sealed record SitemapDocumentAnalysis(
+    bool IsValidXml,
+    string? RootName,
+    IReadOnlyList<string> Locations,
+    string? Error);
+
 internal sealed record SecurityHeaderAnalysis(
     bool HasStrictTransportSecurity,
     bool HasContentTypeProtection,
@@ -91,10 +97,31 @@ public sealed class WebsiteHealthMonitorService(
                 .Where(check => check.IsEnabled)
                 .Select(check => check.Key)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var crawlEnabled = enabledCheckKeys.Overlaps(
+                [
+                    "internal-link",
+                    "redirect-chain",
+                    "title",
+                    "title-length",
+                    "duplicate-title",
+                    "heading",
+                    "meta-description",
+                    "meta-description-length",
+                    "duplicate-meta-description",
+                    "image-alt",
+                    "image-availability",
+                    "canonical",
+                    "canonical-quality",
+                    "indexability",
+                    "schema",
+                    "schema-quality",
+                    "social-preview"
+                ]);
             var pages = new Dictionary<string, PageSnapshot>(
                 StringComparer.OrdinalIgnoreCase);
             var checkedUrls = new HashSet<string>(
                 StringComparer.OrdinalIgnoreCase);
+            FetchSnapshot? sitemapSnapshot = null;
 
             if (enabledCheckKeys.Contains("ssl"))
             {
@@ -187,12 +214,13 @@ public sealed class WebsiteHealthMonitorService(
                     issues);
             }
 
-            if (enabledCheckKeys.Contains("sitemap") ||
+            if (crawlEnabled ||
+                enabledCheckKeys.Contains("sitemap") ||
                 enabledCheckKeys.Contains("sitemap-quality"))
             {
                 var sitemapUri = new Uri(baseUri, "/sitemap.xml");
                 await DelayAsync(site, cancellationToken);
-                var sitemap = await FetchPageAsync(
+                sitemapSnapshot = await FetchPageAsync(
                     sitemapUri,
                     site,
                     cancellationToken);
@@ -204,7 +232,7 @@ public sealed class WebsiteHealthMonitorService(
                         "Sitemap",
                         "Discoverability",
                         sitemapUri,
-                        sitemap,
+                        sitemapSnapshot,
                         observations,
                         issues);
                 }
@@ -214,7 +242,7 @@ public sealed class WebsiteHealthMonitorService(
                     AddSitemapQualityObservation(
                         baseUri,
                         sitemapUri,
-                        sitemap,
+                        sitemapSnapshot,
                         observations,
                         issues);
                 }
@@ -267,35 +295,36 @@ public sealed class WebsiteHealthMonitorService(
                 }
             }
 
-            var crawlEnabled = enabledCheckKeys.Overlaps(
-                [
-                    "internal-link",
-                    "redirect-chain",
-                    "title",
-                    "title-length",
-                    "duplicate-title",
-                    "heading",
-                    "meta-description",
-                    "meta-description-length",
-                    "duplicate-meta-description",
-                    "image-alt",
-                    "image-availability",
-                    "canonical",
-                    "canonical-quality",
-                    "indexability",
-                    "schema",
-                    "schema-quality",
-                    "social-preview"
-                ]);
             var queue = new Queue<Uri>();
             if (crawlEnabled)
             {
+                var lastEvaluatedAt =
+                    await GetLastEvaluatedPageTimesAsync(
+                        dbContext,
+                        site.Id,
+                        cancellationToken);
+                var sitemapPages =
+                    await DiscoverSitemapPagesAsync(
+                        baseUri,
+                        sitemapSnapshot,
+                        site,
+                        disallowedPaths,
+                        checkedUrls,
+                        cancellationToken);
+                EnqueueInternalLinks(
+                    sitemapPages,
+                    baseUri,
+                    disallowedPaths,
+                    checkedUrls,
+                    queue,
+                    lastEvaluatedAt);
                 EnqueueInternalLinks(
                     pages.Values.SelectMany(page => page.InternalLinks),
                     baseUri,
                     disallowedPaths,
                     checkedUrls,
-                    queue);
+                    queue,
+                    lastEvaluatedAt);
             }
 
             while (queue.Count > 0 && pages.Count < site.MaxCrawlPages)
@@ -1000,21 +1029,185 @@ public sealed class WebsiteHealthMonitorService(
         return new UriBuilder(resolved) { Fragment = string.Empty }.Uri;
     }
 
+    private async Task<IReadOnlyList<Uri>> DiscoverSitemapPagesAsync(
+        Uri baseUri,
+        FetchSnapshot? rootSnapshot,
+        MonitoredSite site,
+        IReadOnlyCollection<string> disallowedPaths,
+        ISet<string> checkedUrls,
+        CancellationToken cancellationToken)
+    {
+        if (rootSnapshot is null ||
+            !rootSnapshot.IsSuccess ||
+            string.IsNullOrWhiteSpace(rootSnapshot.Content))
+        {
+            return [];
+        }
+
+        var root = ParseSitemapDocument(rootSnapshot.Content);
+        if (!root.IsValidXml)
+        {
+            return [];
+        }
+
+        var locations = new List<string>();
+        if (root.RootName == "urlset")
+        {
+            locations.AddRange(root.Locations);
+        }
+        else if (root.RootName == "sitemapindex")
+        {
+            var childSitemaps = root.Locations
+                .Select(location =>
+                    Uri.TryCreate(
+                        location,
+                        UriKind.Absolute,
+                        out var uri)
+                        ? uri
+                        : null)
+                .OfType<Uri>()
+                .Where(uri =>
+                    uri.Scheme == Uri.UriSchemeHttps &&
+                    NormalizeCanonicalHost(uri.Host).Equals(
+                        NormalizeCanonicalHost(baseUri.Host),
+                        StringComparison.OrdinalIgnoreCase) &&
+                    IsCustomerPageSitemap(uri))
+                .Take(8)
+                .ToList();
+            foreach (var childSitemap in childSitemaps)
+            {
+                await DelayAsync(site, cancellationToken);
+                var snapshot = await FetchPageAsync(
+                    childSitemap,
+                    site,
+                    cancellationToken);
+                checkedUrls.Add(NormalizeUrl(childSitemap));
+                if (!snapshot.IsSuccess)
+                {
+                    continue;
+                }
+
+                var child = ParseSitemapDocument(snapshot.Content);
+                if (child.IsValidXml && child.RootName == "urlset")
+                {
+                    locations.AddRange(child.Locations);
+                }
+            }
+        }
+
+        return locations
+            .Take(5_000)
+            .Select(location =>
+                NormalizeSitemapPage(baseUri, location))
+            .OfType<Uri>()
+            .Where(uri =>
+                IsCustomerPagePath(uri) &&
+                !IsDisallowed(uri, disallowedPaths))
+            .DistinctBy(NormalizeUrl, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool IsCustomerPageSitemap(Uri uri)
+    {
+        var filename = Path.GetFileName(uri.AbsolutePath);
+        return filename.StartsWith(
+                "sitemap_products_",
+                StringComparison.OrdinalIgnoreCase) ||
+            filename.StartsWith(
+                "sitemap_pages_",
+                StringComparison.OrdinalIgnoreCase) ||
+            filename.StartsWith(
+                "sitemap_collections_",
+                StringComparison.OrdinalIgnoreCase) ||
+            filename.StartsWith(
+                "sitemap_blogs_",
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCustomerPagePath(Uri uri) =>
+        uri.AbsolutePath.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase) ||
+        uri.AbsolutePath.StartsWith(
+            "/collections/",
+            StringComparison.OrdinalIgnoreCase) ||
+        uri.AbsolutePath.StartsWith(
+            "/pages/",
+            StringComparison.OrdinalIgnoreCase) ||
+        uri.AbsolutePath.StartsWith(
+            "/blogs/",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static Uri? NormalizeSitemapPage(
+        Uri baseUri,
+        string location)
+    {
+        if (!Uri.TryCreate(
+                location,
+                UriKind.Absolute,
+                out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps ||
+            !NormalizeCanonicalHost(uri.Host).Equals(
+                NormalizeCanonicalHost(baseUri.Host),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return new UriBuilder(uri)
+        {
+            Scheme = baseUri.Scheme,
+            Host = baseUri.Host,
+            Port = -1,
+            Fragment = ""
+        }.Uri;
+    }
+
+    private static async Task<IReadOnlyDictionary<string, DateTime>>
+        GetLastEvaluatedPageTimesAsync(
+            ApplicationDbContext dbContext,
+            Guid siteId,
+            CancellationToken cancellationToken)
+    {
+        var evaluations = await dbContext.WebsiteHealthMetrics
+            .AsNoTracking()
+            .Where(metric =>
+                metric.WebsiteCheckRun.MonitoredSiteId == siteId &&
+                metric.Key == "title-length" &&
+                metric.AffectedUrl != null)
+            .GroupBy(metric => metric.AffectedUrl!)
+            .Select(group => new
+            {
+                Url = group.Key,
+                LastEvaluatedAtUtc = group.Max(
+                    metric => metric.RecordedAtUtc)
+            })
+            .ToListAsync(cancellationToken);
+        return evaluations.ToDictionary(
+            item => item.Url,
+            item => item.LastEvaluatedAtUtc,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
     private static void EnqueueInternalLinks(
         IEnumerable<Uri> links,
         Uri baseUri,
         IReadOnlyCollection<string> disallowedPaths,
         IReadOnlySet<string> checkedUrls,
-        Queue<Uri> queue)
+        Queue<Uri> queue,
+        IReadOnlyDictionary<string, DateTime>? lastEvaluatedAt = null)
     {
         var queued = queue.Select(NormalizeUrl).ToHashSet(
             StringComparer.OrdinalIgnoreCase);
-        foreach (var link in links
+        var eligibleLinks = links
             .Where(link =>
                 IsSameOrigin(baseUri, link) &&
-                !IsDisallowed(link, disallowedPaths))
-            .OrderBy(GetCrawlPriority)
-            .ThenBy(link => link.AbsolutePath))
+                !IsDisallowed(link, disallowedPaths));
+        foreach (var link in OrderCrawlTargets(
+            eligibleLinks,
+            lastEvaluatedAt ??
+                new Dictionary<string, DateTime>(
+                    StringComparer.OrdinalIgnoreCase)))
         {
             var normalized = NormalizeUrl(link);
             if (!checkedUrls.Contains(normalized) && queued.Add(normalized))
@@ -1023,6 +1216,19 @@ public sealed class WebsiteHealthMonitorService(
             }
         }
     }
+
+    internal static IReadOnlyList<Uri> OrderCrawlTargets(
+        IEnumerable<Uri> links,
+        IReadOnlyDictionary<string, DateTime> lastEvaluatedAt) =>
+        links
+            .OrderBy(GetCrawlPriority)
+            .ThenBy(link =>
+                lastEvaluatedAt.GetValueOrDefault(
+                    NormalizeUrl(link),
+                    DateTime.MinValue))
+            .ThenBy(link => link.AbsolutePath)
+            .ThenBy(link => link.Query)
+            .ToList();
 
     internal static int GetCrawlPriority(Uri url)
     {
@@ -1108,14 +1314,47 @@ public sealed class WebsiteHealthMonitorService(
         string content,
         Uri baseUri)
     {
+        var document = ParseSitemapDocument(content);
+        var hasSupportedRoot =
+            document.RootName is "urlset" or "sitemapindex";
+        var validLocations = document.Locations
+            .Select(value =>
+                Uri.TryCreate(
+                    value,
+                    UriKind.Absolute,
+                    out var location)
+                    ? location
+                    : null)
+            .ToList();
+        var invalidCount = validLocations.Count(location =>
+            location is null ||
+            location.Scheme != Uri.UriSchemeHttps);
+        var externalCount = validLocations.Count(location =>
+            location is not null &&
+            !NormalizeCanonicalHost(location.Host).Equals(
+                NormalizeCanonicalHost(baseUri.Host),
+                StringComparison.OrdinalIgnoreCase));
+        return new SitemapAnalysis(
+            document.IsValidXml,
+            hasSupportedRoot,
+            document.Locations.Count,
+            invalidCount,
+            externalCount,
+            document.IsValidXml && !hasSupportedRoot
+                ? $"Unexpected root element: " +
+                    $"{document.RootName ?? "(missing)"}."
+                : document.Error);
+    }
+
+    internal static SitemapDocumentAnalysis ParseSitemapDocument(
+        string content)
+    {
         if (string.IsNullOrWhiteSpace(content))
         {
-            return new SitemapAnalysis(
+            return new SitemapDocumentAnalysis(
                 false,
-                false,
-                0,
-                0,
-                0,
+                null,
+                [],
                 "The sitemap response is empty.");
         }
 
@@ -1130,53 +1369,26 @@ public sealed class WebsiteHealthMonitorService(
                     MaxCharactersInDocument = MaximumResponseCharacters
                 });
             var document = XDocument.Load(reader);
-            var rootName = document.Root?.Name.LocalName;
-            var hasSupportedRoot =
-                rootName is "urlset" or "sitemapindex";
-            var locations = document
-                .Descendants()
-                .Where(element =>
-                    element.Name.LocalName.Equals(
-                        "loc",
-                        StringComparison.OrdinalIgnoreCase))
-                .Select(element => element.Value.Trim())
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .ToList();
-            var validLocations = locations
-                .Select(value =>
-                    Uri.TryCreate(
-                        value,
-                        UriKind.Absolute,
-                        out var location)
-                        ? location
-                        : null)
-                .ToList();
-            var invalidCount = validLocations.Count(location =>
-                location is null ||
-                location.Scheme != Uri.UriSchemeHttps);
-            var externalCount = validLocations.Count(location =>
-                location is not null &&
-                !NormalizeCanonicalHost(location.Host).Equals(
-                    NormalizeCanonicalHost(baseUri.Host),
-                    StringComparison.OrdinalIgnoreCase));
-            return new SitemapAnalysis(
+            return new SitemapDocumentAnalysis(
                 true,
-                hasSupportedRoot,
-                locations.Count,
-                invalidCount,
-                externalCount,
-                hasSupportedRoot
-                    ? null
-                    : $"Unexpected root element: {rootName ?? "(missing)"}.");
+                document.Root?.Name.LocalName,
+                document
+                    .Descendants()
+                    .Where(element =>
+                        element.Name.LocalName.Equals(
+                            "loc",
+                            StringComparison.OrdinalIgnoreCase))
+                    .Select(element => element.Value.Trim())
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToList(),
+                null);
         }
         catch (XmlException exception)
         {
-            return new SitemapAnalysis(
+            return new SitemapDocumentAnalysis(
                 false,
-                false,
-                0,
-                0,
-                0,
+                null,
+                [],
                 Truncate(exception.Message, 300));
         }
     }
