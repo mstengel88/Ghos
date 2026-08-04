@@ -551,6 +551,39 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void MeaningfulHeadingText_UsesLogoAltTextWhenH1HasNoText()
+    {
+        var heading = WebsiteHealthMonitorService.GetMeaningfulHeadingText(
+            "  ",
+            null,
+            ["Green Hills Supply", "Green Hills Supply"]);
+
+        Assert.Equal("Green Hills Supply", heading);
+    }
+
+    [Fact]
+    public void AccessibilityHeading_PointsToTheActualRichTextTemplate()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.HeadingStructure(
+                new Uri(
+                    "https://www.greenhillssupply.com/pages/accessibility"),
+                "Accessibility Statement – Green Hills Supply",
+                null,
+                0);
+
+        Assert.Contains(
+            "Pages → Accessibility",
+            recommendation.FixLocation);
+        Assert.Contains(
+            "Rich text",
+            recommendation.FixLocation);
+        Assert.Equal(
+            "<h1 class=\"h2 text-center\">Accessibility Statement – Green Hills Supply</h1>",
+            recommendation.SuggestedValue);
+    }
+
+    [Fact]
     public void SearchIndexability_PreservesTheCurrentRobotsDirective()
     {
         var recommendation =
