@@ -1,0 +1,51 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace Ghos.Web.Data.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddWebsiteHealthReviewedValues : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<DateTime>(
+                name: "ReviewedAtUtc",
+                table: "WebsiteHealthIssues",
+                type: "timestamp with time zone",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "ReviewedByUserId",
+                table: "WebsiteHealthIssues",
+                type: "character varying(450)",
+                maxLength: 450,
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "ReviewedValue",
+                table: "WebsiteHealthIssues",
+                type: "character varying(6000)",
+                maxLength: 6000,
+                nullable: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(
+                name: "ReviewedAtUtc",
+                table: "WebsiteHealthIssues");
+
+            migrationBuilder.DropColumn(
+                name: "ReviewedByUserId",
+                table: "WebsiteHealthIssues");
+
+            migrationBuilder.DropColumn(
+                name: "ReviewedValue",
+                table: "WebsiteHealthIssues");
+        }
+    }
+}

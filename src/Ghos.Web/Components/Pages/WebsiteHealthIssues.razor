@@ -217,6 +217,81 @@ else
                                                     </div>
                                                 </div>
                                             }
+                                            @if (!string.IsNullOrWhiteSpace(issue.SuggestedValue) ||
+                                                !string.IsNullOrWhiteSpace(issue.ReviewedValue))
+                                            {
+                                                <AuthorizeView Policy="@GhosPolicies.WebsiteHealthManage">
+                                                    <Authorized>
+                                                        <div class="reviewed-editor">
+                                                            <div class="reviewed-heading">
+                                                                <div>
+                                                                    <span>REVIEWED WORKING COPY</span>
+                                                                    @if (issue.ReviewedAtUtc is not null)
+                                                                    {
+                                                                        <small>
+                                                                            Saved @FormatDate(issue.ReviewedAtUtc.Value)
+                                                                        </small>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <small>
+                                                                            Edit the scanner suggestion, then save your final wording.
+                                                                        </small>
+                                                                    }
+                                                                </div>
+                                                                <small>@CharacterCount(GetReviewedDraft(issue))</small>
+                                                            </div>
+                                                            <textarea value="@GetReviewedDraft(issue)"
+                                                                      @oninput="eventArgs => SetReviewedDraft(
+                                                                          issue.Id,
+                                                                          eventArgs.Value?.ToString())"
+                                                                      maxlength="6000"
+                                                                      rows="4"
+                                                                      aria-label="Reviewed working copy"></textarea>
+                                                            <div class="reviewed-actions">
+                                                                <button type="button"
+                                                                        disabled="@Busy"
+                                                                        @onclick="() => SaveReviewedValueAsync(issue)">
+                                                                    Save reviewed copy
+                                                                </button>
+                                                                <button type="button"
+                                                                        disabled="@Busy"
+                                                                        @onclick="() => CopyReviewedDraftAsync(issue)">
+                                                                    Copy reviewed copy
+                                                                </button>
+                                                                @if (issue.ReviewedValue is not null)
+                                                                {
+                                                                    <button class="reset"
+                                                                            type="button"
+                                                                            disabled="@Busy"
+                                                                            @onclick="() => ClearReviewedValueAsync(issue)">
+                                                                        Reset to scanner suggestion
+                                                                    </button>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </Authorized>
+                                                    <NotAuthorized>
+                                                        @if (!string.IsNullOrWhiteSpace(issue.ReviewedValue))
+                                                        {
+                                                            <div class="reviewed-readonly">
+                                                                <div>
+                                                                    <span>REVIEWED WORKING COPY</span>
+                                                                    <small>
+                                                                        Saved @FormatDate(issue.ReviewedAtUtc!.Value)
+                                                                    </small>
+                                                                </div>
+                                                                <pre>@issue.ReviewedValue</pre>
+                                                                <button type="button"
+                                                                        disabled="@Busy"
+                                                                        @onclick="() => CopyReviewedValueAsync(issue)">
+                                                                    Copy reviewed copy
+                                                                </button>
+                                                            </div>
+                                                        }
+                                                    </NotAuthorized>
+                                                </AuthorizeView>
+                                            }
                                         </section>
                                     }
                                 </div>
@@ -286,6 +361,7 @@ else
 @code {
     private List<WebsiteHealthIssue> Issues { get; set; } = [];
     private Dictionary<Guid, string?> Notes { get; } = [];
+    private Dictionary<Guid, string?> ReviewedDrafts { get; } = [];
     private IssueView SelectedView { get; set; } = IssueView.Active;
     private string SelectedCheckKey { get; set; } = "";
     private string Search { get; set; } = "";
@@ -306,9 +382,13 @@ else
             .OrderByDescending(issue => issue.LastDetectedAtUtc)
             .Take(500)
             .ToListAsync();
+        Notes.Clear();
+        ReviewedDrafts.Clear();
         foreach (var issue in Issues)
         {
             Notes[issue.Id] = issue.TriageNote;
+            ReviewedDrafts[issue.Id] =
+                issue.ReviewedValue ?? issue.SuggestedValue;
         }
 
         Loading = false;
@@ -425,6 +505,124 @@ else
         }
     }
 
+    private async Task SaveReviewedValueAsync(WebsiteHealthIssue issue)
+    {
+        var draft = GetReviewedDraft(issue);
+        if (string.IsNullOrWhiteSpace(draft))
+        {
+            ErrorMessage =
+                "Enter a reviewed value before saving.";
+            return;
+        }
+
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            var userId = await GetCurrentUserIdAsync();
+            if (userId is null)
+            {
+                ErrorMessage = "Your session could not be verified.";
+                return;
+            }
+
+            if (!await IssueService.SaveReviewedValueAsync(
+                issue.Id,
+                userId,
+                draft))
+            {
+                ErrorMessage =
+                    "The reviewed copy could not be saved.";
+                return;
+            }
+
+            SuccessMessage =
+                "Reviewed copy saved. Future scans will not overwrite it.";
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Unable to save reviewed Website Health value for issue {IssueId}.",
+                issue.Id);
+            ErrorMessage =
+                "The reviewed copy could not be saved.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task ClearReviewedValueAsync(WebsiteHealthIssue issue)
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            if (!await IssueService.ClearReviewedValueAsync(issue.Id))
+            {
+                ErrorMessage =
+                    "The reviewed copy could not be reset.";
+                return;
+            }
+
+            SuccessMessage =
+                "Reviewed copy reset to the latest scanner suggestion.";
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Unable to reset reviewed Website Health value for issue {IssueId}.",
+                issue.Id);
+            ErrorMessage =
+                "The reviewed copy could not be reset.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private Task CopyReviewedDraftAsync(WebsiteHealthIssue issue) =>
+        CopyReviewedTextAsync(issue, GetReviewedDraft(issue));
+
+    private Task CopyReviewedValueAsync(WebsiteHealthIssue issue) =>
+        CopyReviewedTextAsync(issue, issue.ReviewedValue);
+
+    private async Task CopyReviewedTextAsync(
+        WebsiteHealthIssue issue,
+        string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            ErrorMessage =
+                "There is no reviewed wording to copy.";
+            return;
+        }
+
+        ErrorMessage = null;
+        try
+        {
+            await JS.InvokeVoidAsync("ghos.copyText", value);
+            SuccessMessage = "Reviewed copy copied.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(
+                exception,
+                "Unable to copy reviewed Website Health value for issue {IssueId}.",
+                issue.Id);
+            ErrorMessage =
+                "The reviewed copy could not be copied automatically. Select the text and copy it manually.";
+        }
+    }
+
     private async Task DownloadFixListAsync()
     {
         ErrorMessage = null;
@@ -531,6 +729,20 @@ else
 
     private void SetNote(Guid issueId, string? note) =>
         Notes[issueId] = note;
+
+    private string GetReviewedDraft(WebsiteHealthIssue issue) =>
+        ReviewedDrafts.GetValueOrDefault(issue.Id) ?? "";
+
+    private void SetReviewedDraft(Guid issueId, string? value) =>
+        ReviewedDrafts[issueId] = value;
+
+    private async Task<string?> GetCurrentUserIdAsync()
+    {
+        var authenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return authenticationState.User.FindFirst(
+            ClaimTypes.NameIdentifier)?.Value;
+    }
 
     private static bool IsOpen(WebsiteHealthIssue issue) =>
         issue.ResolvedAtUtc is null &&

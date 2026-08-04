@@ -20,6 +20,9 @@ internal static class WebsiteHealthIssueExportBuilder
             "Current characters",
             "Suggested value",
             "Suggested characters",
+            "Reviewed working copy",
+            "Reviewed characters",
+            "Reviewed at",
             "Shopify location",
             "Official instructions",
             "Triage note");
@@ -38,6 +41,9 @@ internal static class WebsiteHealthIssueExportBuilder
                 CharacterCount(issue.CurrentValue),
                 issue.SuggestedValue,
                 CharacterCount(issue.SuggestedValue),
+                issue.ReviewedValue,
+                CharacterCount(issue.ReviewedValue),
+                issue.ReviewedAtUtc,
                 issue.FixLocation,
                 issue.FixDocumentationUrl,
                 issue.TriageNote);

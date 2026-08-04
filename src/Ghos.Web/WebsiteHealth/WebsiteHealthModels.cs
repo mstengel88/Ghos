@@ -176,6 +176,14 @@ public sealed class WebsiteHealthIssue
     [MaxLength(6000)]
     public string? CurrentValue { get; set; }
 
+    [MaxLength(6000)]
+    public string? ReviewedValue { get; set; }
+
+    public DateTime? ReviewedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? ReviewedByUserId { get; set; }
+
     [MaxLength(1000)]
     public string? FixLocation { get; set; }
 

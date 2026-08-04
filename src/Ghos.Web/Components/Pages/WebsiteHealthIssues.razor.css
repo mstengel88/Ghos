@@ -491,6 +491,99 @@
     color: var(--ghos-text-secondary);
 }
 
+.reviewed-editor,
+.reviewed-readonly {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(126, 167, 27, .22);
+}
+
+.reviewed-heading,
+.reviewed-readonly > div:first-child {
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.reviewed-heading > div {
+    display: grid;
+    gap: 2px;
+}
+
+.reviewed-heading span,
+.reviewed-readonly span {
+    color: var(--ghos-accent-text);
+    font-size: .49rem;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+
+.reviewed-heading small,
+.reviewed-readonly small {
+    color: var(--ghos-text-muted);
+    font-size: .49rem;
+}
+
+.reviewed-editor textarea {
+    width: 100%;
+    min-height: 92px;
+    padding: 9px;
+    border: 1px solid rgba(126, 167, 27, .38);
+    border-radius: 7px;
+    background: var(--ghos-surface);
+    color: var(--ghos-text);
+    font: inherit;
+    font-size: .62rem;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.reviewed-actions {
+    margin-top: 7px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.reviewed-actions button,
+.reviewed-readonly button {
+    padding: 6px 8px;
+    border: 1px solid rgba(126, 167, 27, .35);
+    border-radius: 6px;
+    background: var(--ghos-surface);
+    color: var(--ghos-accent-text);
+    font-size: .53rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.reviewed-actions button.reset {
+    border-color: var(--ghos-border);
+    color: var(--ghos-text-muted);
+}
+
+.reviewed-actions button:disabled,
+.reviewed-readonly button:disabled {
+    cursor: wait;
+    opacity: .6;
+}
+
+.reviewed-readonly pre {
+    margin: 0 0 7px;
+    padding: 9px;
+    border: 1px solid rgba(126, 167, 27, .3);
+    border-radius: 7px;
+    background: var(--ghos-surface);
+    color: var(--ghos-text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: .57rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
 .triage-controls {
     display: grid;
     align-content: center;
