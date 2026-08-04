@@ -948,6 +948,19 @@ internal static class WebsiteHealthRecommendationBuilder
             ("inlarger", "in larger"),
             ("usedalone", "used alone"),
             ("withcompatible", "with compatible"),
+            (
+                " is a pelletized seed starter made from ",
+                " uses "),
+            (
+                " is a convenient 2.5 cu. ft. bag designed to protect ",
+                " protects "),
+            (" to help protect ", " to protect "),
+            (
+                ", retain moisture, and help control ",
+                ", retains moisture and helps control "),
+            (
+                "support faster germination",
+                "support germination"),
             (" selection includes ", " offers "),
             (" products include a full range of ", " offers "),
             (" make it easy to get ", " provide "),
