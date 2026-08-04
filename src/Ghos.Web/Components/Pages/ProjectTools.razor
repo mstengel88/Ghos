@@ -57,6 +57,9 @@ else if (Mode == CalculatorMode.Bulk)
                 <button type="button"
                         class="@(Shape == ProjectShape.Circle ? "active" : null)"
                         @onclick="() => Shape = ProjectShape.Circle">Circle</button>
+                <button type="button"
+                        class="@(Shape == ProjectShape.Area ? "active" : null)"
+                        @onclick="() => Shape = ProjectShape.Area">Known area</button>
             </div>
 
             <div class="dimension-grid">
@@ -67,7 +70,21 @@ else if (Mode == CalculatorMode.Bulk)
                 }
                 else
                 {
-                    <label class="field"><span>Diameter (feet)</span><InputNumber @bind-Value="DiameterFeet" /></label>
+                    @if (Shape == ProjectShape.Circle)
+                    {
+                        <label class="field"><span>Diameter (feet)</span><InputNumber @bind-Value="DiameterFeet" /></label>
+                    }
+                    else
+                    {
+                        <label class="field"><span>Area</span><InputNumber @bind-Value="MaterialAreaValue" /></label>
+                        <label class="field">
+                            <span>Area unit</span>
+                            <select @bind="MaterialAreaUnitSelection">
+                                <option value="@Ghos.Web.ProjectTools.MaterialAreaUnit.SquareFeet">Square feet</option>
+                                <option value="@Ghos.Web.ProjectTools.MaterialAreaUnit.SquareInches">Square inches</option>
+                            </select>
+                        </label>
+                    }
                 }
                 <label class="field"><span>Depth (inches)</span><InputNumber @bind-Value="DepthInches" /></label>
                 @ExtraSelector
@@ -314,6 +331,9 @@ else
     private decimal LengthFeet { get; set; }
     private decimal WidthFeet { get; set; }
     private decimal DiameterFeet { get; set; }
+    private decimal MaterialAreaValue { get; set; }
+    private MaterialAreaUnit MaterialAreaUnitSelection { get; set; } =
+        Ghos.Web.ProjectTools.MaterialAreaUnit.SquareFeet;
     private decimal DepthInches { get; set; } = 3m;
     private decimal WallHeightFeet { get; set; }
     private decimal OpeningsSqFt { get; set; }
@@ -345,6 +365,8 @@ else
             LengthFeet,
             WidthFeet,
             DiameterFeet,
+            MaterialAreaValue,
+            MaterialAreaUnitSelection,
             DepthInches,
             0m,
             ExtraPercent,
@@ -466,6 +488,8 @@ else
             LengthFeet,
             WidthFeet,
             DiameterFeet,
+            MaterialAreaValue,
+            MaterialAreaUnitSelection,
             DepthInches,
             ManualCubicYards,
             ExtraPercent,
