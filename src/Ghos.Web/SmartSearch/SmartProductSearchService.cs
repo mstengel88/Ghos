@@ -15,6 +15,7 @@ public sealed record SmartProductSearchResult(
     IReadOnlyList<string> MatchReasons);
 
 public sealed record SmartProductSearchResponse(
+    Guid? SearchEventId,
     string Query,
     IReadOnlyList<string> Intents,
     int SynonymMappings,
@@ -26,6 +27,7 @@ public sealed class SmartProductSearchService(
     public async Task<SmartProductSearchResponse> SearchAsync(
         string? query,
         int limit = 12,
+        string source = "Storefront",
         CancellationToken cancellationToken = default)
     {
         var plan = SmartSearchSynonymLibrary.Plan(query);
@@ -55,11 +57,92 @@ public sealed class SmartProductSearchService(
             .ThenBy(result => result.Title)
             .Take(Math.Clamp(limit, 1, 24))
             .ToList();
+        var searchEvent = new SmartSearchEvent
+        {
+            Query = Truncate(plan.OriginalQuery, 300),
+            NormalizedQuery = Truncate(plan.NormalizedQuery, 300),
+            IntentSummary = Truncate(
+                string.Join(" · ", plan.Intents),
+                500),
+            Source = Truncate(source, 32),
+            ResultCount = results.Count
+        };
+        dbContext.SmartSearchEvents.Add(searchEvent);
+        await dbContext.SaveChangesAsync(cancellationToken);
         return new SmartProductSearchResponse(
+            searchEvent.Id,
             plan.OriginalQuery,
             plan.Intents,
             SmartSearchSynonymLibrary.SynonymMappingCount,
             results);
+    }
+
+    public async Task<bool> RecordSelectionAsync(
+        Guid searchEventId,
+        Guid productId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var searchEvent = await dbContext.SmartSearchEvents
+            .SingleOrDefaultAsync(
+                item => item.Id == searchEventId,
+                cancellationToken);
+        if (searchEvent is null ||
+            !await dbContext.Products.AnyAsync(
+                product =>
+                    product.Id == productId &&
+                    product.ShopifyStatus == "ACTIVE",
+                cancellationToken))
+        {
+            return false;
+        }
+
+        searchEvent.SelectedProductId = productId;
+        searchEvent.SelectedAtUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<SmartSearchAnalyticsSnapshot> GetAnalyticsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var since = DateTime.UtcNow.AddDays(-7);
+        var events = await dbContext.SmartSearchEvents
+            .AsNoTracking()
+            .Where(item => item.SearchedAtUtc >= since)
+            .OrderByDescending(item => item.SearchedAtUtc)
+            .Take(2000)
+            .ToListAsync(cancellationToken);
+        var topQueries = events
+            .GroupBy(item => item.NormalizedQuery)
+            .Select(group => new SmartSearchQueryStat(
+                group.First().Query,
+                group.Count(),
+                group.Count(item => item.ResultCount == 0)))
+            .OrderByDescending(item => item.Searches)
+            .ThenBy(item => item.Query)
+            .Take(8)
+            .ToList();
+        var zeroQueries = events
+            .Where(item => item.ResultCount == 0)
+            .GroupBy(item => item.NormalizedQuery)
+            .Select(group => new SmartSearchQueryStat(
+                group.First().Query,
+                group.Count(),
+                group.Count()))
+            .OrderByDescending(item => item.Searches)
+            .ThenBy(item => item.Query)
+            .Take(8)
+            .ToList();
+        return new SmartSearchAnalyticsSnapshot(
+            events.Count,
+            events.Count(item => item.ResultCount == 0),
+            events.Count(item => item.SelectedProductId is not null),
+            topQueries,
+            zeroQueries);
     }
 
     private static SmartProductSearchResult Score(
@@ -149,13 +232,31 @@ public sealed class SmartProductSearchService(
     private static SmartProductSearchResponse Empty(
         SmartSearchQueryPlan plan) =>
         new(
+            null,
             plan.OriginalQuery,
             plan.Intents,
             SmartSearchSynonymLibrary.SynonymMappingCount,
             []);
+
+    private static string Truncate(string value, int maximumLength) =>
+        value.Length <= maximumLength
+            ? value
+            : value[..maximumLength];
 
     private sealed record SearchField(
         string Label,
         string? Value,
         int Weight);
 }
+
+public sealed record SmartSearchQueryStat(
+    string Query,
+    int Searches,
+    int ZeroResults);
+
+public sealed record SmartSearchAnalyticsSnapshot(
+    int Searches,
+    int ZeroResultSearches,
+    int ProductSelections,
+    IReadOnlyList<SmartSearchQueryStat> TopQueries,
+    IReadOnlyList<SmartSearchQueryStat> ZeroResultQueries);
