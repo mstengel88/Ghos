@@ -138,7 +138,7 @@ internal static class WebsiteHealthRecommendationBuilder
                 topic,
                 introductoryText);
         var guidance = isShopifyCatalog
-            ? "This is Shopify's built-in catalog URL, which exists even when no All collection appears under Products → Collections. Shopify only lets you choose Manual or Smart/Automated while creating a new collection; a saved collection's type cannot be changed. You do not need to change the collection type merely to edit an existing All collection's SEO listing. A separate All collection does not replace your separate collections landing page. Do not rename another collection, your collections landing page, or any menu link."
+            ? "This is Shopify's built-in catalog URL, which exists even when no All collection appears under Products → Collections. Green Hills Supply uses Shopify's new Collections experience, which no longer has separate Smart and Manual collection types. Automatic membership is now configured by adding conditions to the collection's Products source. A separate All collection does not replace your separate collections landing page. Do not rename another collection, your collections landing page, or any menu link."
             : "Add a unique meta description that explains what a customer will find on this page and gives them a reason to click. Aim for roughly 120–155 characters and do not reuse it across paginated or related pages.";
         return new WebsiteHealthRecommendation(
             guidance,
@@ -1022,7 +1022,7 @@ internal static class WebsiteHealthRecommendationBuilder
             "/collections/all",
             StringComparison.OrdinalIgnoreCase))
         {
-            return "Shopify Admin → Products → Collections → search for All. If an existing collection's Search engine listing has the handle all, leave its type and products unchanged; choose Edit website SEO and paste the suggested description. If no editable All collection exists, return to the collection list and choose Create collection. On that brand-new form, title it All → choose Smart (some Shopify screens call this Automated) → condition Product price is greater than $0 → Save → Edit website SEO → keep the handle exactly all. Shopify does not show an editable type choice after a collection has been saved. If the brand-new form also has no Smart/Automated option, stop rather than renaming or deleting another collection and use the Official Shopify instructions to check the store plan and permissions. Leave your existing collections landing page, homepage sections, theme template, and menu links unchanged.";
+            return "Shopify Admin → Products → Collections → search for All. If an existing collection's Search engine listing has the handle all, leave its products unchanged; choose Edit website SEO and paste the suggested description. If no editable All collection exists, choose Add collection → Add title → enter All. In the default Products source, choose Add condition (not Add products) → Product price → is greater than → $0. Then edit the Search engine listing → keep the handle exactly all → paste the suggested description → Save. The new Shopify Collections experience intentionally has no Smart or Manual type selector; conditions now provide automatic membership. Leave your existing collections landing page, homepage sections, theme template, and menu links unchanged.";
         }
 
         if (path.StartsWith(
@@ -1078,7 +1078,7 @@ internal static class WebsiteHealthRecommendationBuilder
             "/collections/all",
             StringComparison.OrdinalIgnoreCase))
         {
-            return "https://help.shopify.com/en/manual/online-store/themes/customizing-themes/common-customizations/change-catalog-page";
+            return "https://help.shopify.com/en/manual/products/collections/create-collection";
         }
 
         if (path.StartsWith(
