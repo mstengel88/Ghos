@@ -52,6 +52,22 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void NormalizeReviewedValue_TrimsRejectsBlankAndLimitsLength()
+    {
+        Assert.Equal(
+            "Tailored reviewed description.",
+            WebsiteHealthIssueService.NormalizeReviewedValue(
+                "  Tailored reviewed description.  "));
+        Assert.Null(
+            WebsiteHealthIssueService.NormalizeReviewedValue("   "));
+
+        var result = WebsiteHealthIssueService.NormalizeReviewedValue(
+            new string('a', 6001));
+        Assert.NotNull(result);
+        Assert.Equal(6000, result.Length);
+    }
+
+    [Fact]
     public void MissingMetaDescription_CreatesHomepageCopyWithinSearchLength()
     {
         var recommendation =
@@ -290,6 +306,15 @@ public sealed class WebsiteHealthOperationsTests
                     "https://www.greenhillssupply.com/collections/mulch",
                 CurrentValue = "A long current description.",
                 SuggestedValue = "A tailored mulch description.",
+                ReviewedValue = "Reviewed mulch wording.",
+                ReviewedAtUtc = new DateTime(
+                    2026,
+                    8,
+                    4,
+                    2,
+                    30,
+                    0,
+                    DateTimeKind.Utc),
                 FixLocation = "Shopify Admin → Products → Collections",
                 FixDocumentationUrl =
                     "https://help.shopify.com/collections",
@@ -302,6 +327,8 @@ public sealed class WebsiteHealthOperationsTests
         Assert.Contains("\"A long current description.\"", csv);
         Assert.Contains("\"27\"", csv);
         Assert.Contains("\"A tailored mulch description.\"", csv);
+        Assert.Contains("\"Reviewed mulch wording.\"", csv);
+        Assert.Contains("\"23\"", csv);
         Assert.Contains("\"Shopify Admin → Products → Collections\"", csv);
         Assert.Contains("\"Review with marketing.\"", csv);
     }

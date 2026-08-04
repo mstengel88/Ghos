@@ -144,6 +144,7 @@ The migrations are:
 20260804003828_AddWebsiteHealthFixLocations
 20260804011540_AddWebsiteHealthFixDocumentation
 20260804014042_AddWebsiteHealthCurrentValues
+20260804015436_AddWebsiteHealthReviewedValues
 ```
 
 To apply it explicitly from a machine with the .NET 10 SDK:

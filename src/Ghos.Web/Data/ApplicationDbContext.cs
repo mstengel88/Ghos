@@ -385,6 +385,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasMaxLength(6000);
             issue.Property(item => item.CurrentValue)
                 .HasMaxLength(6000);
+            issue.Property(item => item.ReviewedValue)
+                .HasMaxLength(6000);
+            issue.Property(item => item.ReviewedByUserId)
+                .HasMaxLength(450);
             issue.Property(item => item.FixLocation)
                 .HasMaxLength(1000);
             issue.Property(item => item.FixDocumentationUrl)

@@ -14,6 +14,58 @@ public enum WebsiteHealthIssueAction
 public sealed class WebsiteHealthIssueService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory)
 {
+    public async Task<bool> SaveReviewedValueAsync(
+        Guid issueId,
+        string userId,
+        string? value,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var issue = await dbContext.WebsiteHealthIssues
+            .SingleOrDefaultAsync(
+                item => item.Id == issueId,
+                cancellationToken);
+        if (issue is null)
+        {
+            return false;
+        }
+
+        var normalized = NormalizeReviewedValue(value);
+        if (normalized is null)
+        {
+            return false;
+        }
+
+        issue.ReviewedValue = normalized;
+        issue.ReviewedAtUtc = DateTime.UtcNow;
+        issue.ReviewedByUserId = userId;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> ClearReviewedValueAsync(
+        Guid issueId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var issue = await dbContext.WebsiteHealthIssues
+            .SingleOrDefaultAsync(
+                item => item.Id == issueId,
+                cancellationToken);
+        if (issue is null)
+        {
+            return false;
+        }
+
+        issue.ReviewedValue = null;
+        issue.ReviewedAtUtc = null;
+        issue.ReviewedByUserId = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<bool> UpdateAsync(
         Guid issueId,
         WebsiteHealthIssueAction action,
@@ -76,5 +128,18 @@ public sealed class WebsiteHealthIssueService(
         return normalized.Length <= 1000
             ? normalized
             : normalized[..1000];
+    }
+
+    internal static string? NormalizeReviewedValue(string? value)
+    {
+        var normalized = value?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        return normalized.Length <= 6000
+            ? normalized
+            : normalized[..6000];
     }
 }
