@@ -260,6 +260,59 @@ internal static class WebsiteHealthRecommendationBuilder
             "Shopify Admin → Online Store → Themes → … → Edit code → the relevant template or structured-data snippet");
     }
 
+    internal static WebsiteHealthRecommendation SchemaQuality(
+        Uri url,
+        int invalidBlockCount,
+        string? missingExpectedType)
+    {
+        var problems = new List<string>();
+        if (invalidBlockCount > 0)
+        {
+            problems.Add(
+                $"repair or remove {invalidBlockCount} malformed JSON-LD block(s)");
+        }
+
+        if (missingExpectedType is not null)
+        {
+            problems.Add($"restore the {missingExpectedType} schema for this page");
+        }
+
+        var expectedGuidance = missingExpectedType switch
+        {
+            "Product" =>
+                "Product markup should use Shopify's live product data for name, canonical URL, image, brand, offers, price, currency, and availability.",
+            "Article" =>
+                "Article markup should identify the headline, canonical URL, image, publication date, author, and publisher.",
+            "WebSite" =>
+                "WebSite markup should identify the store name and canonical homepage URL; include SearchAction only when its target matches the live search route.",
+            _ =>
+                "Keep the markup aligned with the visible page and its canonical URL."
+        };
+        return new WebsiteHealthRecommendation(
+            $"Structured data must be valid JSON and describe the page customers can see. {string.Join(" and ", problems)}. {expectedGuidance} Do not paste a static price or availability value that can drift from Shopify.",
+            missingExpectedType is null
+                ? "Validate the affected JSON-LD block, correct its JSON syntax, and rerun Website Health."
+                : $"Expected schema type: {missingExpectedType}",
+            GetShopifySchemaLocation(url),
+            "https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data");
+    }
+
+    private static string GetShopifySchemaLocation(Uri url)
+    {
+        var template = url.AbsolutePath.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase)
+            ? "the product template"
+            : url.AbsolutePath.StartsWith(
+                "/blogs/",
+                StringComparison.OrdinalIgnoreCase)
+                ? "the affected blog/article template"
+                : url.AbsolutePath == "/"
+                    ? "the home page template"
+                    : "the affected page template";
+        return $"Shopify Admin → Online Store → Themes → … → Edit code → search the entire theme for application/ld+json or the missing schema type → inspect the snippet rendered by {template}. Also review active app embeds that inject SEO markup.";
+    }
+
     internal static WebsiteHealthRecommendation MissingImageAltText(
         Uri pageUrl,
         string? title,

@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
@@ -13,6 +14,12 @@ using Ghos.Web.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ghos.Web.WebsiteHealth;
+
+internal sealed record StructuredDataAnalysis(
+    int BlockCount,
+    int ValidBlockCount,
+    int InvalidBlockCount,
+    IReadOnlySet<string> SchemaTypes);
 
 public sealed class WebsiteHealthMonitorService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
@@ -596,6 +603,10 @@ public sealed class WebsiteHealthMonitorService(
                 .Select(element => element.TextContent?.Trim())
                 .FirstOrDefault(text => text?.Length >= 50);
         var primaryHeading = document.QuerySelector("h1");
+        var structuredData = AnalyzeStructuredData(
+            document.QuerySelectorAll(
+                    "script[type='application/ld+json']")
+                .Select(element => element.TextContent));
 
         return new PageSnapshot(
             url,
@@ -612,7 +623,7 @@ public sealed class WebsiteHealthMonitorService(
                 ?.GetAttribute("content")?.Trim(),
             document.QuerySelector("link[rel~='canonical']")
                 ?.GetAttribute("href")?.Trim(),
-            document.QuerySelectorAll("script[type='application/ld+json']").Length,
+            structuredData,
             document.QuerySelector("meta[name='robots']")
                 ?.GetAttribute("content")?.Trim(),
             document.QuerySelector("meta[name='robots']")
@@ -1095,7 +1106,7 @@ public sealed class WebsiteHealthMonitorService(
                     "Structured data",
                     "Discoverability",
                     page.Url,
-                    page.SchemaBlockCount > 0,
+                    page.StructuredData.BlockCount > 0,
                     "Missing structured data",
                     observations,
                     issues,
@@ -1105,6 +1116,14 @@ public sealed class WebsiteHealthMonitorService(
                         page.Title,
                         page.Heading,
                         page.MetaDescription));
+            }
+
+            if (enabledCheckKeys.Contains("schema-quality"))
+            {
+                AddSchemaQualityObservation(
+                    page,
+                    observations,
+                    issues);
             }
 
             if (enabledCheckKeys.Contains("image-alt"))
@@ -1223,6 +1242,174 @@ public sealed class WebsiteHealthMonitorService(
                 page.Title,
                 page.Heading,
                 page.HeadingCount)));
+    }
+
+    private static void AddSchemaQualityObservation(
+        PageSnapshot page,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var missingExpectedType = GetMissingExpectedSchemaType(
+            page.Url,
+            page.StructuredData.SchemaTypes);
+        var healthy =
+            page.StructuredData.InvalidBlockCount == 0 &&
+            missingExpectedType is null;
+        var details = new List<string>();
+        if (page.StructuredData.InvalidBlockCount > 0)
+        {
+            details.Add(
+                $"{page.StructuredData.InvalidBlockCount} malformed JSON-LD block(s)");
+        }
+
+        if (missingExpectedType is not null)
+        {
+            details.Add($"{missingExpectedType} schema was not detected");
+        }
+
+        observations.Add(new Observation(
+            "schema-quality",
+            "Structured data quality",
+            "Discoverability",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            (decimal)(
+                page.StructuredData.InvalidBlockCount +
+                (missingExpectedType is null ? 0 : 1)),
+            "issues",
+            page.Url.ToString(),
+            healthy
+                ? $"Valid JSON-LD: {string.Join(
+                    ", ",
+                    page.StructuredData.SchemaTypes.OrderBy(type => type))}."
+                : string.Join("; ", details) + "."));
+        if (healthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            "schema-quality",
+            "Structured data needs improvement",
+            string.Join("; ", details) + ".",
+            page.Url.ToString(),
+            WebsiteHealthIssueSeverity.Warning,
+            WebsiteHealthRecommendationBuilder.SchemaQuality(
+                page.Url,
+                page.StructuredData.InvalidBlockCount,
+                missingExpectedType)));
+    }
+
+    internal static StructuredDataAnalysis AnalyzeStructuredData(
+        IEnumerable<string?> blocks)
+    {
+        var blockCount = 0;
+        var validBlockCount = 0;
+        var invalidBlockCount = 0;
+        var schemaTypes = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var block in blocks)
+        {
+            blockCount++;
+            if (string.IsNullOrWhiteSpace(block))
+            {
+                invalidBlockCount++;
+                continue;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(block);
+                CollectSchemaTypes(document.RootElement, schemaTypes);
+                validBlockCount++;
+            }
+            catch (JsonException)
+            {
+                invalidBlockCount++;
+            }
+        }
+
+        return new StructuredDataAnalysis(
+            blockCount,
+            validBlockCount,
+            invalidBlockCount,
+            schemaTypes);
+    }
+
+    private static void CollectSchemaTypes(
+        JsonElement element,
+        ISet<string> schemaTypes)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.NameEquals("@type"))
+                {
+                    if (property.Value.ValueKind == JsonValueKind.String &&
+                        property.Value.GetString() is { Length: > 0 } type)
+                    {
+                        schemaTypes.Add(type);
+                    }
+                    else if (property.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var typeValue in
+                            property.Value.EnumerateArray())
+                        {
+                            if (typeValue.ValueKind == JsonValueKind.String &&
+                                typeValue.GetString() is { Length: > 0 }
+                                    arrayType)
+                            {
+                                schemaTypes.Add(arrayType);
+                            }
+                        }
+                    }
+                }
+
+                CollectSchemaTypes(property.Value, schemaTypes);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                CollectSchemaTypes(item, schemaTypes);
+            }
+        }
+    }
+
+    internal static string? GetMissingExpectedSchemaType(
+        Uri url,
+        IReadOnlySet<string> schemaTypes)
+    {
+        if (url.AbsolutePath == "/")
+        {
+            return schemaTypes.Contains("WebSite") ? null : "WebSite";
+        }
+
+        if (url.AbsolutePath.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return schemaTypes.Contains("Product") ? null : "Product";
+        }
+
+        var segments = url.AbsolutePath.Split(
+            '/',
+            StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length >= 3 &&
+            segments[0].Equals(
+                "blogs",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return schemaTypes.Contains("Article") ||
+                schemaTypes.Contains("BlogPosting")
+                    ? null
+                    : "Article";
+        }
+
+        return null;
     }
 
     private static void AddCanonicalQualityObservation(
@@ -2048,7 +2235,7 @@ public sealed class WebsiteHealthMonitorService(
         string? IntroductoryText,
         string? MetaDescription,
         string? Canonical,
-        int SchemaBlockCount,
+        StructuredDataAnalysis StructuredData,
         string? RobotsDirective,
         bool IsNoIndex,
         IReadOnlyList<WebsiteHealthMissingImage> MissingImages,
