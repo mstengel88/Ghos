@@ -857,13 +857,12 @@ internal static class WebsiteHealthRecommendationBuilder
         {
             var leadCandidates = new[]
                 {
-                    leadSentence,
-                    CompressDescriptionSentence(leadSentence)
+                    CompressDescriptionSentence(leadSentence),
+                    leadSentence
                 }
                 .Select(EnsureSentence)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Where(sentence => sentence.Length is >= 70 and <= 155)
-                .OrderByDescending(sentence => sentence.Length)
                 .ToList();
             if (leadCandidates.Count > 0)
             {
@@ -938,6 +937,9 @@ internal static class WebsiteHealthRecommendationBuilder
             StringComparison.OrdinalIgnoreCase);
         var replacements = new[]
         {
+            ("inlarger", "in larger"),
+            ("usedalone", "used alone"),
+            ("withcompatible", "with compatible"),
             (" selection includes ", " offers "),
             (" products include a full range of ", " offers "),
             (" make it easy to get ", " provide "),
@@ -1318,11 +1320,17 @@ internal static class WebsiteHealthRecommendationBuilder
                             word[1..].ToLowerInvariant()));
     }
 
-    private static string NormalizeText(string? value) =>
-        Regex.Replace(
+    private static string NormalizeText(string? value)
+    {
+        var normalized = Regex.Replace(
             WebUtility.HtmlDecode(value ?? ""),
             @"\s+",
             " ").Trim();
+        return Regex.Replace(
+            normalized,
+            @"(?<=[.!?])(?=[A-Z])",
+            " ");
+    }
 
     private static string? FirstMeaningful(params string?[] values) =>
         values

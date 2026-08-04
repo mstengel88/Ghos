@@ -1150,6 +1150,40 @@ public sealed class WebsiteHealthOperationsTests
 
     [Theory]
     [InlineData(
+        "DISCOVER PAVERS® offer a smooth, sought-after surface texture in traditional sizes.Manufactured as a three piece module, these pavers can be used alone or melded withcompatible pavers to create one-of-a-kind installations.",
+        "sizes.",
+        "sizes.Manufactured")]
+    [InlineData(
+        "Grand DISCOVER PAVERS® offer a smooth, sought-after surface texture inlarger slab sizes. Manufactured as a three-piece module, these pavers can be usedalone or melded with compatible pavers.",
+        "in larger",
+        "inlarger")]
+    public void MetaDescriptionLength_CleansSourceSpacingDefects(
+        string current,
+        string expected,
+        string unexpected)
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/discover-pavers"),
+                "Discover Pavers",
+                "Discover Pavers",
+                null,
+                current);
+
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.Contains(
+            expected,
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            unexpected,
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(
         "https://www.greenhillssupply.com/collections/all?page=2",
         "https://www.greenhillssupply.com/collections/all")]
     [InlineData(
