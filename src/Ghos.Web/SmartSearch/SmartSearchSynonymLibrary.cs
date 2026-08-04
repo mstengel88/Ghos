@@ -16,6 +16,12 @@ public sealed record SmartSearchQueryPlan(
 
 public static partial class SmartSearchSynonymLibrary
 {
+    private static readonly HashSet<string> StopWords =
+    [
+        "a", "an", "and", "for", "i", "in", "me", "my", "of", "on",
+        "or", "the", "to", "want", "with"
+    ];
+
     private static readonly SmartSearchConcept[] Concepts =
     [
         new("Use", "Driveways", ["driveway", "gravel drive", "parking pad", "vehicle access", "private road", "drive base", "drive topping"]),
@@ -32,7 +38,7 @@ public static partial class SmartSearchSynonymLibrary
         new("Project", "Concrete", ["concrete", "concrete prep", "slab base", "flatwork", "cement work", "footing", "concrete bedding"]),
         new("Project", "Landscaping", ["landscaping", "landscape project", "yard project", "property improvement", "outdoor project", "grounds", "yard renovation"]),
         new("Project", "Winter maintenance", ["winter", "snow", "ice", "deicing", "de-icing", "slip prevention", "winter maintenance"]),
-        new("Material", "Crushed stone", ["crushed stone", "crushed rock", "limestone", "aggregate", "road stone", "base stone", "crusher stone"]),
+        new("Material", "Crushed stone", ["stone", "crushed stone", "crushed rock", "limestone", "aggregate", "road stone", "base stone", "crusher stone"]),
         new("Material", "Decorative stone", ["decorative stone", "landscape rock", "ornamental stone", "garden stone", "accent rock", "decorative rock", "river rock"]),
         new("Material", "Mulch", ["mulch", "wood chips", "bark", "shredded bark", "landscape mulch", "ground cover", "wood mulch"]),
         new("Material", "Soil", ["soil", "dirt", "topsoil", "garden soil", "planting mix", "earth", "screened soil"]),
@@ -60,7 +66,8 @@ public static partial class SmartSearchSynonymLibrary
     {
         var normalized = Normalize(query);
         var direct = new HashSet<string>(
-            normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries),
+            normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(term => !StopWords.Contains(term)),
             StringComparer.OrdinalIgnoreCase);
         if (normalized.Length > 0)
         {
