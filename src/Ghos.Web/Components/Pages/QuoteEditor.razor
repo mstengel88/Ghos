@@ -369,6 +369,20 @@ else
                                                     </button>
                                                 </div>
                                             }
+                                            else
+                                            {
+                                                <div class="shape-mini">
+                                                    <button type="button"
+                                                            class="@(line.CalculatorShape == ProjectShape.Rectangle ? "active" : null)"
+                                                            @onclick="() => line.CalculatorShape = ProjectShape.Rectangle">Rectangle</button>
+                                                    <button type="button"
+                                                            class="@(line.CalculatorShape == ProjectShape.Circle ? "active" : null)"
+                                                            @onclick="() => line.CalculatorShape = ProjectShape.Circle">Circle</button>
+                                                    <button type="button"
+                                                            class="@(line.CalculatorShape == ProjectShape.Area ? "active" : null)"
+                                                            @onclick="() => line.CalculatorShape = ProjectShape.Area">Known area</button>
+                                                </div>
+                                            }
                                             @if (projectConfiguration?.Kind == ProjectCalculatorKind.Paver &&
                                                  !line.UseKnownProjectArea)
                                             {
@@ -392,6 +406,18 @@ else
                                                     <label><span>Wall length ft.</span><InputNumber @bind-Value="line.LengthFeet" /></label>
                                                     <label><span>Average height ft.</span><InputNumber @bind-Value="line.WallHeightFeet" /></label>
                                                     <label><span>Openings sq. ft.</span><InputNumber @bind-Value="line.OpeningsSqFt" /></label>
+                                                }
+                                                else if (projectConfiguration is null &&
+                                                         line.CalculatorShape == ProjectShape.Area)
+                                                {
+                                                    <label><span>Area</span><InputNumber @bind-Value="line.MaterialAreaValue" /></label>
+                                                    <label>
+                                                        <span>Area unit</span>
+                                                        <select @bind="line.MaterialAreaUnit">
+                                                            <option value="@Ghos.Web.ProjectTools.MaterialAreaUnit.SquareFeet">Square feet</option>
+                                                            <option value="@Ghos.Web.ProjectTools.MaterialAreaUnit.SquareInches">Square inches</option>
+                                                        </select>
+                                                    </label>
                                                 }
                                                 else if (line.CalculatorShape == ProjectShape.Rectangle)
                                                 {
@@ -1139,6 +1165,8 @@ else
             line.LengthFeet,
             line.WidthFeet,
             line.DiameterFeet,
+            line.MaterialAreaValue,
+            line.MaterialAreaUnit,
             line.DepthInches,
             line.ManualCubicYards,
             line.ExtraPercent,
@@ -1711,6 +1739,9 @@ else
         public decimal LengthFeet { get; set; }
         public decimal WidthFeet { get; set; }
         public decimal DiameterFeet { get; set; }
+        public decimal MaterialAreaValue { get; set; }
+        public MaterialAreaUnit MaterialAreaUnit { get; set; } =
+            Ghos.Web.ProjectTools.MaterialAreaUnit.SquareFeet;
         public decimal DepthInches { get; set; } = 3m;
         public decimal ManualCubicYards { get; set; }
         public int ExtraPercent { get; set; } = 10;

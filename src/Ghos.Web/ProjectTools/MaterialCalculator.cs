@@ -6,7 +6,14 @@ namespace Ghos.Web.ProjectTools;
 public enum ProjectShape
 {
     Rectangle,
-    Circle
+    Circle,
+    Area
+}
+
+public enum MaterialAreaUnit
+{
+    SquareFeet,
+    SquareInches
 }
 
 public sealed record MaterialCalculation(
@@ -37,6 +44,8 @@ public static partial class MaterialCalculator
         decimal lengthFeet,
         decimal widthFeet,
         decimal diameterFeet,
+        decimal areaValue,
+        MaterialAreaUnit areaUnit,
         decimal depthInches,
         decimal manualCubicYards,
         decimal extraPercent,
@@ -48,6 +57,8 @@ public static partial class MaterialCalculator
             {
                 ProjectShape.Circle when diameterFeet > 0 && depthInches > 0 =>
                     (decimal)Math.PI * diameterFeet * diameterFeet * depthInches / 1296m,
+                ProjectShape.Area when areaValue > 0 && depthInches > 0 =>
+                    ConvertToSquareFeet(areaValue, areaUnit) * depthInches / 324m,
                 _ when lengthFeet > 0 && widthFeet > 0 && depthInches > 0 =>
                     lengthFeet * widthFeet * depthInches / 324m,
                 _ => 0m
@@ -69,6 +80,13 @@ public static partial class MaterialCalculator
             orderQuantity,
             material?.UnitLabel ?? "cubic yards");
     }
+
+    private static decimal ConvertToSquareFeet(
+        decimal areaValue,
+        MaterialAreaUnit areaUnit) =>
+        areaUnit == MaterialAreaUnit.SquareInches
+            ? areaValue / 144m
+            : areaValue;
 
     public static MaterialConversion? Find(
         string? title,
