@@ -143,4 +143,33 @@ public sealed class SmartSearchTests
                 value,
                 "Customer phrase"));
     }
+
+    [Fact]
+    public void ReviewRecommendation_DistinguishesCatalogDemand()
+    {
+        var recommendation =
+            SmartProductSearchService.BuildReviewRecommendation(
+                0,
+                null,
+                null);
+
+        Assert.Contains("No products matched", recommendation);
+        Assert.Contains("customer demand", recommendation);
+    }
+
+    [Fact]
+    public void ReviewRecommendation_UsesTheActualProductAndMissingFacts()
+    {
+        var recommendation =
+            SmartProductSearchService.BuildReviewRecommendation(
+                6,
+                "Alpine Stone",
+                "Color: Gray · Use: Patios");
+
+        Assert.Contains("Alpine Stone", recommendation);
+        Assert.Contains("Gray", recommendation);
+        Assert.Contains("Patios", recommendation);
+        Assert.Contains("Shopify tags", recommendation);
+        Assert.Contains("GHOS Best Uses", recommendation);
+    }
 }

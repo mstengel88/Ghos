@@ -58,6 +58,10 @@
             <strong>@Analytics.ZeroResultSearches</strong>
         </article>
         <article class="panel">
+            <span>Searches needing review</span>
+            <strong>@Analytics.SearchesNeedingReview</strong>
+        </article>
+        <article class="panel">
             <span>Product selections</span>
             <strong>@Analytics.ProductSelections</strong>
         </article>
@@ -153,7 +157,7 @@
 
 @if (Analytics is not null &&
     (Analytics.TopQueries.Count > 0 ||
-        Analytics.ZeroResultQueries.Count > 0))
+        Analytics.ReviewQueries.Count > 0))
 {
     <section class="search-insights">
         <article class="panel">
@@ -174,30 +178,49 @@
                 }
             }
         </article>
-        <article class="panel zero-results-list">
-            <span class="panel-label">CUSTOMERS FOUND NOTHING</span>
-            @if (Analytics.ZeroResultQueries.Count == 0)
+        <article class="panel review-list">
+            <span class="panel-label">SEARCHES NEEDING REVIEW</span>
+            @if (Analytics.ReviewQueries.Count == 0)
             {
-                <p>No zero-result searches. The current vocabulary covered every query.</p>
+                <p>Every recent search returned a high-confidence match.</p>
             }
             else
             {
-                @foreach (var item in Analytics.ZeroResultQueries)
+                @foreach (var item in Analytics.ReviewQueries)
                 {
-                    <div class="insight-row">
-                        <button type="button"
-                                @onclick="() => SearchExampleAsync(item.Query)">
-                            <span>@item.Query</span>
-                            <strong>@item.Searches</strong>
-                        </button>
-                        @if (CanTuneSearch)
-                        {
+                    <div class="review-row">
+                        <div class="review-title">
                             <button type="button"
-                                    class="tune-link"
-                                    @onclick="() => PrepareRule(item.Query)">
-                                Tune
+                                    @onclick="() => SearchExampleAsync(item.Query)">
+                                @item.Query
                             </button>
+                            <span class="review-status @(item.ResultCount == 0 ? "none" : "weak")">
+                                @(item.ResultCount == 0
+                                    ? "No results"
+                                    : $"{item.TopResultConfidence ?? "Lower"} confidence")
+                            </span>
+                            <strong>@item.Searches search@(item.Searches == 1 ? "" : "es")</strong>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(item.TopResultTitle))
+                        {
+                            <p class="review-result">
+                                Current top result: @item.TopResultTitle
+                            </p>
                         }
+                        <p>@item.Recommendation</p>
+                        <div class="review-actions">
+                            <button type="button"
+                                    @onclick="() => SearchExampleAsync(item.Query)">
+                                Test search
+                            </button>
+                            @if (CanTuneSearch && item.ResultCount == 0)
+                            {
+                                <button type="button"
+                                        @onclick="() => PrepareRule(item.Query)">
+                                    Create synonym rule
+                                </button>
+                            }
+                        </div>
                     </div>
                 }
             }

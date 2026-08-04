@@ -120,7 +120,7 @@
 .analytics-strip {
     margin-top: 12px;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 9px;
 }
 
@@ -331,24 +331,79 @@
     color: var(--ghos-accent-text);
 }
 
-.zero-results-list button strong {
-    color: #a73f39;
-}
-
-.insight-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+.review-row {
+    padding: 11px 0;
     border-bottom: 1px solid var(--ghos-border);
 }
 
-.insight-row > button {
+.review-row:last-child {
     border-bottom: 0;
 }
 
-.insight-row .tune-link {
+.review-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.review-title > button {
     width: auto;
-    padding-left: 10px;
+    padding: 0;
+    border: 0;
+    color: var(--ghos-text);
+    font-weight: 850;
+}
+
+.review-title > strong {
+    margin-left: auto;
+    color: var(--ghos-text-muted);
+    font-size: .52rem;
+}
+
+.review-status {
+    padding: 3px 6px;
+    border-radius: 999px;
+    font-size: .46rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.review-status.none {
+    background: rgba(190, 65, 57, .1);
+    color: #a73f39;
+}
+
+.review-status.weak {
+    background: rgba(215, 165, 40, .13);
+    color: #9a7011;
+}
+
+.review-row > p {
+    margin: 7px 0 0;
+    color: var(--ghos-text-muted);
+    font-size: .57rem;
+    line-height: 1.45;
+}
+
+.review-row .review-result {
+    color: var(--ghos-text-secondary);
+    font-weight: 800;
+}
+
+.review-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 7px;
+}
+
+.review-actions > button {
+    width: auto;
+    padding: 5px 8px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 6px;
     color: var(--ghos-accent-text);
+    font-size: .52rem;
     font-weight: 850;
 }
 
@@ -489,7 +544,7 @@
     }
 
     .analytics-strip {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
@@ -503,6 +558,10 @@
     .result-grid,
     .search-insights {
         grid-template-columns: 1fr;
+    }
+
+    .analytics-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .rule-builder {
