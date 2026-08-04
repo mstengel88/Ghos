@@ -577,6 +577,69 @@ public sealed class WebsiteHealthOperationsTests
         Assert.Contains("AggregateOffer", analysis.SchemaTypes);
     }
 
+    [Fact]
+    public void ProductStructuredDataAnalysis_AcceptsLiveShopifyOfferFields()
+    {
+        var analysis = WebsiteHealthMonitorService.AnalyzeStructuredData(
+        [
+            """
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "#1 Stone",
+              "image": "https://cdn.example.com/1-stone.jpg",
+              "url": "https://greenhillssupply.com/products/1-stone",
+              "offers": {
+                "@type": "Offer",
+                "price": "28.99",
+                "priceCurrency": "USD",
+                "availability": "https://schema.org/InStock"
+              }
+            }
+            """
+        ]);
+
+        var problems =
+            WebsiteHealthMonitorService.GetProductSchemaProblems(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/1-stone"),
+                analysis.SchemaTypes,
+                analysis.Product);
+
+        Assert.Empty(problems);
+    }
+
+    [Fact]
+    public void ProductStructuredDataAnalysis_ReportsMissingMerchantFields()
+    {
+        var analysis = WebsiteHealthMonitorService.AnalyzeStructuredData(
+        [
+            """
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": "Clear Stone",
+              "offers": { "@type": "Offer" }
+            }
+            """
+        ]);
+
+        var problems =
+            WebsiteHealthMonitorService.GetProductSchemaProblems(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/clear-stone"),
+                analysis.SchemaTypes,
+                analysis.Product);
+
+        Assert.Contains("Product image is missing", problems);
+        Assert.Contains("Offer price is missing", problems);
+        Assert.Contains("Offer priceCurrency is missing", problems);
+        Assert.Contains("Offer availability is missing", problems);
+        Assert.Contains(
+            "Product URL does not match this page",
+            problems);
+    }
+
     [Theory]
     [InlineData(
         "https://www.greenhillssupply.com/",

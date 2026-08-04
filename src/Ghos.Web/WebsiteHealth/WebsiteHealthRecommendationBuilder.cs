@@ -263,8 +263,10 @@ internal static class WebsiteHealthRecommendationBuilder
     internal static WebsiteHealthRecommendation SchemaQuality(
         Uri url,
         int invalidBlockCount,
-        string? missingExpectedType)
+        string? missingExpectedType,
+        IReadOnlyList<string>? propertyProblems = null)
     {
+        propertyProblems ??= [];
         var problems = new List<string>();
         if (invalidBlockCount > 0)
         {
@@ -277,21 +279,36 @@ internal static class WebsiteHealthRecommendationBuilder
             problems.Add($"restore the {missingExpectedType} schema for this page");
         }
 
-        var expectedGuidance = missingExpectedType switch
+        if (propertyProblems.Count > 0)
         {
-            "Product" =>
-                "Product markup should use Shopify's live product data for name, canonical URL, image, brand, offers, price, currency, and availability.",
-            "Article" =>
-                "Article markup should identify the headline, canonical URL, image, publication date, author, and publisher.",
-            "WebSite" =>
-                "WebSite markup should identify the store name and canonical homepage URL; include SearchAction only when its target matches the live search route.",
-            _ =>
-                "Keep the markup aligned with the visible page and its canonical URL."
-        };
+            problems.Add(
+                $"restore these live-data fields: {string.Join(", ", propertyProblems)}");
+        }
+
+        var expectedGuidance =
+            missingExpectedType == "Product" ||
+            (propertyProblems.Count > 0 &&
+                url.AbsolutePath.StartsWith(
+                    "/products/",
+                    StringComparison.OrdinalIgnoreCase))
+            ? "Product markup should use Shopify's live product data for name, canonical URL, image, brand, offers, price, currency, and availability."
+            : missingExpectedType switch
+            {
+                "Article" =>
+                    "Article markup should identify the headline, canonical URL, image, publication date, author, and publisher.",
+                "WebSite" =>
+                    "WebSite markup should identify the store name and canonical homepage URL; include SearchAction only when its target matches the live search route.",
+                _ =>
+                    "Keep the markup aligned with the visible page and its canonical URL."
+            };
         return new WebsiteHealthRecommendation(
             $"Structured data must be valid JSON and describe the page customers can see. {string.Join(" and ", problems)}. {expectedGuidance} Do not paste a static price or availability value that can drift from Shopify.",
             missingExpectedType is null
-                ? "Validate the affected JSON-LD block, correct its JSON syntax, and rerun Website Health."
+                ? propertyProblems.Count > 0
+                    ? $"Product structured data needs:\n{string.Join(
+                        Environment.NewLine,
+                        propertyProblems.Select(problem => $"- {problem}"))}"
+                    : "Validate the affected JSON-LD block, correct its JSON syntax, and rerun Website Health."
                 : $"Expected schema type: {missingExpectedType}",
             GetShopifySchemaLocation(url),
             "https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data");
