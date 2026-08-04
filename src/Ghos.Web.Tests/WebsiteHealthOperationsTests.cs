@@ -1221,6 +1221,42 @@ public sealed class WebsiteHealthOperationsTests
 
     [Theory]
     [InlineData(
+        "Seed Starter Pellet Mulch with Tack & Bio-stimulant is a pelletized seed starter made from recycled wood and cellulose fibers to help protect seed, retain moisture, and support faster germination.",
+        "uses recycled wood",
+        "support germination.")]
+    [InlineData(
+        "StrawMax Seedling Straw with Natural Tackifier is a convenient 2.5 cu. ft. bag designed to protect grass seed, retain moisture, and help control erosion during germination.",
+        "protects grass seed",
+        "during germination.")]
+    public void MetaDescriptionLength_CompletesLongProductBenefitSentence(
+        string current,
+        string expectedPhrase,
+        string expectedEnding)
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/seed-starter"),
+                "Seed Starter",
+                "Seed Starter",
+                null,
+                current);
+
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.Contains(
+            expectedPhrase,
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(
+            expectedEnding,
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("…", recommendation.SuggestedValue);
+        Assert.InRange(recommendation.SuggestedValue.Length, 70, 155);
+    }
+
+    [Theory]
+    [InlineData(
         "https://www.greenhillssupply.com/collections/all?page=2",
         "https://www.greenhillssupply.com/collections/all")]
     [InlineData(
