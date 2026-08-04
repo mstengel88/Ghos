@@ -473,6 +473,82 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Theory]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
+        "https://www.greenhillssupply.com/collections/mulch",
+        true)]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch?page=2",
+        "https://www.greenhillssupply.com/collections/mulch?page=2",
+        true)]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
+        "http://www.greenhillssupply.com/collections/mulch",
+        false)]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
+        "https://example.com/collections/mulch",
+        false)]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
+        "https://www.greenhillssupply.com/collections/stone",
+        false)]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
+        "https://www.greenhillssupply.com/collections/mulch?utm_source=email",
+        false)]
+    public void IsCanonicalHealthy_ValidatesSecureSelfReferencingUrls(
+        string pageUrl,
+        string canonical,
+        bool expected)
+    {
+        var result = WebsiteHealthMonitorService.IsCanonicalHealthy(
+            new Uri(pageUrl),
+            canonical);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void HeadingStructure_UsesTheCurrentPageTopicAndShopifyTemplate()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.HeadingStructure(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/mulch"),
+                "Mulch | Green Hills Supply",
+                null,
+                0);
+
+        Assert.Equal(
+            "<h1>Mulch</h1>",
+            recommendation.SuggestedValue);
+        Assert.Contains(
+            "collection template",
+            recommendation.FixLocation);
+    }
+
+    [Fact]
+    public void SearchIndexability_PreservesTheCurrentRobotsDirective()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.SearchIndexability(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/limestone"),
+                "noindex,nofollow");
+
+        Assert.Equal(
+            "noindex,nofollow",
+            recommendation.CurrentValue);
+        Assert.Equal(
+            """<meta name="robots" content="index,follow">""",
+            recommendation.SuggestedValue);
+        Assert.Contains(
+            "Products → open this product",
+            recommendation.FixLocation);
+    }
+
+    [Theory]
     [InlineData(19, false)]
     [InlineData(20, true)]
     [InlineData(60, true)]
