@@ -235,6 +235,22 @@ public sealed class WebsiteHealthMonitorServiceTests
             analysis.MissingHeaders);
     }
 
+    [Theory]
+    [InlineData("https://example.com/products/stone", 0)]
+    [InlineData("https://example.com/collections/aggregate", 1)]
+    [InlineData("https://example.com/pages/contact", 2)]
+    [InlineData("https://example.com/blogs/news/stone-guide", 2)]
+    [InlineData("https://example.com/policies/privacy-policy", 3)]
+    public void GetCrawlPriority_CoversCommercePagesBeforeUtilityContent(
+        string url,
+        int expected)
+    {
+        Assert.Equal(
+            expected,
+            WebsiteHealthMonitorService.GetCrawlPriority(
+                new Uri(url)));
+    }
+
     [Fact]
     public void GetMissingSocialPreviewFields_ReportsOnlyMissingOrInvalidValues()
     {
