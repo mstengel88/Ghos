@@ -21,7 +21,8 @@ internal sealed record WebsiteHealthImage(
     string? Source,
     string AltText,
     string? Context,
-    string? PageUrl = null);
+    string? PageUrl = null,
+    bool IsBrandLogo = false);
 
 internal static class WebsiteHealthRecommendationBuilder
 {
