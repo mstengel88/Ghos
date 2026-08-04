@@ -1079,11 +1079,13 @@ public sealed class WebsiteHealthMonitorService(
 
         issues.Add(new DetectedIssue(
             "heading",
-            page.HeadingCount == 0
-                ? "Missing primary page heading"
+            page.HeadingCount <= 1
+                ? "Missing or empty primary page heading"
                 : "Multiple primary page headings",
-            page.HeadingCount == 0
-                ? "Search engines and customers need one visible heading that clearly identifies this page."
+            page.HeadingCount <= 1
+                ? page.HeadingCount == 0
+                    ? "Search engines and customers need one visible heading that clearly identifies this page."
+                    : "The page contains an H1 element, but it has no readable text. Add a visible heading that clearly identifies this page."
                 : $"This page contains {page.HeadingCount} H1 headings. Keep one primary heading and change the others to H2 or H3.",
             page.Url.ToString(),
             WebsiteHealthIssueSeverity.Warning,
@@ -1172,8 +1174,8 @@ public sealed class WebsiteHealthMonitorService(
     {
         if (!Uri.TryCreate(canonical, UriKind.Absolute, out var target) ||
             !target.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) ||
-            !target.Host.Equals(
-                pageUrl.Host,
+            !NormalizeCanonicalHost(target.Host).Equals(
+                NormalizeCanonicalHost(pageUrl.Host),
                 StringComparison.OrdinalIgnoreCase) ||
             !string.IsNullOrEmpty(target.Fragment))
         {
@@ -1196,6 +1198,11 @@ public sealed class WebsiteHealthMonitorService(
                 key.Equals("gclid", StringComparison.OrdinalIgnoreCase) ||
                 key.Equals("fbclid", StringComparison.OrdinalIgnoreCase));
     }
+
+    private static string NormalizeCanonicalHost(string host) =>
+        host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+            ? host[4..]
+            : host;
 
     private static void AddMetadataLengthObservation(
         string key,

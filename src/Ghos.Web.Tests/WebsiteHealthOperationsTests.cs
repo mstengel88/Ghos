@@ -483,6 +483,10 @@ public sealed class WebsiteHealthOperationsTests
         true)]
     [InlineData(
         "https://www.greenhillssupply.com/collections/mulch",
+        "https://greenhillssupply.com/collections/mulch",
+        true)]
+    [InlineData(
+        "https://www.greenhillssupply.com/collections/mulch",
         "http://www.greenhillssupply.com/collections/mulch",
         false)]
     [InlineData(
@@ -526,6 +530,24 @@ public sealed class WebsiteHealthOperationsTests
         Assert.Contains(
             "collection template",
             recommendation.FixLocation);
+    }
+
+    [Fact]
+    public void HeadingStructure_TreatsAnEmptyH1AsMissing()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.HeadingStructure(
+                new Uri("https://www.greenhillssupply.com/"),
+                "Green Hills Supply | Landscape & Outdoor Materials",
+                "",
+                1);
+
+        Assert.Equal(
+            "<h1>Green Hills Supply | Landscape &amp; Outdoor Materials</h1>",
+            recommendation.SuggestedValue);
+        Assert.Contains(
+            "no readable text",
+            recommendation.CurrentValue);
     }
 
     [Fact]
