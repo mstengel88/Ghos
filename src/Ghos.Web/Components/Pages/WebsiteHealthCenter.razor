@@ -216,7 +216,7 @@ else
                              title="@($"{run.OverallScore:0.0} on {FormatDateTime(run.CompletedAtUtc)}")">
                             <span>@run.OverallScore.ToString("0")</span>
                             <i style="height:@Math.Max(run.OverallScore, 3)%"></i>
-                            <small>@run.StartedAtUtc.ToLocalTime().ToString("M/d")</small>
+                            <small>@WebsiteHealthTimeFormatter.FormatNumericDate(run.StartedAtUtc)</small>
                         </div>
                     }
                 </div>
@@ -437,10 +437,10 @@ else
         };
 
     private static string FormatDateTime(DateTime? date) =>
-        date?.ToLocalTime().ToString("MMM d, yyyy h:mm tt") ?? "—";
+        WebsiteHealthTimeFormatter.FormatTimestamp(date);
 
     private static string FormatDate(DateTime date) =>
-        date.ToLocalTime().ToString("MMM d");
+        WebsiteHealthTimeFormatter.FormatDate(date);
 
     private static string ShortUrl(string url) =>
         url.Length <= 72 ? url : $"{url[..69]}…";
