@@ -204,7 +204,10 @@ public sealed class WebsiteHealthOperationsTests
         "create or open All")]
     [InlineData(
         "https://www.greenhillssupply.com/blogs/news",
-        "layout/theme.liquid")]
+        "Manage blogs")]
+    [InlineData(
+        "https://www.greenhillssupply.com/blogs/news/how-to-use-mulch",
+        "open this post")]
     public void GetShopifySeoLocation_IdentifiesExactAdminSurface(
         string url,
         string expectedText)
