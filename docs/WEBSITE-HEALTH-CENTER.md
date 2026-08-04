@@ -43,6 +43,14 @@ characters, and repeated whitespace. Paginated collection URLs are treated as
 one metadata target to prevent duplicate work. Each finding includes unique
 replacement wording and the correct Shopify editing surface.
 
+Discoverability checks also inspect the contents of `robots.txt` and
+`sitemap.xml`. GHOS verifies that the wildcard crawler group does not block the
+entire storefront, that the production sitemap is declared, that sitemap XML
+uses a supported sitemap root, and that every listed location is an absolute
+HTTPS URL on the production domain. Recommendations preserve Shopify's default
+crawler protections and never tell a manager to hand-author a static Shopify
+sitemap.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,
