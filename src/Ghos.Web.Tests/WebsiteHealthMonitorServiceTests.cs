@@ -61,6 +61,73 @@ public sealed class WebsiteHealthMonitorServiceTests
     }
 
     [Fact]
+    public void ParseRobotsSitemapLocations_FindsAbsoluteDeclarations()
+    {
+        const string robots =
+            """
+            User-agent: *
+            Disallow: /cart
+            Sitemap: https://example.com/sitemap.xml
+            Sitemap: not-a-url
+            """;
+
+        var locations =
+            WebsiteHealthMonitorService.ParseRobotsSitemapLocations(
+                robots);
+
+        Assert.Equal(
+            [new Uri("https://example.com/sitemap.xml")],
+            locations);
+    }
+
+    [Fact]
+    public void AnalyzeSitemap_AcceptsShopifySitemapIndex()
+    {
+        const string sitemap =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <sitemap>
+                <loc>https://example.com/sitemap_products_1.xml</loc>
+              </sitemap>
+              <sitemap>
+                <loc>https://www.example.com/sitemap_collections_1.xml</loc>
+              </sitemap>
+            </sitemapindex>
+            """;
+
+        var analysis = WebsiteHealthMonitorService.AnalyzeSitemap(
+            sitemap,
+            new Uri("https://www.example.com"));
+
+        Assert.True(analysis.IsValidXml);
+        Assert.True(analysis.HasSupportedRoot);
+        Assert.Equal(2, analysis.LocationCount);
+        Assert.Equal(0, analysis.InvalidLocationCount);
+        Assert.Equal(0, analysis.ExternalLocationCount);
+    }
+
+    [Fact]
+    public void AnalyzeSitemap_ReportsMalformedAndExternalLocations()
+    {
+        const string sitemap =
+            """
+            <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+              <url><loc>http://example.com/products/stone</loc></url>
+              <url><loc>https://other.example/products/mulch</loc></url>
+            </urlset>
+            """;
+
+        var analysis = WebsiteHealthMonitorService.AnalyzeSitemap(
+            sitemap,
+            new Uri("https://example.com"));
+
+        Assert.True(analysis.IsValidXml);
+        Assert.Equal(1, analysis.InvalidLocationCount);
+        Assert.Equal(1, analysis.ExternalLocationCount);
+    }
+
+    [Fact]
     public void NormalizeUrl_RemovesFragmentAndTrailingSlash()
     {
         var normalized = WebsiteHealthMonitorService.NormalizeUrl(

@@ -8,6 +8,8 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Linq;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Ghos.Web.Data;
@@ -20,6 +22,14 @@ internal sealed record StructuredDataAnalysis(
     int ValidBlockCount,
     int InvalidBlockCount,
     IReadOnlySet<string> SchemaTypes);
+
+internal sealed record SitemapAnalysis(
+    bool IsValidXml,
+    bool HasSupportedRoot,
+    int LocationCount,
+    int InvalidLocationCount,
+    int ExternalLocationCount,
+    string? Error);
 
 public sealed class WebsiteHealthMonitorService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
@@ -129,7 +139,18 @@ public sealed class WebsiteHealthMonitorService(
                     issues);
             }
 
-            if (enabledCheckKeys.Contains("sitemap"))
+            if (enabledCheckKeys.Contains("robots-quality"))
+            {
+                AddRobotsQualityObservation(
+                    baseUri,
+                    robotsUri,
+                    robots,
+                    observations,
+                    issues);
+            }
+
+            if (enabledCheckKeys.Contains("sitemap") ||
+                enabledCheckKeys.Contains("sitemap-quality"))
             {
                 var sitemapUri = new Uri(baseUri, "/sitemap.xml");
                 await DelayAsync(site, cancellationToken);
@@ -138,14 +159,27 @@ public sealed class WebsiteHealthMonitorService(
                     site,
                     cancellationToken);
                 checkedUrls.Add(NormalizeUrl(sitemapUri));
-                AddResourceObservation(
-                    "sitemap",
-                    "Sitemap",
-                    "Discoverability",
-                    sitemapUri,
-                    sitemap,
-                    observations,
-                    issues);
+                if (enabledCheckKeys.Contains("sitemap"))
+                {
+                    AddResourceObservation(
+                        "sitemap",
+                        "Sitemap",
+                        "Discoverability",
+                        sitemapUri,
+                        sitemap,
+                        observations,
+                        issues);
+                }
+
+                if (enabledCheckKeys.Contains("sitemap-quality"))
+                {
+                    AddSitemapQualityObservation(
+                        baseUri,
+                        sitemapUri,
+                        sitemap,
+                        observations,
+                        issues);
+                }
             }
 
             var disallowedPaths = ParseRobotsDisallowRules(robots.Content);
@@ -876,6 +910,107 @@ public sealed class WebsiteHealthMonitorService(
         return rules;
     }
 
+    internal static IReadOnlyCollection<Uri> ParseRobotsSitemapLocations(
+        string content)
+    {
+        var locations = new List<Uri>();
+        foreach (var line in content.Split('\n'))
+        {
+            var cleaned = line.Split('#', 2)[0].Trim();
+            if (!cleaned.StartsWith(
+                    "Sitemap:",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = cleaned["Sitemap:".Length..].Trim();
+            if (Uri.TryCreate(value, UriKind.Absolute, out var location))
+            {
+                locations.Add(location);
+            }
+        }
+
+        return locations;
+    }
+
+    internal static SitemapAnalysis AnalyzeSitemap(
+        string content,
+        Uri baseUri)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return new SitemapAnalysis(
+                false,
+                false,
+                0,
+                0,
+                0,
+                "The sitemap response is empty.");
+        }
+
+        try
+        {
+            using var reader = XmlReader.Create(
+                new StringReader(content),
+                new XmlReaderSettings
+                {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null,
+                    MaxCharactersInDocument = MaximumResponseCharacters
+                });
+            var document = XDocument.Load(reader);
+            var rootName = document.Root?.Name.LocalName;
+            var hasSupportedRoot =
+                rootName is "urlset" or "sitemapindex";
+            var locations = document
+                .Descendants()
+                .Where(element =>
+                    element.Name.LocalName.Equals(
+                        "loc",
+                        StringComparison.OrdinalIgnoreCase))
+                .Select(element => element.Value.Trim())
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToList();
+            var validLocations = locations
+                .Select(value =>
+                    Uri.TryCreate(
+                        value,
+                        UriKind.Absolute,
+                        out var location)
+                        ? location
+                        : null)
+                .ToList();
+            var invalidCount = validLocations.Count(location =>
+                location is null ||
+                location.Scheme != Uri.UriSchemeHttps);
+            var externalCount = validLocations.Count(location =>
+                location is not null &&
+                !NormalizeCanonicalHost(location.Host).Equals(
+                    NormalizeCanonicalHost(baseUri.Host),
+                    StringComparison.OrdinalIgnoreCase));
+            return new SitemapAnalysis(
+                true,
+                hasSupportedRoot,
+                locations.Count,
+                invalidCount,
+                externalCount,
+                hasSupportedRoot
+                    ? null
+                    : $"Unexpected root element: {rootName ?? "(missing)"}.");
+        }
+        catch (XmlException exception)
+        {
+            return new SitemapAnalysis(
+                false,
+                false,
+                0,
+                0,
+                0,
+                Truncate(exception.Message, 300));
+        }
+    }
+
     internal static bool IsDisallowed(
         Uri target,
         IReadOnlyCollection<string> rules) =>
@@ -953,6 +1088,156 @@ public sealed class WebsiteHealthMonitorService(
             WebsiteHealthIssueSeverity.Warning,
             observations,
             issues);
+    }
+
+    private static void AddRobotsQualityObservation(
+        Uri baseUri,
+        Uri robotsUri,
+        FetchSnapshot snapshot,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var disallowRules = ParseRobotsDisallowRules(snapshot.Content);
+        var sitemapLocations =
+            ParseRobotsSitemapLocations(snapshot.Content);
+        var blocksStorefront = disallowRules.Any(rule =>
+            rule.Trim() == "/");
+        var hasProductionSitemap = sitemapLocations.Any(location =>
+            location.Scheme == Uri.UriSchemeHttps &&
+            NormalizeCanonicalHost(location.Host).Equals(
+                NormalizeCanonicalHost(baseUri.Host),
+                StringComparison.OrdinalIgnoreCase) &&
+            location.AbsolutePath.Equals(
+                "/sitemap.xml",
+                StringComparison.OrdinalIgnoreCase));
+        var healthy =
+            snapshot.IsSuccess &&
+            !blocksStorefront &&
+            hasProductionSitemap;
+        var problems = new List<string>();
+        if (!snapshot.IsSuccess)
+        {
+            problems.Add("robots.txt is unavailable");
+        }
+
+        if (blocksStorefront)
+        {
+            problems.Add("User-agent * disallows the entire storefront");
+        }
+
+        if (!hasProductionSitemap)
+        {
+            problems.Add("the production sitemap declaration is missing");
+        }
+
+        observations.Add(new Observation(
+            "robots-quality",
+            "robots.txt quality",
+            "Discoverability",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            healthy ? 0m : problems.Count,
+            "issues",
+            robotsUri.ToString(),
+            healthy
+                ? "The storefront is crawlable and the production sitemap is declared."
+                : string.Join("; ", problems) + "."));
+        if (!healthy)
+        {
+            issues.Add(new DetectedIssue(
+                "robots-quality",
+                "robots.txt needs improvement",
+                string.Join("; ", problems) + ".",
+                robotsUri.ToString(),
+                blocksStorefront
+                    ? WebsiteHealthIssueSeverity.Critical
+                    : WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.RobotsQuality(
+                    baseUri,
+                    blocksStorefront,
+                    hasProductionSitemap)));
+        }
+    }
+
+    private static void AddSitemapQualityObservation(
+        Uri baseUri,
+        Uri sitemapUri,
+        FetchSnapshot snapshot,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var analysis = AnalyzeSitemap(
+            snapshot.Content,
+            baseUri);
+        var healthy =
+            snapshot.IsSuccess &&
+            analysis.IsValidXml &&
+            analysis.HasSupportedRoot &&
+            analysis.LocationCount > 0 &&
+            analysis.InvalidLocationCount == 0 &&
+            analysis.ExternalLocationCount == 0;
+        var problems = new List<string>();
+        if (!snapshot.IsSuccess)
+        {
+            problems.Add("sitemap.xml is unavailable");
+        }
+        else if (!analysis.IsValidXml)
+        {
+            problems.Add($"the XML is invalid: {analysis.Error}");
+        }
+        else
+        {
+            if (!analysis.HasSupportedRoot)
+            {
+                problems.Add(analysis.Error ?? "the XML root is unsupported");
+            }
+
+            if (analysis.LocationCount == 0)
+            {
+                problems.Add("no sitemap locations were found");
+            }
+
+            if (analysis.InvalidLocationCount > 0)
+            {
+                problems.Add(
+                    $"{analysis.InvalidLocationCount} location(s) are not absolute HTTPS URLs");
+            }
+
+            if (analysis.ExternalLocationCount > 0)
+            {
+                problems.Add(
+                    $"{analysis.ExternalLocationCount} location(s) use another domain");
+            }
+        }
+
+        observations.Add(new Observation(
+            "sitemap-quality",
+            "Sitemap quality",
+            "Discoverability",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            (decimal)(healthy
+                ? analysis.LocationCount
+                : problems.Count),
+            healthy ? "locations" : "issues",
+            sitemapUri.ToString(),
+            healthy
+                ? $"Valid sitemap XML with {analysis.LocationCount} location(s)."
+                : string.Join("; ", problems) + "."));
+        if (!healthy)
+        {
+            issues.Add(new DetectedIssue(
+                "sitemap-quality",
+                "Sitemap needs improvement",
+                string.Join("; ", problems) + ".",
+                sitemapUri.ToString(),
+                WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.SitemapQuality(
+                    sitemapUri,
+                    analysis)));
+        }
     }
 
     private static void AddLinkObservation(
