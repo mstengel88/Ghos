@@ -4,7 +4,9 @@
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject WebsiteHealthIssueService IssueService
+@inject WebsiteHealthRunCoordinator RunCoordinator
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
 @inject ILogger<WebsiteHealthIssues> Logger
 
 <PageTitle>Website Health Issues | GHOS</PageTitle>
@@ -173,7 +175,14 @@ else
                                             @if (!string.IsNullOrWhiteSpace(issue.SuggestedValue))
                                             {
                                                 <div class="suggested-value">
-                                                    <span>@SuggestionLabel(issue.CheckKey)</span>
+                                                    <div>
+                                                        <span>@SuggestionLabel(issue.CheckKey)</span>
+                                                        <button type="button"
+                                                                disabled="@Busy"
+                                                                @onclick="() => CopySuggestionAsync(issue)">
+                                                            Copy suggestion
+                                                        </button>
+                                                    </div>
                                                     <pre>@issue.SuggestedValue</pre>
                                                 </div>
                                             }
@@ -190,6 +199,15 @@ else
                                         <div>
                                             @if (issue.ResolvedAtUtc is null && issue.SuppressedAtUtc is null)
                                             {
+                                                <button class="verify"
+                                                        type="button"
+                                                        disabled="@Busy"
+                                                        title="Run a fresh live scan and confirm whether this issue is fixed"
+                                                        @onclick="() => VerifyFixAsync(issue)">
+                                                    @(VerifyingIssueId == issue.Id
+                                                        ? "Checking live site…"
+                                                        : "Verify fix")
+                                                </button>
                                                 @if (issue.AcknowledgedAtUtc is null)
                                                 {
                                                     <button type="button"
@@ -242,6 +260,7 @@ else
     private string Search { get; set; } = "";
     private bool Loading { get; set; } = true;
     private bool Busy { get; set; }
+    private Guid? VerifyingIssueId { get; set; }
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
 
@@ -345,6 +364,96 @@ else
         }
         finally
         {
+            Busy = false;
+        }
+    }
+
+    private async Task CopySuggestionAsync(WebsiteHealthIssue issue)
+    {
+        if (string.IsNullOrWhiteSpace(issue.SuggestedValue))
+        {
+            return;
+        }
+
+        ErrorMessage = null;
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "ghos.copyText",
+                issue.SuggestedValue);
+            SuccessMessage = $"{SuggestionLabel(issue.CheckKey)} copied.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(
+                exception,
+                "Unable to copy Website Health suggestion for issue {IssueId}.",
+                issue.Id);
+            ErrorMessage =
+                "The suggestion could not be copied automatically. Select the text and copy it manually.";
+        }
+    }
+
+    private async Task VerifyFixAsync(WebsiteHealthIssue issue)
+    {
+        if (Busy)
+        {
+            return;
+        }
+
+        Busy = true;
+        VerifyingIssueId = issue.Id;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirst(
+                ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                ErrorMessage = "Your session could not be verified.";
+                return;
+            }
+
+            var run = await RunCoordinator.TryRunAsync(
+                issue.MonitoredSiteId,
+                "Issue verification",
+                userId);
+            if (run is null)
+            {
+                ErrorMessage =
+                    "Another website health check is already running. Try again when it finishes.";
+                return;
+            }
+
+            if (run.Status == WebsiteHealthRunStatus.Failed)
+            {
+                ErrorMessage = run.ErrorMessage ??
+                    "The live website check could not be completed.";
+                return;
+            }
+
+            await LoadAsync();
+            var refreshedIssue = Issues.FirstOrDefault(
+                candidate => candidate.Id == issue.Id);
+            SuccessMessage = refreshedIssue?.ResolvedAtUtc is not null
+                ? "Fix verified. This issue is now resolved."
+                : "Live check complete. This issue is still present; review the saved suggestion and Shopify location.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Unable to verify Website Health issue {IssueId}.",
+                issue.Id);
+            ErrorMessage =
+                "GHOS could not verify the fix. No issue status was changed.";
+        }
+        finally
+        {
+            VerifyingIssueId = null;
             Busy = false;
         }
     }

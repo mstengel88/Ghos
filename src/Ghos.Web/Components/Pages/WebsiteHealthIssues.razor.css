@@ -346,7 +346,7 @@
 }
 
 .recommendation > div:first-child span,
-.suggested-value > span {
+.suggested-value > div > span {
     color: var(--ghos-accent-text);
     font-size: .49rem;
     font-weight: 900;
@@ -397,9 +397,28 @@
     border-top: 1px solid rgba(126, 167, 27, .22);
 }
 
-.suggested-value > span {
-    display: block;
+.suggested-value > div {
     margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.suggested-value button {
+    padding: 5px 7px;
+    border: 1px solid rgba(126, 167, 27, .3);
+    border-radius: 6px;
+    background: var(--ghos-surface);
+    color: var(--ghos-accent-text);
+    font-size: .52rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.suggested-value button:disabled {
+    cursor: wait;
+    opacity: .6;
 }
 
 .suggested-value pre {
@@ -444,6 +463,12 @@
 
 .triage-controls button.suppress {
     color: #8b6510;
+}
+
+.triage-controls button.verify {
+    border-color: rgba(126, 167, 27, .38);
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
 }
 
 .triage-controls button:disabled {
