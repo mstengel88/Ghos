@@ -201,7 +201,7 @@ public sealed class WebsiteHealthOperationsTests
         "Online Store → Preferences")]
     [InlineData(
         "https://www.greenhillssupply.com/collections/all",
-        "create or open All")]
+        "create a separate smart collection")]
     [InlineData(
         "https://www.greenhillssupply.com/blogs/news",
         "Manage blogs")]
@@ -217,6 +217,25 @@ public sealed class WebsiteHealthOperationsTests
                 new Uri(url));
 
         Assert.Contains(expectedText, location);
+    }
+
+    [Fact]
+    public void MissingMetaDescription_DoesNotRecommendRenamingACollectionForCatalog()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.MissingMetaDescription(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/all"),
+                "Products",
+                "Products",
+                null);
+
+        Assert.Contains(
+            "Do not rename",
+            recommendation.Guidance);
+        Assert.Contains(
+            "separate smart collection",
+            recommendation.FixLocation);
     }
 
     [Theory]

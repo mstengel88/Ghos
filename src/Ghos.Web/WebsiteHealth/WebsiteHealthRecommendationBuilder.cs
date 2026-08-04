@@ -72,8 +72,13 @@ internal static class WebsiteHealthRecommendationBuilder
             url,
             topic,
             introductoryText);
+        var guidance = url.AbsolutePath.Equals(
+            "/collections/all",
+            StringComparison.OrdinalIgnoreCase)
+            ? "This is Shopify's built-in catalog route. Do not rename or change the handle of an existing collection, because theme sections can depend on that handle. To manage this route's SEO, create a separate smart collection titled All with the handle /all, then add this description. If the catalog route is intentionally unused, suppress this finding or remove it from Website Health key pages."
+            : "Add a unique meta description that explains what a customer will find on this page and gives them a reason to click. Aim for roughly 120–155 characters and do not reuse it across paginated or related pages.";
         return new WebsiteHealthRecommendation(
-            "Add a unique meta description that explains what a customer will find on this page and gives them a reason to click. Aim for roughly 120–155 characters and do not reuse it across paginated or related pages.",
+            guidance,
             description,
             GetShopifySeoLocation(url));
     }
@@ -474,7 +479,7 @@ internal static class WebsiteHealthRecommendationBuilder
             "/collections/all",
             StringComparison.OrdinalIgnoreCase))
         {
-            return "Shopify Admin → Products → Collections → create or open All → Search engine listing → Edit website SEO; keep the handle /all";
+            return "Shopify Admin → Products → Collections → Create collection → create a separate smart collection titled All → Save → Search engine listing → Edit website SEO → confirm the new collection handle is /all. Do not rename an existing collection.";
         }
 
         if (path.StartsWith(
