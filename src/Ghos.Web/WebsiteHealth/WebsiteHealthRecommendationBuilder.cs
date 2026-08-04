@@ -35,6 +35,8 @@ internal sealed record WebsiteHealthImage(
 internal static class WebsiteHealthRecommendationBuilder
 {
     private const string BrandName = "Green Hills Supply";
+    private const string AllCatalogMetaDescription =
+        "Shop Green Hills Supply for aggregate, decorative stone, mulch, sand, bagged landscape materials, tools, ice melt, and water-conditioning products.";
 
     internal static WebsiteHealthRecommendation MissingTitle(
         Uri url,
@@ -125,15 +127,18 @@ internal static class WebsiteHealthRecommendationBuilder
                 "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head> with a cart/search condition");
         }
 
-        var topic = GetPageTopic(url, heading, title);
-        var description = BuildDescription(
-            url,
-            topic,
-            introductoryText);
-        var guidance = url.AbsolutePath.Equals(
+        var isShopifyCatalog = url.AbsolutePath.Equals(
             "/collections/all",
-            StringComparison.OrdinalIgnoreCase)
-            ? "This is Shopify's built-in catalog route. Do not rename or change the handle of an existing collection, because theme sections can depend on that handle. To manage this route's SEO, create a separate smart collection titled All with the handle /all, then add this description. If the catalog route is intentionally unused, suppress this finding or remove it from Website Health key pages."
+            StringComparison.OrdinalIgnoreCase);
+        var topic = GetPageTopic(url, heading, title);
+        var description = isShopifyCatalog
+            ? AllCatalogMetaDescription
+            : BuildDescription(
+                url,
+                topic,
+                introductoryText);
+        var guidance = isShopifyCatalog
+            ? "This is Shopify's built-in catalog URL, which exists even when no All collection appears under Products → Collections. Creating a smart collection with the handle all attaches editable collection and SEO settings to this existing catalog URL. It does not replace your separate collections landing page, other collections, homepage sections, or navigation. Do not rename another collection or change any menu link."
             : "Add a unique meta description that explains what a customer will find on this page and gives them a reason to click. Aim for roughly 120–155 characters and do not reuse it across paginated or related pages.";
         return new WebsiteHealthRecommendation(
             guidance,
@@ -889,7 +894,7 @@ internal static class WebsiteHealthRecommendationBuilder
             "/collections/all",
             StringComparison.OrdinalIgnoreCase))
         {
-            return "Shopify Admin → Products → Collections → Create collection → create a separate smart collection titled All → Save → Search engine listing → Edit website SEO → confirm the new collection handle is /all. Do not rename an existing collection.";
+            return "Shopify Admin → Products → Collections → search for All. If it exists, open it; if it does not, choose Create collection → title it All → select Smart collection → condition Product price is greater than $0 → Save. In Search engine listing, choose Edit website SEO → keep the handle exactly all → paste the suggested description. Leave your existing collections landing page, homepage sections, theme template, and menu links unchanged.";
         }
 
         if (path.StartsWith(
