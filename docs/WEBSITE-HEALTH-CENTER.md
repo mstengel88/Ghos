@@ -71,9 +71,14 @@ listing editor.
 Shopify's `/collections/all` route is a built-in catalog page. GHOS never
 recommends renaming an existing collection to take over that handle, because a
 theme section can reference the existing handle and disappear when it changes.
-The catalog recommendation instead explains how to create a separate smart
-collection titled **All** with the `/all` handle. Stores that do not use the
-catalog route can remove it from monitored key pages or suppress the finding.
+The catalog recommendation first checks for an existing editable **All**
+collection. A saved collection does not expose a type selector because Shopify
+does not allow its type to be changed; its SEO listing can still be edited
+without changing that type. When no editable collection owns `/all`, GHOS
+directs the manager back to **Create collection**, where **Smart** (also labeled
+**Automated** in some Shopify interfaces) is selected before the first save.
+Stores that do not use the catalog route can remove it from monitored key pages
+or suppress the finding.
 
 Supported Shopify remediation paths include a direct **Official Shopify
 instructions** link in the Issue Center. Theme-dependent or custom-code

@@ -467,7 +467,20 @@ public sealed class WebsiteHealthOperationsTests
             "does not replace your separate collections landing page",
             recommendation.Guidance);
         Assert.Contains(
-            "if it does not",
+            "If no editable All collection exists",
+            recommendation.FixLocation,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "brand-new form",
+            recommendation.FixLocation);
+        Assert.Contains(
+            "does not show an editable type choice after",
+            recommendation.FixLocation);
+        Assert.Contains(
+            "Smart",
+            recommendation.FixLocation);
+        Assert.Contains(
+            "Automated",
             recommendation.FixLocation);
         Assert.Contains(
             "Leave your existing collections landing page",
