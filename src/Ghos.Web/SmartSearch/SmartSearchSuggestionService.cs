@@ -38,6 +38,9 @@ public sealed class SmartSearchSuggestionService(
             return [];
         }
 
+        normalized = normalized.Length <= 120
+            ? normalized
+            : normalized[..120];
         var candidates = await memoryCache.GetOrCreateAsync(
             CandidateCacheKey,
             async entry =>
@@ -222,7 +225,7 @@ public static class SmartSearchSuggestionRanker
         }
 
         return matchScore +
-            (candidate.Kind == "Product" ? 15 : 0) +
+            (candidate.Kind == "Product" ? 35 : 0) +
             (candidate.Kind == "Popular" ? 10 : 0) +
             Math.Min(candidate.Popularity, 20);
     }

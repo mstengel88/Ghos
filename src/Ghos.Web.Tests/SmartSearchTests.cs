@@ -297,13 +297,13 @@ public sealed class SmartSearchTests
                     "Driveway materials",
                     "Search"),
                 new(
-                    "Driveway Stone #2",
+                    "#2 Driveway Stone",
                     "Product",
                     "Bulk Stone",
                     "https://greenhillssupply.com/products/2-stone")
             ]);
 
-        Assert.Equal("Driveway Stone #2", suggestions[0].Text);
+        Assert.Equal("#2 Driveway Stone", suggestions[0].Text);
         Assert.Equal("Product", suggestions[0].Kind);
         Assert.Equal(
             "https://greenhillssupply.com/products/2-stone",
