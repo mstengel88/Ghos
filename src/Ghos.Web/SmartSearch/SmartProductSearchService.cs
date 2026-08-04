@@ -220,15 +220,17 @@ public sealed class SmartProductSearchService(
             }
 
             var directMatches = plan.DirectTerms.Count(term =>
-                term.Length > 1 && normalizedField.Contains(
-                    term,
-                    StringComparison.OrdinalIgnoreCase));
+                term.Length > 1 &&
+                SmartSearchSynonymLibrary.ContainsNormalizedTerm(
+                    normalizedField,
+                    term));
             var expandedMatches = plan.ExpandedTerms
                 .Except(plan.DirectTerms, StringComparer.OrdinalIgnoreCase)
                 .Count(term =>
-                    term.Length > 2 && normalizedField.Contains(
-                        term,
-                        StringComparison.OrdinalIgnoreCase));
+                    term.Length > 2 &&
+                    SmartSearchSynonymLibrary.ContainsNormalizedTerm(
+                        normalizedField,
+                        term));
             if (directMatches == 0 && expandedMatches == 0)
             {
                 continue;
@@ -270,9 +272,9 @@ public sealed class SmartProductSearchService(
         plan.IntentMatches
             .Where(intent => intent.Terms.Any(term =>
                 term.Length > 1 &&
-                searchableDocument.Contains(
-                    term,
-                    StringComparison.OrdinalIgnoreCase)))
+                SmartSearchSynonymLibrary.ContainsNormalizedTerm(
+                    searchableDocument,
+                    term)))
             .Select(intent => $"{intent.Category}: {intent.Name}")
             .ToList();
 

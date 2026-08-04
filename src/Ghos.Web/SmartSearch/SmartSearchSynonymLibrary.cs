@@ -85,7 +85,7 @@ public static partial class SmartSearchSynonymLibrary
             StringComparer.OrdinalIgnoreCase);
         var matchedConcepts = Concepts.Where(concept =>
             concept.Terms.Any(term =>
-                ContainsTerm(normalized, Normalize(term))))
+                ContainsNormalizedTerm(normalized, Normalize(term))))
             .ToList();
         var intents = new List<string>();
         foreach (var concept in matchedConcepts)
@@ -122,11 +122,13 @@ public static partial class SmartSearchSynonymLibrary
                 " "),
             " ").Trim();
 
-    private static bool ContainsTerm(string query, string term) =>
-        query.Equals(term, StringComparison.OrdinalIgnoreCase) ||
-        query.Contains($" {term} ", StringComparison.OrdinalIgnoreCase) ||
-        query.StartsWith($"{term} ", StringComparison.OrdinalIgnoreCase) ||
-        query.EndsWith($" {term}", StringComparison.OrdinalIgnoreCase);
+    internal static bool ContainsNormalizedTerm(
+        string text,
+        string term) =>
+        text.Equals(term, StringComparison.OrdinalIgnoreCase) ||
+        text.Contains($" {term} ", StringComparison.OrdinalIgnoreCase) ||
+        text.StartsWith($"{term} ", StringComparison.OrdinalIgnoreCase) ||
+        text.EndsWith($" {term}", StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"[^a-z0-9#&/.\-]+")]
     private static partial Regex NonSearchCharacterRegex();
