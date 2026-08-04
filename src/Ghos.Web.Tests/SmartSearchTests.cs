@@ -18,11 +18,14 @@ public sealed class SmartSearchTests
     public void Plan_ExpandsCustomerUseLanguage()
     {
         var plan = SmartSearchSynonymLibrary.Plan(
-            "gravel for my driveway");
+            "stone for my driveway");
 
         Assert.Contains("Use: Driveways", plan.Intents);
+        Assert.Contains("Material: Crushed stone", plan.Intents);
         Assert.Contains("parking pad", plan.ExpandedTerms);
         Assert.Contains("gravel drive", plan.ExpandedTerms);
+        Assert.DoesNotContain("for", plan.DirectTerms);
+        Assert.DoesNotContain("my", plan.DirectTerms);
     }
 
     [Fact]
