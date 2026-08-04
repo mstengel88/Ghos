@@ -68,7 +68,7 @@
     font: inherit;
 }
 
-.search-box button,
+.search-box > button,
 .examples button {
     border: 1px solid var(--ghos-accent);
     border-radius: 8px;
@@ -79,13 +79,99 @@
     cursor: pointer;
 }
 
-.search-box button {
+.search-box > button {
     padding: 0 16px;
 }
 
-.search-box button:disabled {
+.search-box > button:disabled {
     cursor: wait;
     opacity: .55;
+}
+
+.search-input-wrap {
+    min-width: 0;
+    position: relative;
+}
+
+.search-input-wrap > input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.suggestion-menu,
+.suggestion-loading {
+    width: 100%;
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    z-index: 20;
+    border: 1px solid var(--ghos-border);
+    border-radius: 9px;
+    background: var(--ghos-surface);
+    box-shadow: 0 14px 35px rgba(0, 0, 0, .18);
+    overflow: hidden;
+}
+
+.suggestion-menu > button {
+    width: 100%;
+    min-height: 48px;
+    padding: 7px 10px;
+    border: 0;
+    border-bottom: 1px solid var(--ghos-border);
+    background: transparent;
+    color: var(--ghos-text);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.suggestion-menu > button:last-child {
+    border-bottom: 0;
+}
+
+.suggestion-menu > button:hover,
+.suggestion-menu > button:focus-visible {
+    background: var(--ghos-accent-soft);
+}
+
+.suggestion-menu img {
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+    background: var(--ghos-surface-muted);
+    object-fit: cover;
+}
+
+.suggestion-menu span {
+    min-width: 0;
+}
+
+.suggestion-menu strong,
+.suggestion-menu small {
+    display: block;
+}
+
+.suggestion-menu strong {
+    overflow: hidden;
+    font-size: .64rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.suggestion-menu small {
+    margin-top: 2px;
+    color: var(--ghos-text-muted);
+    font-size: .5rem;
+}
+
+.suggestion-loading {
+    padding: 10px;
+    color: var(--ghos-text-muted);
+    font-size: .56rem;
+    box-sizing: border-box;
 }
 
 .examples {
@@ -717,7 +803,7 @@
         display: none;
     }
 
-    .search-box button {
+    .search-box > button {
         min-height: 42px;
     }
 }

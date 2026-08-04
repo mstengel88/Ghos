@@ -60,6 +60,8 @@ builder.Services.AddScoped<ShopifySyncService>();
 builder.Services.AddScoped<SmartProductSearchService>();
 builder.Services.AddScoped<SmartSearchTuningService>();
 builder.Services.AddScoped<SmartSearchMerchandisingService>();
+builder.Services.AddScoped<SmartSearchSuggestionService>();
+builder.Services.AddMemoryCache();
 builder.Services.Configure<BackupStatusOptions>(
     builder.Configuration.GetSection(BackupStatusOptions.SectionName));
 builder.Services.Configure<WinterWatchAdminOptions>(
@@ -221,6 +223,15 @@ builder.Services.AddAuthorizationBuilder()
             GhosRoles.Manager));
 
 builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddCors(options =>
+    options.AddPolicy(
+        "storefront-search-cors",
+        policy => policy
+            .WithOrigins(
+                "https://greenhillssupply.com",
+                "https://www.greenhillssupply.com")
+            .WithMethods("GET", "POST")
+            .WithHeaders("Content-Type")));
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -273,6 +284,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
