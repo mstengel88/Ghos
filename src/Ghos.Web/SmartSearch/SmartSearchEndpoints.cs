@@ -30,12 +30,31 @@ public static class SmartSearchEndpoints
                     var response = await searchService.SearchAsync(
                         q,
                         limit == 0 ? 8 : limit,
+                        "Storefront API",
                         cancellationToken);
                     return Results.Ok(response);
                 })
             .AllowAnonymous()
             .RequireRateLimiting("storefront-search");
 
+        endpoints.MapPost(
+                "/api/storefront/search/{searchEventId:guid}/selection",
+                async (
+                    Guid searchEventId,
+                    SmartSearchSelectionRequest request,
+                    SmartProductSearchService searchService,
+                    CancellationToken cancellationToken) =>
+                    await searchService.RecordSelectionAsync(
+                        searchEventId,
+                        request.ProductId,
+                        cancellationToken)
+                        ? Results.NoContent()
+                        : Results.NotFound())
+            .AllowAnonymous()
+            .RequireRateLimiting("storefront-search");
+
         return endpoints;
     }
 }
+
+public sealed record SmartSearchSelectionRequest(Guid ProductId);

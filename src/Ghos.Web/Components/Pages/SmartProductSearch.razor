@@ -43,6 +43,28 @@
     </div>
 </section>
 
+@if (Analytics is not null)
+{
+    <section class="analytics-strip">
+        <article class="panel">
+            <span>Searches · 7 days</span>
+            <strong>@Analytics.Searches</strong>
+        </article>
+        <article class="panel">
+            <span>Zero-result searches</span>
+            <strong>@Analytics.ZeroResultSearches</strong>
+        </article>
+        <article class="panel">
+            <span>Product selections</span>
+            <strong>@Analytics.ProductSelections</strong>
+        </article>
+        <article class="panel">
+            <span>Selection rate</span>
+            <strong>@SelectionRate</strong>
+        </article>
+    </section>
+}
+
 @if (!string.IsNullOrWhiteSpace(ErrorMessage))
 {
     <div class="search-alert" role="alert">@ErrorMessage</div>
@@ -95,7 +117,10 @@
                                 <span>@reason</span>
                             }
                         </div>
-                        <a href="@result.ProductUrl" target="_blank" rel="noopener noreferrer">
+                        <a href="@result.ProductUrl"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           @onclick="() => RecordSelectionAsync(result)">
                             View live product ↗
                         </a>
                     </div>
@@ -103,6 +128,50 @@
             }
         </section>
     }
+}
+
+@if (Analytics is not null &&
+    (Analytics.TopQueries.Count > 0 ||
+        Analytics.ZeroResultQueries.Count > 0))
+{
+    <section class="search-insights">
+        <article class="panel">
+            <span class="panel-label">TOP SEARCHES · 7 DAYS</span>
+            @if (Analytics.TopQueries.Count == 0)
+            {
+                <p>No searches recorded yet.</p>
+            }
+            else
+            {
+                @foreach (var item in Analytics.TopQueries)
+                {
+                    <button type="button"
+                            @onclick="() => SearchExampleAsync(item.Query)">
+                        <span>@item.Query</span>
+                        <strong>@item.Searches</strong>
+                    </button>
+                }
+            }
+        </article>
+        <article class="panel zero-results-list">
+            <span class="panel-label">CUSTOMERS FOUND NOTHING</span>
+            @if (Analytics.ZeroResultQueries.Count == 0)
+            {
+                <p>No zero-result searches. The current vocabulary covered every query.</p>
+            }
+            else
+            {
+                @foreach (var item in Analytics.ZeroResultQueries)
+                {
+                    <button type="button"
+                            @onclick="() => SearchExampleAsync(item.Query)">
+                        <span>@item.Query</span>
+                        <strong>@item.Searches</strong>
+                    </button>
+                }
+            }
+        </article>
+    </section>
 }
 
 @code {
@@ -119,6 +188,10 @@
     private bool Searching { get; set; }
     private string? ErrorMessage { get; set; }
     private SmartProductSearchResponse? Response { get; set; }
+    private SmartSearchAnalyticsSnapshot? Analytics { get; set; }
+
+    protected override async Task OnInitializedAsync() =>
+        Analytics = await SearchService.GetAnalyticsAsync();
 
     private async Task HandleKeyDownAsync(KeyboardEventArgs eventArgs)
     {
@@ -145,7 +218,11 @@
         ErrorMessage = null;
         try
         {
-            Response = await SearchService.SearchAsync(Query);
+            Response = await SearchService.SearchAsync(
+                Query,
+                12,
+                "GHOS preview");
+            Analytics = await SearchService.GetAnalyticsAsync();
         }
         catch
         {
@@ -157,4 +234,23 @@
             Searching = false;
         }
     }
+
+    private async Task RecordSelectionAsync(
+        SmartProductSearchResult result)
+    {
+        if (Response?.SearchEventId is not Guid searchEventId)
+        {
+            return;
+        }
+
+        await SearchService.RecordSelectionAsync(
+            searchEventId,
+            result.ProductId);
+        Analytics = await SearchService.GetAnalyticsAsync();
+    }
+
+    private string SelectionRate =>
+        Analytics is null || Analytics.Searches == 0
+            ? "—"
+            : $"{Analytics.ProductSelections * 100m / Analytics.Searches:0}%";
 }

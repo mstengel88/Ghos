@@ -85,6 +85,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<WebsiteHealthMetric> WebsiteHealthMetrics =>
         Set<WebsiteHealthMetric>();
 
+    public DbSet<SmartSearchEvent> SmartSearchEvents =>
+        Set<SmartSearchEvent>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -426,6 +429,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .WithMany(check => check.Metrics)
                 .HasForeignKey(item => item.WebsiteCheckId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<SmartSearchEvent>(searchEvent =>
+        {
+            searchEvent.HasIndex(item => item.SearchedAtUtc);
+            searchEvent.HasIndex(item => new
+            {
+                item.ResultCount,
+                item.SearchedAtUtc
+            });
+            searchEvent.HasIndex(item => item.NormalizedQuery);
+            searchEvent.HasIndex(item => item.SelectedProductId);
         });
 
         builder.Entity<ProductMaterialProfile>(profile =>
