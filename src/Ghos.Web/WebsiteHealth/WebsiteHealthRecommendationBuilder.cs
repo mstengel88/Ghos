@@ -823,7 +823,11 @@ internal static class WebsiteHealthRecommendationBuilder
         var current = NormalizeText(currentDescription);
         if (current.Length >= 70)
         {
-            return FitSearchDescription(current);
+            return FitSearchDescription(
+                current,
+                url.AbsolutePath.StartsWith(
+                    "/products/",
+                    StringComparison.OrdinalIgnoreCase));
         }
 
         var fallback = BuildDescription(url, topic, introductoryText);
@@ -837,16 +841,63 @@ internal static class WebsiteHealthRecommendationBuilder
         return FitSearchDescription(combined);
     }
 
-    private static string FitSearchDescription(string value)
+    private static string FitSearchDescription(
+        string value,
+        bool preferLeadSentence = false)
     {
-        var sentences = Regex.Matches(
+        var sentences = Regex.Split(
                 NormalizeText(value),
-                @"[^.!?]+[.!?]")
-            .Select(match => NormalizeText(match.Value))
+                @"(?<=[.!?])\s+(?=[A-Z0-9])")
+            .Select(NormalizeText)
             .Where(sentence => sentence.Length >= 40)
             .ToList();
-        var candidates = sentences
-            .Concat(sentences.Select(CompressDescriptionSentence))
+        var leadSentence = sentences.FirstOrDefault();
+        if (preferLeadSentence &&
+            !string.IsNullOrWhiteSpace(leadSentence))
+        {
+            var leadCandidates = new[]
+                {
+                    leadSentence,
+                    CompressDescriptionSentence(leadSentence)
+                }
+                .Select(EnsureSentence)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(sentence => sentence.Length is >= 70 and <= 155)
+                .OrderByDescending(sentence => sentence.Length)
+                .ToList();
+            if (leadCandidates.Count > 0)
+            {
+                return leadCandidates[0];
+            }
+
+            if (leadSentence.Length > 155)
+            {
+                var fittedLead = TruncateAtWord(
+                        CompressDescriptionSentence(leadSentence),
+                        151)
+                    .TrimEnd(
+                        ' ',
+                        ',',
+                        ';',
+                        ':',
+                        '-',
+                        '—',
+                        '.',
+                        '!',
+                        '?');
+                return $"{fittedLead}…";
+            }
+        }
+
+        var candidates = (preferLeadSentence
+                ? sentences.Skip(1)
+                : sentences)
+            .SelectMany(sentence => new[]
+            {
+                sentence,
+                CompressDescriptionSentence(sentence)
+            })
+            .Select(EnsureSentence)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(sentence => sentence.Length is >= 70 and <= 155)
             .OrderByDescending(sentence => sentence.Length)
