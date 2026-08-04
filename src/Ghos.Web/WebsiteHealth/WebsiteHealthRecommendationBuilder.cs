@@ -393,6 +393,10 @@ internal static class WebsiteHealthRecommendationBuilder
             @"^Our\s+",
             "",
             RegexOptions.IgnoreCase);
+        compressed = compressed.Replace(
+            " and gravel to base and ",
+            ", gravel, base and ",
+            StringComparison.OrdinalIgnoreCase);
         var replacements = new[]
         {
             (" selection includes ", " offers "),
@@ -562,12 +566,10 @@ internal static class WebsiteHealthRecommendationBuilder
     }
 
     private static string NormalizeText(string? value) =>
-        string.Join(
-            ' ',
-            WebUtility.HtmlDecode(value ?? "")
-                .Split(
-                    [' ', '\r', '\n', '\t'],
-                    StringSplitOptions.RemoveEmptyEntries));
+        Regex.Replace(
+            WebUtility.HtmlDecode(value ?? ""),
+            @"\s+",
+            " ").Trim();
 
     private static string? FirstMeaningful(params string?[] values) =>
         values
