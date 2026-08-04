@@ -231,6 +231,7 @@ public sealed class WebsiteHealthMonitorService(
                     "meta-description-length",
                     "duplicate-meta-description",
                     "image-alt",
+                    "image-availability",
                     "canonical",
                     "canonical-quality",
                     "indexability",
@@ -290,6 +291,16 @@ public sealed class WebsiteHealthMonitorService(
                 enabledCheckKeys,
                 observations,
                 issues);
+            if (enabledCheckKeys.Contains("image-availability"))
+            {
+                await CheckImageAvailabilityAsync(
+                    pages.Values,
+                    site,
+                    observations,
+                    issues,
+                    cancellationToken);
+            }
+
             ApplyScores(run, observations);
             run.PagesCrawled = pages.Count;
             run.LinksChecked = checkedUrls.Count;
@@ -553,7 +564,9 @@ public sealed class WebsiteHealthMonitorService(
                 "The URL exceeded the five-redirect safety limit.");
         }
         catch (Exception exception) when (
-            exception is HttpRequestException or OperationCanceledException)
+            exception is HttpRequestException or
+                OperationCanceledException or
+                InvalidOperationException)
         {
             stopwatch.Stop();
             return new FetchSnapshot(
@@ -632,6 +645,16 @@ public sealed class WebsiteHealthMonitorService(
             .Where(image =>
                 !string.IsNullOrWhiteSpace(image.AltText))
             .ToList();
+        var imageSources = document.QuerySelectorAll("img")
+            .Select(GetPreferredImageSource)
+            .Where(source => !string.IsNullOrWhiteSpace(source))
+            .Select(source => ResolveLink(url, source!))
+            .Where(source =>
+                source is not null &&
+                source.Scheme == Uri.UriSchemeHttps &&
+                source.IsDefaultPort)
+            .Cast<Uri>()
+            .ToHashSet();
         var introductoryText = document.QuerySelectorAll("main p, article p")
             .Select(element => element.TextContent?.Trim())
             .FirstOrDefault(text => text?.Length >= 50) ??
@@ -674,7 +697,43 @@ public sealed class WebsiteHealthMonitorService(
                     StringComparison.OrdinalIgnoreCase) == true,
             missingImages,
             images,
+            imageSources,
             links);
+    }
+
+    private static string? GetPreferredImageSource(IElement image)
+    {
+        var candidates = new[]
+        {
+            image.GetAttribute("data-src"),
+            image.GetAttribute("data-lazy-src"),
+            image.GetAttribute("src")
+        };
+        var direct = candidates.FirstOrDefault(source =>
+            !string.IsNullOrWhiteSpace(source) &&
+            !source.StartsWith(
+                "data:",
+                StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return direct;
+        }
+
+        var srcset = image.GetAttribute("data-srcset") ??
+            image.GetAttribute("srcset");
+        return srcset?
+            .Split(
+                ',',
+                StringSplitOptions.RemoveEmptyEntries |
+                StringSplitOptions.TrimEntries)
+            .Select(candidate =>
+                candidate.Split(
+                    ' ',
+                    StringSplitOptions.RemoveEmptyEntries)[0])
+            .FirstOrDefault(source =>
+                !source.StartsWith(
+                    "data:",
+                    StringComparison.OrdinalIgnoreCase));
     }
 
     private static string? GetMetadataContent(
@@ -1267,6 +1326,78 @@ public sealed class WebsiteHealthMonitorService(
                 WebsiteHealthIssueSeverity.Warning,
                 WebsiteHealthRecommendationBuilder.BrokenLink(
                     target,
+                    snapshot.StatusCode)));
+        }
+    }
+
+    private async Task CheckImageAvailabilityAsync(
+        IEnumerable<PageSnapshot> pages,
+        MonitoredSite site,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues,
+        CancellationToken cancellationToken)
+    {
+        var assets = pages
+            .SelectMany(page =>
+                page.ImageSources.Select(source => new
+                {
+                    Source = source,
+                    Page = page.Url
+                }))
+            .GroupBy(
+                item => NormalizeImageAssetUrl(
+                    item.Page,
+                    item.Source.ToString()) ??
+                    item.Source.GetLeftPart(UriPartial.Path),
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                Source = group.First().Source,
+                Pages = group
+                    .Select(item => item.Page)
+                    .Distinct()
+                    .OrderBy(page => page.AbsolutePath)
+                    .ToList()
+            })
+            .OrderBy(asset => asset.Source.Host)
+            .ThenBy(asset => asset.Source.AbsolutePath)
+            .Take(Math.Min(site.MaxCrawlPages, 25))
+            .ToList();
+
+        foreach (var asset in assets)
+        {
+            await DelayAsync(site, cancellationToken);
+            var snapshot = await FetchPageAsync(
+                asset.Source,
+                site,
+                cancellationToken);
+            observations.Add(new Observation(
+                "image-availability",
+                "Image asset",
+                "Content",
+                snapshot.IsSuccess
+                    ? WebsiteHealthCheckStatus.Passed
+                    : WebsiteHealthCheckStatus.Warning,
+                snapshot.StatusCode,
+                "HTTP",
+                asset.Source.ToString(),
+                snapshot.Error ??
+                    $"HTTP {snapshot.StatusCode}; used on {asset.Pages.Count} crawled page(s)."));
+            if (snapshot.IsSuccess)
+            {
+                continue;
+            }
+
+            issues.Add(new DetectedIssue(
+                "image-availability",
+                "Image asset does not load",
+                snapshot.Error ??
+                    $"The image returned HTTP {snapshot.StatusCode} and appears on {asset.Pages.Count} crawled page(s).",
+                asset.Source.ToString(),
+                WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.BrokenImage(
+                    asset.Source,
+                    asset.Pages,
                     snapshot.StatusCode)));
         }
     }
@@ -2649,6 +2780,7 @@ public sealed class WebsiteHealthMonitorService(
         bool IsNoIndex,
         IReadOnlyList<WebsiteHealthMissingImage> MissingImages,
         IReadOnlyList<WebsiteHealthImage> Images,
+        IReadOnlySet<Uri> ImageSources,
         IReadOnlySet<Uri> InternalLinks);
 
     private sealed record Observation(

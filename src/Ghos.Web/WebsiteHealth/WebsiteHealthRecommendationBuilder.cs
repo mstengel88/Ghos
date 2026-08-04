@@ -606,6 +606,30 @@ internal static class WebsiteHealthRecommendationBuilder
             "Shopify Admin → Content or Online Store → Navigation/Pages/Themes → open the content containing this link");
     }
 
+    internal static WebsiteHealthRecommendation BrokenImage(
+        Uri source,
+        IReadOnlyList<Uri> affectedPages,
+        int? statusCode)
+    {
+        var status = statusCode is null
+            ? "did not respond"
+            : $"returned HTTP {statusCode}";
+        var pageList = string.Join(
+            Environment.NewLine,
+            affectedPages
+                .Take(8)
+                .Select(page => page.ToString()));
+        var location = affectedPages.Count > 0
+            ? GetShopifyImageAltLocation(affectedPages[0])
+            : "Shopify Admin → Content → Files and Online Store → Themes → Customize";
+        return new WebsiteHealthRecommendation(
+            $"This image {status}. Confirm that the source file still exists and is published, then replace the affected image reference with a working HTTPS asset. If the image was intentionally removed, remove its empty image block instead of leaving a broken customer-facing placeholder.",
+            source.ToString(),
+            location,
+            CurrentValue:
+                $"Affected crawled page(s):\n{pageList}");
+    }
+
     internal static WebsiteHealthRecommendation RobotsQuality(
         Uri baseUri,
         bool blocksStorefront,

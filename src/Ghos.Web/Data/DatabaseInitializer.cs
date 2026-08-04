@@ -107,6 +107,7 @@ public static class DatabaseInitializer
             ("meta-description-length", "Meta description length", "Content", null, 3),
             ("duplicate-meta-description", "Duplicate meta descriptions", "Content", null, 4),
             ("image-alt", "Image alt text", "Content", null, 4),
+            ("image-availability", "Image availability", "Content", null, 4),
             ("canonical", "Canonical URLs", "Discoverability", null, 4),
             ("canonical-quality", "Canonical URL quality", "Discoverability", null, 5),
             ("indexability", "Search indexability", "Discoverability", null, 7),

@@ -107,6 +107,13 @@ images inside links or buttons that already have an accessible name. Genuine
 failures for a shared image asset are grouped into one finding across affected
 pages.
 
+Image reliability checks also request a bounded set of unique image assets
+found during the crawl. Responsive size variants are grouped as one asset,
+requests use the site's existing timeout and delay controls, and no more than
+25 unique assets are checked in a run. Broken assets list every affected
+crawled page and the appropriate Shopify product, collection, page, or theme
+image location.
+
 Open **Settings** to enable or pause a monitored site, change its recurring
 interval and safe crawl limits, enable or disable individual checks, and manage
 the key pages included in each run. Homepage availability is always enabled
