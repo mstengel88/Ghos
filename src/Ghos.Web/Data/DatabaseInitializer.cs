@@ -110,6 +110,7 @@ public static class DatabaseInitializer
             ("indexability", "Search indexability", "Discoverability", null, 7),
             ("schema", "Structured data", "Discoverability", null, 3),
             ("schema-quality", "Structured data quality", "Discoverability", null, 4),
+            ("social-preview", "Social sharing previews", "Content", null, 3),
             ("key-page", "Catalog", "Availability", "/collections/all", 5),
             ("key-page", "Search", "Availability", "/search", 5),
             ("key-page", "Cart", "Availability", "/cart", 5)

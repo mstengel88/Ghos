@@ -50,6 +50,14 @@ suggested replacement, with character counts for both. This comparison is
 historical issue data, so managers can review exactly what the scanner observed
 before copying a recommendation into Shopify.
 
+The social-preview scan checks indexable customer pages for an Open Graph
+title, description, image, canonical sharing URL, and Twitter/X card type.
+Incomplete previews include the current live values, page-specific replacement
+text, and a Shopify route based on whether the affected URL is a product,
+collection, article, page, or the homepage. Theme guidance tells managers to
+search the full theme for the rendered metadata snippet instead of assuming a
+particular Liquid filename exists.
+
 The **Download fix list** action exports the currently filtered Issue Center
 view as a UTF-8 CSV. It includes current and suggested values, character counts,
 status, severity, Shopify location, official documentation, and triage notes.

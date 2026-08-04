@@ -297,6 +297,81 @@ internal static class WebsiteHealthRecommendationBuilder
             "https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data");
     }
 
+    internal static WebsiteHealthRecommendation SocialPreview(
+        Uri url,
+        string? title,
+        string? heading,
+        string? introductoryText,
+        string? metaDescription,
+        string? openGraphTitle,
+        string? openGraphDescription,
+        string? openGraphImage,
+        string? openGraphUrl,
+        string? twitterCard)
+    {
+        var topic = GetPageTopic(url, heading, title);
+        var suggestedTitle = string.IsNullOrWhiteSpace(title)
+            ? BuildTitle(url, heading)
+            : NormalizeText(title);
+        var suggestedDescription =
+            string.IsNullOrWhiteSpace(metaDescription)
+                ? BuildDescription(url, topic, introductoryText)
+                : FitSearchDescription(metaDescription);
+        var canonicalUrl = url.GetLeftPart(UriPartial.Path);
+        var suggestedImage = string.IsNullOrWhiteSpace(openGraphImage)
+            ? "HTTPS_URL_FOR_THIS_PAGE_IMAGE"
+            : openGraphImage;
+        var suggestedValue =
+            $"""
+            <meta property="og:title" content="{WebUtility.HtmlEncode(suggestedTitle)}">
+            <meta property="og:description" content="{WebUtility.HtmlEncode(suggestedDescription)}">
+            <meta property="og:image" content="{WebUtility.HtmlEncode(suggestedImage)}">
+            <meta property="og:url" content="{WebUtility.HtmlEncode(canonicalUrl)}">
+            <meta name="twitter:card" content="summary_large_image">
+            """;
+        var currentValue =
+            $"""
+            og:title: {DisplayMetadataValue(openGraphTitle)}
+            og:description: {DisplayMetadataValue(openGraphDescription)}
+            og:image: {DisplayMetadataValue(openGraphImage)}
+            og:url: {DisplayMetadataValue(openGraphUrl)}
+            twitter:card: {DisplayMetadataValue(twitterCard)}
+            """;
+
+        return new WebsiteHealthRecommendation(
+            "Complete the social preview with this page's current title, description, canonical URL, and a relevant landscape image. Use the product's featured image on product pages and the collection or page image elsewhere. The suggested text is tailored from the live page; replace the image placeholder with Shopify's dynamic image output rather than a hard-coded URL.",
+            suggestedValue,
+            GetShopifySocialPreviewLocation(url),
+            "https://shopify.dev/docs/storefronts/themes/seo/metadata",
+            currentValue);
+    }
+
+    private static string GetShopifySocialPreviewLocation(Uri url)
+    {
+        var contentLocation = url.AbsolutePath.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase)
+            ? "Products → open this product → confirm its title, description, SEO listing, and featured media"
+            : url.AbsolutePath.StartsWith(
+                "/collections/",
+                StringComparison.OrdinalIgnoreCase)
+                ? "Products → Collections → open this collection → confirm its title, description, SEO listing, and collection image"
+                : url.AbsolutePath.StartsWith(
+                    "/blogs/",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "Content → Blog posts → open the matching article or Manage blogs for the blog index → confirm its SEO listing and image"
+                    : url.AbsolutePath == "/"
+                        ? "Online Store → Themes → Customize → Home page → Social media or sharing image settings"
+                        : "Online Store → Pages → open this page → confirm its title, content, SEO listing, and image";
+
+        return $"Shopify Admin → {contentLocation}. If the live source still lacks the tags, use Online Store → Themes → … → Edit code → search the entire theme for og:title, social-meta-tags, or meta-tags; inspect the matching snippet rendered inside <head>.";
+    }
+
+    private static string DisplayMetadataValue(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? "(missing)"
+            : NormalizeText(value);
+
     private static string GetShopifySchemaLocation(Uri url)
     {
         var template = url.AbsolutePath.StartsWith(
