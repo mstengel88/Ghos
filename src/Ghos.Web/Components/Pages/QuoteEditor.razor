@@ -1207,7 +1207,9 @@ else
                     Model.Lines.Select(line => new QuoteDeliveryItem(
                         line.Sku,
                         line.Quantity,
-                        line.Vendor)).ToList()));
+                        line.Vendor,
+                        FindLineProjectConfiguration(line)
+                            ?.PalletWeightLbs)).ToList()));
             Model.CalculatedDeliveryAmount = result.Amount;
             Model.DeliveryServiceName = result.ServiceName;
             Model.DeliveryDescription = result.Description;

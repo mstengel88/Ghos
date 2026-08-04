@@ -504,7 +504,10 @@ public sealed class ShopifySyncService(
             variant.Barcode = incoming.Barcode;
             variant.Price = incoming.Price;
             variant.CompareAtPrice = incoming.CompareAtPrice;
-            variant.UnitLabel = snapshot.UnitLabel;
+            if (!string.IsNullOrWhiteSpace(snapshot.UnitLabel))
+            {
+                variant.UnitLabel = snapshot.UnitLabel.Trim();
+            }
             variant.ImageUrl = incoming.ImageUrl;
             variant.CoveragePerOrderUnitSqFt =
                 incoming.CoveragePerOrderUnitSqFt;
@@ -520,8 +523,11 @@ public sealed class ShopifySyncService(
                 incoming.LayersPerPallet;
             variant.SquareFeetPerLayer =
                 incoming.SquareFeetPerLayer;
-            variant.PalletWeightLbs =
-                incoming.PalletWeightLbs;
+            if (incoming.PalletWeightLbs is > 0)
+            {
+                variant.PalletWeightLbs =
+                    incoming.PalletWeightLbs;
+            }
             variant.AvailableForSale = incoming.AvailableForSale;
             variant.SortOrder = index;
         }
