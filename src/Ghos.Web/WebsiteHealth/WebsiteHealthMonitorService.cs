@@ -555,9 +555,7 @@ public sealed class WebsiteHealthMonitorService(
             .Cast<Uri>()
             .ToHashSet();
         var missingImages = document.QuerySelectorAll("img")
-            .Where(image =>
-                !image.HasAttribute("alt") ||
-                string.IsNullOrWhiteSpace(image.GetAttribute("alt")))
+            .Where(ShouldReportMissingImageAlt)
             .Select(image => new WebsiteHealthMissingImage(
                 image.GetAttribute("src") ??
                     image.GetAttribute("data-src"),
@@ -565,7 +563,8 @@ public sealed class WebsiteHealthMonitorService(
                     image.GetAttribute("aria-label") ??
                     image.ParentElement?.GetAttribute("aria-label") ??
                     image.ParentElement?.GetAttribute("title") ??
-                    image.ParentElement?.TextContent))
+                    image.ParentElement?.TextContent,
+                url.ToString()))
             .ToList();
         var introductoryText = document.QuerySelectorAll("main p, article p")
             .Select(element => element.TextContent?.Trim())
@@ -591,6 +590,62 @@ public sealed class WebsiteHealthMonitorService(
                     StringComparison.OrdinalIgnoreCase) == true,
             missingImages,
             links);
+    }
+
+    private static bool ShouldReportMissingImageAlt(IElement image)
+    {
+        var interactiveAncestor = FindInteractiveAncestor(image);
+        var interactiveHasAccessibleName =
+            interactiveAncestor is not null &&
+            (!string.IsNullOrWhiteSpace(
+                interactiveAncestor.GetAttribute("aria-label")) ||
+            !string.IsNullOrWhiteSpace(
+                interactiveAncestor.GetAttribute("aria-labelledby")) ||
+            !string.IsNullOrWhiteSpace(
+                interactiveAncestor.GetAttribute("title")) ||
+            !string.IsNullOrWhiteSpace(
+                interactiveAncestor.TextContent));
+
+        return IsMissingAlternativeText(
+            image.HasAttribute("alt"),
+            image.GetAttribute("alt"),
+            interactiveAncestor is not null,
+            interactiveHasAccessibleName);
+    }
+
+    internal static bool IsMissingAlternativeText(
+        bool hasAltAttribute,
+        string? altText,
+        bool isInsideInteractiveControl,
+        bool interactiveControlHasAccessibleName)
+    {
+        if (!hasAltAttribute)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(altText))
+        {
+            return false;
+        }
+
+        return isInsideInteractiveControl &&
+            !interactiveControlHasAccessibleName;
+    }
+
+    private static IElement? FindInteractiveAncestor(IElement image)
+    {
+        for (var ancestor = image.ParentElement;
+            ancestor is not null;
+            ancestor = ancestor.ParentElement)
+        {
+            if (ancestor.LocalName is "a" or "button")
+            {
+                return ancestor;
+            }
+        }
+
+        return null;
     }
 
     private static Uri? ResolveLink(Uri currentPage, string href)
@@ -773,7 +828,8 @@ public sealed class WebsiteHealthMonitorService(
         ICollection<Observation> observations,
         ICollection<DetectedIssue> issues)
     {
-        foreach (var page in pages)
+        var pageSnapshots = pages.ToList();
+        foreach (var page in pageSnapshots)
         {
             if (enabledCheckKeys.Contains("title"))
             {
@@ -862,22 +918,80 @@ public sealed class WebsiteHealthMonitorService(
                     page.MissingImages.Count == 0
                         ? "All images have alt text."
                         : $"{page.MissingImages.Count} image(s) are missing alt text."));
-                if (page.MissingImages.Count > 0)
-                {
-                    issues.Add(new DetectedIssue(
-                        "image-alt",
-                        "Images missing alt text",
-                        $"{page.MissingImages.Count} image(s) do not have meaningful alt text.",
-                        page.Url.ToString(),
-                        WebsiteHealthIssueSeverity.Warning,
-                        WebsiteHealthRecommendationBuilder.MissingImageAltText(
-                            page.Url,
-                            page.Title,
-                            page.Heading,
-                            page.MissingImages)));
-                }
             }
         }
+
+        if (enabledCheckKeys.Contains("image-alt"))
+        {
+            AddGroupedImageAltIssues(pageSnapshots, issues);
+        }
+    }
+
+    private static void AddGroupedImageAltIssues(
+        IReadOnlyCollection<PageSnapshot> pages,
+        ICollection<DetectedIssue> issues)
+    {
+        var occurrences = pages
+            .SelectMany(page => page.MissingImages.Select(image => new
+            {
+                Page = page,
+                Image = image,
+                AssetKey = NormalizeImageAssetUrl(
+                    page.Url,
+                    image.Source) ?? $"{page.Url}|missing-source"
+            }));
+        foreach (var assetGroup in occurrences.GroupBy(
+            item => item.AssetKey,
+            StringComparer.OrdinalIgnoreCase))
+        {
+            var first = assetGroup.First();
+            var affectedPages = assetGroup
+                .Select(item => item.Page.Url.ToString())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(url => url)
+                .ToList();
+            var affectedUrl = NormalizeImageAssetUrl(
+                    first.Page.Url,
+                    first.Image.Source) ??
+                first.Page.Url.ToString();
+            var pageSummary = string.Join(
+                ", ",
+                affectedPages
+                    .Take(3)
+                    .Select(url => new Uri(url).PathAndQuery));
+            if (affectedPages.Count > 3)
+            {
+                pageSummary +=
+                    $" and {affectedPages.Count - 3} more page(s)";
+            }
+
+            issues.Add(new DetectedIssue(
+                "image-alt",
+                "Image is missing alt text",
+                $"{assetGroup.Count()} occurrence(s) across " +
+                $"{affectedPages.Count} page(s): {pageSummary}.",
+                affectedUrl,
+                WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.MissingImageAltText(
+                    first.Page.Url,
+                    first.Page.Title,
+                    first.Page.Heading,
+                    assetGroup.Select(item => item.Image).ToList())));
+        }
+    }
+
+    internal static string? NormalizeImageAssetUrl(
+        Uri pageUrl,
+        string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source) ||
+            !Uri.TryCreate(pageUrl, source, out var resolved) ||
+            resolved.Scheme is not ("http" or "https"))
+        {
+            return null;
+        }
+
+        return resolved.GetLeftPart(UriPartial.Path);
     }
 
     private static void AddPresenceObservation(

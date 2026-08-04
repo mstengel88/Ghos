@@ -26,6 +26,12 @@ specific titles, meta descriptions, image alt text, canonical tags, JSON-LD,
 robots.txt content, and broken-link guidance. A later crawl refreshes the
 recommendation when the source page changes.
 
+Image accessibility checks distinguish a missing alt attribute from an
+intentional `alt=""`. Empty alt text is accepted for decorative images and for
+images inside links or buttons that already have an accessible name. Genuine
+failures for a shared image asset are grouped into one finding across affected
+pages.
+
 Open **Settings** to enable or pause a monitored site, change its recurring
 interval and safe crawl limits, enable or disable individual checks, and manage
 the key pages included in each run. Homepage availability is always enabled

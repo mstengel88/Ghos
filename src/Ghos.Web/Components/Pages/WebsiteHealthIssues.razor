@@ -124,7 +124,7 @@ else
                                 <span class="type-icon">@IssueIcon(group.Key)</span>
                                 <div>
                                     <strong>@FormatCheckKey(group.Key)</strong>
-                                    <small>@group.Count() affected page@(group.Count() == 1 ? "" : "s")</small>
+                                    <small>@group.Count() finding@(group.Count() == 1 ? "" : "s")</small>
                                 </div>
                             </div>
                             <span class="severity @group.Max(issue => issue.Severity).ToString().ToLowerInvariant()">

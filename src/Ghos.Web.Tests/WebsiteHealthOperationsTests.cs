@@ -137,7 +137,7 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
-    public void MissingImageAltText_RecognizesCurrentStorefrontLogo()
+    public void MissingImageAltText_DoesNotGuessFromGenericFilename()
     {
         var recommendation =
             WebsiteHealthRecommendationBuilder.MissingImageAltText(
@@ -154,11 +154,45 @@ public sealed class WebsiteHealthOperationsTests
                 ]);
 
         Assert.Contains(
-            "alt=\"Green Hills Supply logo\"",
+            "alt=\"Mulch\"",
             recommendation.SuggestedValue);
         Assert.Contains(
             "1 repeated image occurrence",
             recommendation.SuggestedValue);
+    }
+
+    [Theory]
+    [InlineData(false, null, false, false, true)]
+    [InlineData(true, "Red mulch product bag", false, false, false)]
+    [InlineData(true, "", false, false, false)]
+    [InlineData(true, "", true, true, false)]
+    [InlineData(true, "", true, false, true)]
+    public void IsMissingAlternativeText_UsesAccessibleImageSemantics(
+        bool hasAltAttribute,
+        string? altText,
+        bool isInsideInteractiveControl,
+        bool interactiveControlHasAccessibleName,
+        bool expected)
+    {
+        var result = WebsiteHealthMonitorService.IsMissingAlternativeText(
+            hasAltAttribute,
+            altText,
+            isInsideInteractiveControl,
+            interactiveControlHasAccessibleName);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void NormalizeImageAssetUrl_GroupsResponsiveVariants()
+    {
+        var normalized = WebsiteHealthMonitorService.NormalizeImageAssetUrl(
+            new Uri("https://www.greenhillssupply.com/collections/mulch"),
+            "//greenhillssupply.com/cdn/shop/files/icon.png?v=1&width=30");
+
+        Assert.Equal(
+            "https://greenhillssupply.com/cdn/shop/files/icon.png",
+            normalized);
     }
 
     [Fact]
