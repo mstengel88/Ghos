@@ -689,6 +689,28 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void RedirectChain_UsesFinalUrlAndShopifyRedirectLocation()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.RedirectChain(
+                new Uri(
+                    "https://www.greenhillssupply.com/old-stone"),
+                new Uri(
+                    "https://www.greenhillssupply.com/products/clear-stone"),
+                3);
+
+        Assert.Equal(
+            "https://www.greenhillssupply.com/products/clear-stone",
+            recommendation.SuggestedValue);
+        Assert.Equal(
+            "https://www.greenhillssupply.com/old-stone",
+            recommendation.CurrentValue);
+        Assert.Contains(
+            "URL redirects",
+            recommendation.FixLocation);
+    }
+
+    [Fact]
     public void WebsiteHealthIssueExport_IncludesComparisonAndShopifyFields()
     {
         var csv = WebsiteHealthIssueExportBuilder.BuildCsv(

@@ -99,6 +99,7 @@ public static class DatabaseInitializer
             ("sitemap", "Sitemap", "Discoverability", "/sitemap.xml", 6),
             ("sitemap-quality", "Sitemap quality", "Discoverability", "/sitemap.xml", 5),
             ("internal-link", "Internal links", "Availability", null, 8),
+            ("redirect-chain", "Redirect chains", "Availability", null, 3),
             ("title", "Page titles", "Content", null, 6),
             ("title-length", "Page title length", "Content", null, 3),
             ("duplicate-title", "Duplicate page titles", "Content", null, 4),

@@ -99,6 +99,15 @@ public sealed class WebsiteHealthMonitorService(
                 observations,
                 issues,
                 critical: true);
+            if (enabledCheckKeys.Contains("redirect-chain"))
+            {
+                AddRedirectObservation(
+                    baseUri,
+                    homepage,
+                    observations,
+                    issues);
+            }
+
             if (enabledCheckKeys.Contains("response-time"))
             {
                 observations.Add(new Observation(
@@ -213,6 +222,15 @@ public sealed class WebsiteHealthMonitorService(
                     observations,
                     issues,
                     critical: false);
+                if (enabledCheckKeys.Contains("redirect-chain"))
+                {
+                    AddRedirectObservation(
+                        target,
+                        snapshot,
+                        observations,
+                        issues);
+                }
+
                 if (snapshot.IsHtml && snapshot.IsSuccess)
                 {
                     pages[NormalizeUrl(target)] =
@@ -223,6 +241,7 @@ public sealed class WebsiteHealthMonitorService(
             var crawlEnabled = enabledCheckKeys.Overlaps(
                 [
                     "internal-link",
+                    "redirect-chain",
                     "title",
                     "title-length",
                     "duplicate-title",
@@ -264,6 +283,15 @@ public sealed class WebsiteHealthMonitorService(
                     target,
                     site,
                     cancellationToken);
+                if (enabledCheckKeys.Contains("redirect-chain"))
+                {
+                    AddRedirectObservation(
+                        target,
+                        snapshot,
+                        observations,
+                        issues);
+                }
+
                 if (enabledCheckKeys.Contains("internal-link"))
                 {
                     AddLinkObservation(target, snapshot, observations, issues);
@@ -551,7 +579,9 @@ public sealed class WebsiteHealthMonitorService(
                         StringComparison.OrdinalIgnoreCase),
                     stopwatch.Elapsed.TotalMilliseconds,
                     content,
-                    null);
+                    null,
+                    currentTarget,
+                    redirectCount);
             }
 
             stopwatch.Stop();
@@ -561,7 +591,9 @@ public sealed class WebsiteHealthMonitorService(
                 false,
                 stopwatch.Elapsed.TotalMilliseconds,
                 string.Empty,
-                "The URL exceeded the five-redirect safety limit.");
+                "The URL exceeded the five-redirect safety limit.",
+                currentTarget,
+                6);
         }
         catch (Exception exception) when (
             exception is HttpRequestException or
@@ -577,7 +609,9 @@ public sealed class WebsiteHealthMonitorService(
                 string.Empty,
                 exception is OperationCanceledException
                     ? "Request timed out."
-                    : exception.Message);
+                    : exception.Message,
+                target,
+                0);
         }
     }
 
@@ -1328,6 +1362,77 @@ public sealed class WebsiteHealthMonitorService(
                     target,
                     snapshot.StatusCode)));
         }
+    }
+
+    private static void AddRedirectObservation(
+        Uri requestedUrl,
+        FetchSnapshot snapshot,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var finalUrl = snapshot.FinalUri ?? requestedUrl;
+        var healthy = IsRedirectChainHealthy(
+            requestedUrl,
+            finalUrl,
+            snapshot.RedirectCount);
+        var detail = snapshot.RedirectCount switch
+        {
+            0 => "No redirect.",
+            1 when healthy =>
+                $"One canonical redirect to {finalUrl}.",
+            _ =>
+                $"{snapshot.RedirectCount} redirects; final URL: {finalUrl}."
+        };
+        observations.Add(new Observation(
+            "redirect-chain",
+            "Redirect chain",
+            "Availability",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            (decimal)snapshot.RedirectCount,
+            "redirects",
+            requestedUrl.ToString(),
+            detail));
+        if (healthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            "redirect-chain",
+            "Redirect chain is too long",
+            $"This URL requires {snapshot.RedirectCount} redirects before reaching {finalUrl}.",
+            requestedUrl.ToString(),
+            WebsiteHealthIssueSeverity.Warning,
+            WebsiteHealthRecommendationBuilder.RedirectChain(
+                requestedUrl,
+                finalUrl,
+                snapshot.RedirectCount)));
+    }
+
+    internal static bool IsRedirectChainHealthy(
+        Uri requestedUrl,
+        Uri finalUrl,
+        int redirectCount)
+    {
+        if (redirectCount == 0)
+        {
+            return true;
+        }
+
+        if (redirectCount != 1 ||
+            finalUrl.Scheme != Uri.UriSchemeHttps ||
+            !NormalizeCanonicalHost(requestedUrl.Host).Equals(
+                NormalizeCanonicalHost(finalUrl.Host),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return requestedUrl.AbsolutePath.TrimEnd('/').Equals(
+            finalUrl.AbsolutePath.TrimEnd('/'),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task CheckImageAvailabilityAsync(
@@ -2760,7 +2865,9 @@ public sealed class WebsiteHealthMonitorService(
         bool IsHtml,
         double ResponseTimeMilliseconds,
         string Content,
-        string? Error);
+        string? Error,
+        Uri? FinalUri = null,
+        int RedirectCount = 0);
 
     private sealed record PageSnapshot(
         Uri Url,
