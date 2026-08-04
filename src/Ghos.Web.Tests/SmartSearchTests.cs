@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Ghos.Web.Data;
 using Ghos.Web.SmartSearch;
 using Xunit;
 
@@ -172,4 +173,80 @@ public sealed class SmartSearchTests
         Assert.Contains("Shopify tags", recommendation);
         Assert.Contains("GHOS Best Uses", recommendation);
     }
+
+    [Theory]
+    [InlineData("Pin", SmartSearchMerchandisingRuleTypes.Pin)]
+    [InlineData(" Boost ", SmartSearchMerchandisingRuleTypes.Boost)]
+    public void Merchandising_ValidatesRuleTypes(
+        string value,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            SmartSearchMerchandisingService.NormalizeRuleType(value));
+    }
+
+    [Fact]
+    public void Merchandising_PinDoesNotChangeOrganicConfidence()
+    {
+        var result = SearchResult(
+            confidence: "Medium",
+            unmatchedIntents: ["Use: Patios"]);
+        var rule = new SmartSearchMerchandisingRule
+        {
+            RuleType = SmartSearchMerchandisingRuleTypes.Pin,
+            PinPosition = 1
+        };
+
+        var ranked =
+            SmartProductSearchService.ApplyMerchandising(
+                result,
+                rule);
+
+        Assert.Equal(1, ranked.PinnedPosition);
+        Assert.Equal("Pinned for this search", ranked.MerchandisingLabel);
+        Assert.Equal("Medium", ranked.Confidence);
+        Assert.Contains("Use: Patios", ranked.UnmatchedIntents);
+        Assert.Equal(result.Score, ranked.Score);
+    }
+
+    [Fact]
+    public void Merchandising_BoostPreservesOrganicScore()
+    {
+        var result = SearchResult();
+        var rule = new SmartSearchMerchandisingRule
+        {
+            RuleType = SmartSearchMerchandisingRuleTypes.Boost,
+            BoostPoints = 75
+        };
+
+        var ranked =
+            SmartProductSearchService.ApplyMerchandising(
+                result,
+                rule);
+
+        Assert.Equal(75, ranked.MerchandisingBoost);
+        Assert.Equal("Ranking boosted", ranked.MerchandisingLabel);
+        Assert.Equal(result.Score, ranked.Score);
+        Assert.Null(ranked.PinnedPosition);
+    }
+
+    private static SmartProductSearchResult SearchResult(
+        string confidence = "High",
+        IReadOnlyList<string>? unmatchedIntents = null) =>
+        new(
+            Guid.NewGuid(),
+            "Test Stone",
+            "https://greenhillssupply.com/products/test-stone",
+            null,
+            null,
+            10m,
+            100,
+            confidence,
+            [],
+            unmatchedIntents ?? [],
+            [],
+            null,
+            0,
+            null);
 }
