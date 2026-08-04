@@ -2184,6 +2184,16 @@ public sealed class WebsiteHealthMonitorService(
     {
         if (element.ValueKind == JsonValueKind.Object)
         {
+            if (HasSchemaType(element, "ProductGroup") &&
+                element.TryGetProperty(
+                    "url",
+                    out var groupUrl) &&
+                groupUrl.ValueKind == JsonValueKind.String &&
+                groupUrl.GetString() is { Length: > 0 } groupUrlValue)
+            {
+                signals.ProductUrls.Add(groupUrlValue);
+            }
+
             if (HasSchemaType(element, "Product"))
             {
                 signals.HasName |= HasMeaningfulProperty(

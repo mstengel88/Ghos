@@ -640,6 +640,42 @@ public sealed class WebsiteHealthOperationsTests
             problems);
     }
 
+    [Fact]
+    public void ProductStructuredDataAnalysis_AcceptsProductGroupCanonicalUrl()
+    {
+        var analysis = WebsiteHealthMonitorService.AnalyzeStructuredData(
+        [
+            """
+            {
+              "@context": "https://schema.org",
+              "@type": "ProductGroup",
+              "name": "Alpine Stone",
+              "url": "https://greenhillssupply.com/products/alpine-stone",
+              "hasVariant": [{
+                "@type": "Product",
+                "name": "Alpine Stone - Medium",
+                "image": "https://cdn.example.com/alpine-medium.jpg",
+                "offers": {
+                  "@type": "Offer",
+                  "price": "29.99",
+                  "priceCurrency": "USD",
+                  "availability": "https://schema.org/InStock"
+                }
+              }]
+            }
+            """
+        ]);
+
+        var problems =
+            WebsiteHealthMonitorService.GetProductSchemaProblems(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/alpine-stone"),
+                analysis.SchemaTypes,
+                analysis.Product);
+
+        Assert.Empty(problems);
+    }
+
     [Theory]
     [InlineData(
         "https://www.greenhillssupply.com/",
