@@ -20,6 +20,10 @@ public sealed record SmartSearchIntent(
     string Name,
     IReadOnlyList<string> Terms);
 
+public sealed record SmartSearchCustomSynonym(
+    string Phrase,
+    string Expansion);
+
 public static partial class SmartSearchSynonymLibrary
 {
     private static readonly HashSet<string> StopWords =
@@ -68,7 +72,9 @@ public static partial class SmartSearchSynonymLibrary
         Concepts.Sum(concept =>
             concept.Terms.Count * (concept.Terms.Count - 1));
 
-    public static SmartSearchQueryPlan Plan(string? query)
+    public static SmartSearchQueryPlan Plan(
+        string? query,
+        IEnumerable<SmartSearchCustomSynonym>? customSynonyms = null)
     {
         var normalized = Normalize(query);
         var direct = new HashSet<string>(
@@ -96,6 +102,19 @@ public static partial class SmartSearchSynonymLibrary
             }
 
             intents.Add($"{concept.Category}: {concept.Name}");
+        }
+
+        foreach (var custom in customSynonyms ?? [])
+        {
+            var phrase = Normalize(custom.Phrase);
+            var expansion = Normalize(custom.Expansion);
+            if (phrase.Length > 0 &&
+                expansion.Length > 0 &&
+                ContainsNormalizedTerm(normalized, phrase))
+            {
+                expanded.Add(expansion);
+                intents.Add($"Custom: {custom.Phrase} → {custom.Expansion}");
+            }
         }
 
         return new SmartSearchQueryPlan(

@@ -33,14 +33,23 @@ public sealed class SmartProductSearchService(
         string source = "Storefront",
         CancellationToken cancellationToken = default)
     {
-        var plan = SmartSearchSynonymLibrary.Plan(query);
-        if (plan.NormalizedQuery.Length < 2)
-        {
-            return Empty(plan);
-        }
-
         await using var dbContext =
             await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var customSynonyms = await dbContext.SmartSearchSynonymRules
+            .AsNoTracking()
+            .Where(rule => rule.IsActive)
+            .Select(rule => new SmartSearchCustomSynonym(
+                rule.Phrase,
+                rule.Expansion))
+            .ToListAsync(cancellationToken);
+        var plan = SmartSearchSynonymLibrary.Plan(
+            query,
+            customSynonyms);
+        if (plan.NormalizedQuery.Length < 2)
+        {
+            return Empty(plan, customSynonyms.Count);
+        }
+
         var products = await dbContext.Products
             .AsNoTracking()
             .Include(product => product.ProductCategory)
@@ -76,7 +85,8 @@ public sealed class SmartProductSearchService(
             searchEvent.Id,
             plan.OriginalQuery,
             plan.Intents,
-            SmartSearchSynonymLibrary.SynonymMappingCount,
+            SmartSearchSynonymLibrary.SynonymMappingCount +
+                customSynonyms.Count,
             results);
     }
 
@@ -299,12 +309,14 @@ public sealed class SmartProductSearchService(
     }
 
     private static SmartProductSearchResponse Empty(
-        SmartSearchQueryPlan plan) =>
+        SmartSearchQueryPlan plan,
+        int customSynonymCount = 0) =>
         new(
             null,
             plan.OriginalQuery,
             plan.Intents,
-            SmartSearchSynonymLibrary.SynonymMappingCount,
+            SmartSearchSynonymLibrary.SynonymMappingCount +
+                customSynonymCount,
             []);
 
     private static string Truncate(string value, int maximumLength) =>

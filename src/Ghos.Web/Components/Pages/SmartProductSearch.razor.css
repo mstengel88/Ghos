@@ -277,6 +277,20 @@
     font-size: .68rem;
 }
 
+.tune-shortcut,
+.rule-builder > button,
+.rule-row button {
+    padding: 8px 11px;
+    border: 1px solid var(--ghos-accent);
+    border-radius: 7px;
+    background: var(--ghos-accent);
+    color: #13200a;
+    font: inherit;
+    font-size: .58rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
 .search-insights {
     margin-top: 14px;
     display: grid;
@@ -321,6 +335,154 @@
     color: #a73f39;
 }
 
+.insight-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    border-bottom: 1px solid var(--ghos-border);
+}
+
+.insight-row > button {
+    border-bottom: 0;
+}
+
+.insight-row .tune-link {
+    width: auto;
+    padding-left: 10px;
+    color: var(--ghos-accent-text);
+    font-weight: 850;
+}
+
+.tuning-panel {
+    margin-top: 14px;
+    padding: 18px;
+}
+
+.tuning-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.tuning-heading h3 {
+    margin: 5px 0;
+    font-size: 1rem;
+}
+
+.tuning-heading p,
+.rule-help {
+    margin: 0;
+    color: var(--ghos-text-muted);
+    font-size: .62rem;
+}
+
+.tuning-heading > strong {
+    color: var(--ghos-accent-text);
+    font-size: .62rem;
+    white-space: nowrap;
+}
+
+.rule-builder {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 9px;
+}
+
+.rule-builder label {
+    color: var(--ghos-text-secondary);
+    font-size: .58rem;
+    font-weight: 800;
+}
+
+.rule-builder input {
+    width: 100%;
+    min-height: 40px;
+    margin-top: 5px;
+    padding: 8px 10px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 7px;
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text);
+    font: inherit;
+    box-sizing: border-box;
+}
+
+.rule-builder > span {
+    padding-bottom: 11px;
+    color: var(--ghos-accent-text);
+}
+
+.rule-builder > button {
+    min-height: 40px;
+}
+
+.rule-builder > button:disabled,
+.rule-row button:disabled {
+    cursor: wait;
+    opacity: .5;
+}
+
+.rule-help {
+    margin-top: 7px;
+}
+
+.tuning-message {
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 7px;
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
+    font-size: .62rem;
+}
+
+.empty-rules {
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px dashed var(--ghos-border);
+    border-radius: 8px;
+    color: var(--ghos-text-muted);
+    font-size: .62rem;
+    text-align: center;
+}
+
+.rule-list {
+    margin-top: 14px;
+    border-top: 1px solid var(--ghos-border);
+}
+
+.rule-row {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--ghos-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.rule-row > div {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    font-size: .65rem;
+}
+
+.rule-row span {
+    color: var(--ghos-text-muted);
+}
+
+.rule-row.inactive {
+    opacity: .55;
+}
+
+.rule-row button {
+    border-color: var(--ghos-border);
+    background: transparent;
+    color: var(--ghos-text-secondary);
+}
+
 @media (max-width: 1000px) {
     .result-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -341,6 +503,14 @@
     .result-grid,
     .search-insights {
         grid-template-columns: 1fr;
+    }
+
+    .rule-builder {
+        grid-template-columns: 1fr;
+    }
+
+    .rule-builder > span {
+        display: none;
     }
 
     .search-box button {
