@@ -248,4 +248,54 @@ public sealed class WebsiteHealthOperationsTests
             """<link rel="canonical" href="https://www.greenhillssupply.com/collections/all">""",
             recommendation.SuggestedValue);
     }
+
+    [Theory]
+    [InlineData(19, false)]
+    [InlineData(20, true)]
+    [InlineData(60, true)]
+    [InlineData(61, false)]
+    public void IsMetadataLengthHealthy_UsesInclusiveBoundaries(
+        int length,
+        bool expected)
+    {
+        var result = WebsiteHealthMonitorService.IsMetadataLengthHealthy(
+            new string('a', length),
+            20,
+            60);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void NormalizeComparableMetadata_DetectsWhitespaceAndCaseDuplicates()
+    {
+        var normalized =
+            WebsiteHealthMonitorService.NormalizeComparableMetadata(
+                "  Shop  Stone &amp;\nMulch ");
+
+        Assert.Equal("shop stone & mulch", normalized);
+    }
+
+    [Fact]
+    public void DuplicateMetaDescription_ProducesUniqueReplacementAndLocation()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.DuplicateMetaDescription(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/mulch"),
+                "Mulch",
+                "Mulch",
+                null,
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/stone"));
+
+        Assert.Contains(
+            "/collections/stone",
+            recommendation.Guidance);
+        Assert.Contains(
+            "Shopify Admin → Products → Collections",
+            recommendation.FixLocation);
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.InRange(recommendation.SuggestedValue.Length, 70, 155);
+    }
 }

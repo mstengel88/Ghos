@@ -31,6 +31,14 @@ each recommended change. Collection pagination variants are grouped into one
 base-collection metadata finding, so a manager is not asked to edit pages 2,
 3, and 5 independently.
 
+The content scan checks more than presence. It flags page titles outside the
+20–60 character range, meta descriptions outside the 70–160 character range,
+and exact duplicate titles or descriptions across indexable pages in the
+bounded crawl. Duplicate comparison ignores capitalization, encoded HTML
+characters, and repeated whitespace. Paginated collection URLs are treated as
+one metadata target to prevent duplicate work. Each finding includes unique
+replacement wording and the correct Shopify editing surface.
+
 Administrators and Managers can copy a suggested value directly from the
 finding and select **Verify fix** after publishing the Shopify change. GHOS
 runs a fresh live check and reports whether that specific issue resolved or is

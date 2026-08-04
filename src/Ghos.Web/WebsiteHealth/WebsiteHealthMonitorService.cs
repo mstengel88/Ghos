@@ -178,7 +178,18 @@ public sealed class WebsiteHealthMonitorService(
             }
 
             var crawlEnabled = enabledCheckKeys.Overlaps(
-                ["internal-link", "title", "meta-description", "image-alt", "canonical", "schema"]);
+                [
+                    "internal-link",
+                    "title",
+                    "title-length",
+                    "duplicate-title",
+                    "meta-description",
+                    "meta-description-length",
+                    "duplicate-meta-description",
+                    "image-alt",
+                    "canonical",
+                    "schema"
+                ]);
             var queue = new Queue<Uri>();
             if (crawlEnabled)
             {
@@ -848,6 +859,25 @@ public sealed class WebsiteHealthMonitorService(
                             page.Heading));
             }
 
+            if (enabledCheckKeys.Contains("title-length") &&
+                !page.IsNoIndex &&
+                !string.IsNullOrWhiteSpace(page.Title))
+            {
+                AddMetadataLengthObservation(
+                    "title-length",
+                    "Page title length",
+                    page.Url,
+                    page.Title,
+                    20,
+                    60,
+                    observations,
+                    issues,
+                    WebsiteHealthRecommendationBuilder.TitleLength(
+                        page.Url,
+                        page.Heading,
+                        page.Title.Length));
+            }
+
             if (enabledCheckKeys.Contains("meta-description") &&
                 !page.IsNoIndex)
             {
@@ -867,6 +897,27 @@ public sealed class WebsiteHealthMonitorService(
                             page.Heading,
                             page.IntroductoryText),
                     createIssue: false);
+            }
+
+            if (enabledCheckKeys.Contains("meta-description-length") &&
+                !page.IsNoIndex &&
+                !string.IsNullOrWhiteSpace(page.MetaDescription))
+            {
+                AddMetadataLengthObservation(
+                    "meta-description-length",
+                    "Meta description length",
+                    page.Url,
+                    page.MetaDescription,
+                    70,
+                    160,
+                    observations,
+                    issues,
+                    WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
+                        page.Url,
+                        page.Title,
+                        page.Heading,
+                        page.IntroductoryText,
+                        page.MetaDescription.Length));
             }
 
             if (enabledCheckKeys.Contains("canonical"))
@@ -931,7 +982,180 @@ public sealed class WebsiteHealthMonitorService(
         {
             AddGroupedMetaDescriptionIssues(pageSnapshots, issues);
         }
+
+        if (enabledCheckKeys.Contains("duplicate-title"))
+        {
+            AddDuplicateMetadataIssues(
+                pageSnapshots,
+                "duplicate-title",
+                "Duplicate page title",
+                page => page.Title,
+                (page, target, matchingUrl) =>
+                    WebsiteHealthRecommendationBuilder.DuplicateTitle(
+                        target,
+                        page.Heading,
+                        matchingUrl),
+                observations,
+                issues);
+        }
+
+        if (enabledCheckKeys.Contains("duplicate-meta-description"))
+        {
+            AddDuplicateMetadataIssues(
+                pageSnapshots,
+                "duplicate-meta-description",
+                "Duplicate meta description",
+                page => page.MetaDescription,
+                (page, target, matchingUrl) =>
+                    WebsiteHealthRecommendationBuilder
+                        .DuplicateMetaDescription(
+                            target,
+                            page.Title,
+                            page.Heading,
+                            page.IntroductoryText,
+                            matchingUrl),
+                observations,
+                issues);
+        }
     }
+
+    private static void AddMetadataLengthObservation(
+        string key,
+        string label,
+        Uri url,
+        string value,
+        int minimumLength,
+        int maximumLength,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues,
+        WebsiteHealthRecommendation recommendation)
+    {
+        var length = value.Length;
+        var healthy = IsMetadataLengthHealthy(
+            value,
+            minimumLength,
+            maximumLength);
+        observations.Add(new Observation(
+            key,
+            label,
+            "Content",
+            healthy
+                ? WebsiteHealthCheckStatus.Passed
+                : WebsiteHealthCheckStatus.Warning,
+            (decimal)length,
+            "characters",
+            url.ToString(),
+            healthy
+                ? $"{length} characters."
+                : $"{length} characters; recommended range is " +
+                    $"{minimumLength}–{maximumLength}."));
+        if (healthy)
+        {
+            return;
+        }
+
+        issues.Add(new DetectedIssue(
+            key,
+            $"{label} needs improvement",
+            $"The current value is {length} characters; the recommended " +
+                $"range is {minimumLength}–{maximumLength}.",
+            url.ToString(),
+            WebsiteHealthIssueSeverity.Warning,
+            recommendation));
+    }
+
+    private static void AddDuplicateMetadataIssues(
+        IReadOnlyCollection<PageSnapshot> pages,
+        string key,
+        string label,
+        Func<PageSnapshot, string?> valueSelector,
+        Func<PageSnapshot, Uri, Uri, WebsiteHealthRecommendation>
+            recommendationFactory,
+        ICollection<Observation> observations,
+        ICollection<DetectedIssue> issues)
+    {
+        var candidates = pages
+            .Where(page =>
+                !page.IsNoIndex &&
+                !string.IsNullOrWhiteSpace(valueSelector(page)))
+            .GroupBy(
+                page => NormalizeMetadataTarget(page.Url),
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderBy(page => page.Url.Query.Length)
+                .First())
+            .ToList();
+        var duplicateOf = new Dictionary<string, Uri>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var valueGroup in candidates
+            .GroupBy(
+                page => NormalizeComparableMetadata(valueSelector(page)),
+                StringComparer.Ordinal)
+            .Where(group => group.Count() > 1))
+        {
+            var ordered = valueGroup
+                .OrderBy(page => page.Url.AbsolutePath.Length)
+                .ThenBy(page => page.Url.PathAndQuery)
+                .ToList();
+            var keeper = new Uri(NormalizeMetadataTarget(ordered[0].Url));
+            foreach (var duplicate in ordered.Skip(1))
+            {
+                duplicateOf[NormalizeMetadataTarget(duplicate.Url)] = keeper;
+            }
+        }
+
+        foreach (var page in candidates)
+        {
+            var targetValue = NormalizeMetadataTarget(page.Url);
+            var target = new Uri(targetValue);
+            var isDuplicate = duplicateOf.TryGetValue(
+                targetValue,
+                out var matchingUrl);
+            observations.Add(new Observation(
+                key,
+                label,
+                "Content",
+                isDuplicate
+                    ? WebsiteHealthCheckStatus.Warning
+                    : WebsiteHealthCheckStatus.Passed,
+                isDuplicate ? 1m : 0m,
+                "duplicate",
+                target.ToString(),
+                isDuplicate
+                    ? $"Matches {matchingUrl!.PathAndQuery}."
+                    : "Unique across the bounded crawl."));
+            if (!isDuplicate)
+            {
+                continue;
+            }
+
+            issues.Add(new DetectedIssue(
+                key,
+                label,
+                $"This value exactly matches the value on " +
+                    $"{matchingUrl!.PathAndQuery}.",
+                target.ToString(),
+                WebsiteHealthIssueSeverity.Warning,
+                recommendationFactory(page, target, matchingUrl)));
+        }
+    }
+
+    internal static bool IsMetadataLengthHealthy(
+        string? value,
+        int minimumLength,
+        int maximumLength) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.Length >= minimumLength &&
+        value.Length <= maximumLength;
+
+    internal static string NormalizeComparableMetadata(string? value) =>
+        string.Join(
+            ' ',
+            WebUtility.HtmlDecode(value ?? "")
+                .Split(
+                    [' ', '\r', '\n', '\t'],
+                    StringSplitOptions.RemoveEmptyEntries))
+            .ToLowerInvariant();
 
     private static void AddGroupedMetaDescriptionIssues(
         IReadOnlyCollection<PageSnapshot> pages,
