@@ -176,6 +176,9 @@ public sealed class WebsiteHealthIssue
     [MaxLength(6000)]
     public string? CurrentValue { get; set; }
 
+    [MaxLength(16000)]
+    public string? EvidenceJson { get; set; }
+
     [MaxLength(6000)]
     public string? ReviewedValue { get; set; }
 

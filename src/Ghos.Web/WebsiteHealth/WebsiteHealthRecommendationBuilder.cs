@@ -10,7 +10,15 @@ internal sealed record WebsiteHealthRecommendation(
     string? SuggestedValue,
     string? FixLocation = null,
     string? DocumentationUrl = null,
-    string? CurrentValue = null);
+    string? CurrentValue = null,
+    string? EvidenceJson = null);
+
+internal sealed record WebsiteHealthImageEvidence(
+    string? SourceUrl,
+    string? PageUrl,
+    string? CurrentAltText,
+    string SuggestedAltText,
+    string SuggestionSource);
 
 internal sealed record WebsiteHealthMissingImage(
     string? Source,
@@ -266,10 +274,18 @@ internal static class WebsiteHealthRecommendationBuilder
                     topic,
                     image.Context,
                     image.Source);
-                return $"{sourceLabel}: alt=\"{altText}\"";
+                return new ImageSuggestion(
+                    $"{sourceLabel}: alt=\"{altText}\"",
+                    new WebsiteHealthImageEvidence(
+                        ResolveImageUrl(image.Source, image.PageUrl),
+                        image.PageUrl,
+                        null,
+                        altText,
+                        GetSuggestionSource(image.Context, image.Source)));
             })
             .ToList();
         var suggestions = generatedSuggestions
+            .Select(item => item.DisplayValue)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -289,7 +305,11 @@ internal static class WebsiteHealthRecommendationBuilder
             "Give each meaningful image short alt text describing what the customer needs to understand. Use alt=\"\" only for genuinely decorative images, and avoid phrases such as “image of” or keyword stuffing.",
             string.Join(Environment.NewLine, suggestions),
             GetShopifyImageAltLocation(pageUrl),
-            "https://help.shopify.com/en/manual/products/product-media/add-alt-text");
+            "https://help.shopify.com/en/manual/products/product-media/add-alt-text",
+            EvidenceJson: SerializeImageEvidence(
+                generatedSuggestions
+                    .Select(item => item.Evidence)
+                    .OfType<WebsiteHealthImageEvidence>()));
     }
 
     internal static WebsiteHealthRecommendation ImageAltQuality(
@@ -319,13 +339,21 @@ internal static class WebsiteHealthRecommendationBuilder
                     topic,
                     image.Context,
                     image.Source);
-                return $"{sourceLabel}: alt=\"{altText}\"";
+                return new ImageSuggestion(
+                    $"{sourceLabel}: alt=\"{altText}\"",
+                    new WebsiteHealthImageEvidence(
+                        ResolveImageUrl(image.Source, image.PageUrl),
+                        image.PageUrl,
+                        image.AltText,
+                        altText,
+                        GetSuggestionSource(image.Context, image.Source)));
             })
             .ToList();
         if (images.Count > uniqueImages.Count)
         {
-            suggestions.Add(
-                $"+ {images.Count - uniqueImages.Count} more image(s) to review");
+            suggestions.Add(new ImageSuggestion(
+                $"+ {images.Count - uniqueImages.Count} more image(s) to review",
+                null));
         }
 
         var guidance = isReusedAcrossAssets
@@ -333,11 +361,72 @@ internal static class WebsiteHealthRecommendationBuilder
             : "This alt text is too generic or looks like a filename, so it does not explain the image to customers using assistive technology. Replace it with a short description of the useful visual information, or use alt=\"\" when the image is decorative.";
         return new WebsiteHealthRecommendation(
             guidance,
-            string.Join(Environment.NewLine, suggestions),
+            string.Join(
+                Environment.NewLine,
+                suggestions.Select(item => item.DisplayValue)),
             GetShopifyImageAltLocation(pageUrl),
             "https://help.shopify.com/en/manual/products/product-media/add-alt-text",
-            $"Current alt text: \"{NormalizeText(currentAltText)}\"");
+            $"Current alt text: \"{NormalizeText(currentAltText)}\"",
+            SerializeImageEvidence(
+                suggestions
+                    .Select(item => item.Evidence)
+                    .OfType<WebsiteHealthImageEvidence>()));
     }
+
+    private static string SerializeImageEvidence(
+        IEnumerable<WebsiteHealthImageEvidence> evidence) =>
+        JsonSerializer.Serialize(evidence);
+
+    private static string GetSuggestionSource(
+        string? context,
+        string? source)
+    {
+        var normalizedContext = NormalizeText(context);
+        if (normalizedContext.Length is >= 3 and <= 100 &&
+            !LooksGeneric(normalizedContext))
+        {
+            return "Nearby page context";
+        }
+
+        var filename = GetFilenameTopic(source);
+        return !string.IsNullOrWhiteSpace(filename) &&
+            !LooksGeneric(filename)
+                ? "Descriptive filename"
+                : "Page topic fallback";
+    }
+
+    private static string? ResolveImageUrl(
+        string? source,
+        string? pageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return null;
+        }
+
+        Uri? resolved = null;
+        if (Uri.TryCreate(source, UriKind.Absolute, out var absolute))
+        {
+            resolved = absolute;
+        }
+        else if (Uri.TryCreate(pageUrl, UriKind.Absolute, out var page) &&
+            Uri.TryCreate(page, source, out var relative))
+        {
+            resolved = relative;
+        }
+
+        if (resolved is null ||
+            resolved.Scheme != Uri.UriSchemeHttps)
+        {
+            return null;
+        }
+
+        return resolved.ToString();
+    }
+
+    private sealed record ImageSuggestion(
+        string DisplayValue,
+        WebsiteHealthImageEvidence? Evidence);
 
     private static string GetShopifyImageAltLocation(Uri pageUrl)
     {

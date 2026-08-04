@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using AngleSharp.Html.Parser;
 using Ghos.Web.WebsiteHealth;
 using Xunit;
@@ -237,6 +238,29 @@ public sealed class WebsiteHealthOperationsTests
         Assert.Contains(
             "if this is a product-card image",
             recommendation.FixLocation);
+
+        var evidence = JsonSerializer.Deserialize<
+            List<WebsiteHealthImageEvidence>>(
+                recommendation.EvidenceJson!);
+        Assert.NotNull(evidence);
+        Assert.Collection(
+            evidence,
+            item =>
+            {
+                Assert.Equal(
+                    "https://cdn.example.com/red-mulch.jpg",
+                    item.SourceUrl);
+                Assert.Equal("Product image", item.CurrentAltText);
+                Assert.Equal("Premium red mulch", item.SuggestedAltText);
+                Assert.Equal("Nearby page context", item.SuggestionSource);
+            },
+            item =>
+            {
+                Assert.Equal(
+                    "https://cdn.example.com/brown-mulch.jpg",
+                    item.SourceUrl);
+                Assert.Equal("Natural brown mulch", item.SuggestedAltText);
+            });
     }
 
     [Fact]
