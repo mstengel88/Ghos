@@ -1772,7 +1772,10 @@ public sealed class WebsiteHealthMonitorService(
                     page.Url,
                     page.MetaDescription,
                     70,
-                    160,
+                    // Google has no fixed description limit. Use a soft
+                    // ceiling so a useful description is not flagged for
+                    // being one or two characters over a display heuristic.
+                    170,
                     observations,
                     issues,
                     WebsiteHealthRecommendationBuilder.MetaDescriptionLength(
