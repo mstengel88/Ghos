@@ -938,9 +938,14 @@ internal static class WebsiteHealthRecommendationBuilder
                 StringComparison.OrdinalIgnoreCase)))
             .Where(segment => segment.Length > 0)
             .ToList();
-        var topic = !string.IsNullOrWhiteSpace(heading)
+        var headingTopic = !string.IsNullOrWhiteSpace(heading)
             ? GetPageTopic(url, heading, null)
-            : segments.FirstOrDefault() ?? GetPageTopic(url, null, null);
+            : null;
+        var currentTopic = segments.FirstOrDefault();
+        var topic = BuildTailoredTitleTopic(
+            headingTopic,
+            currentTopic,
+            GetPageTopic(url, null, null));
         var descriptor = segments
             .Skip(1)
             .FirstOrDefault(segment =>
@@ -950,7 +955,7 @@ internal static class WebsiteHealthRecommendationBuilder
             return BuildTitle(url, topic);
         }
 
-        descriptor = CompactTitleDescriptor(descriptor);
+        descriptor = CompactTitleDescriptor(topic, descriptor);
         var tailored = TrimDanglingTitleWords(
             TruncateAtWord($"{topic} | {descriptor}", 60));
         var branded = $"{tailored} | {BrandName}";
@@ -959,11 +964,47 @@ internal static class WebsiteHealthRecommendationBuilder
             : tailored;
     }
 
-    private static string CompactTitleDescriptor(string descriptor)
+    private static string BuildTailoredTitleTopic(
+        string? headingTopic,
+        string? currentTopic,
+        string fallbackTopic)
+    {
+        if (string.IsNullOrWhiteSpace(headingTopic))
+        {
+            return currentTopic ?? fallbackTopic;
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentTopic) &&
+            currentTopic.StartsWith(
+                $"{headingTopic} ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = currentTopic[(headingTopic.Length + 1)..]
+                .ToLowerInvariant();
+            if (suffix is "stone" or "mulch" or "sand" or "soil" or
+                "gravel" or "base")
+            {
+                return currentTopic;
+            }
+        }
+
+        return headingTopic;
+    }
+
+    private static string CompactTitleDescriptor(
+        string topic,
+        string descriptor)
     {
         var compact = NormalizeText(descriptor);
         var replacements = new[]
         {
+            ("Paths & Light-Duty Projects", "Paths & Light Projects"),
+            ("Bed & Landscape Project", "Beds & Landscaping"),
+            ("Garden & Landscape Beds", "Gardens & Beds"),
+            ("Landscape Beds & Gardens", "Beds & Gardens"),
+            ("Beds, Trees & Landscape", "Beds & Trees"),
+            ("Decorative Drainage Stone", "Drainage Stone"),
+            ("Premium Soil Blend", "Soil Blend"),
             ("Landscape Features", "Landscaping"),
             ("Landscape Bed & Garden", "Beds & Gardens"),
             ("Landscape Bed and Garden", "Beds & Gardens"),
@@ -977,6 +1018,27 @@ internal static class WebsiteHealthRecommendationBuilder
             compact = compact.Replace(
                 replacement.Item1,
                 replacement.Item2,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (topic.Contains("mulch", StringComparison.OrdinalIgnoreCase))
+        {
+            compact = compact
+                .Replace(
+                    "Triple-Ground Mulch",
+                    "Triple-Ground",
+                    StringComparison.OrdinalIgnoreCase)
+                .Replace(
+                    "Premium Brown Mulch",
+                    "Premium Brown",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (topic.Contains("base", StringComparison.OrdinalIgnoreCase))
+        {
+            compact = compact.Replace(
+                "Limestone Base",
+                "Limestone",
                 StringComparison.OrdinalIgnoreCase);
         }
 
