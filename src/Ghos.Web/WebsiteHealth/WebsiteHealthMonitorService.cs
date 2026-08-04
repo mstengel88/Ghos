@@ -584,7 +584,8 @@ public sealed class WebsiteHealthMonitorService(
                     image.GetAttribute("data-src"),
                 image.GetAttribute("alt")?.Trim() ?? "",
                 GetImageContext(image, url),
-                url.ToString()))
+                url.ToString(),
+                IsBrandLogo(image)))
             .Where(image =>
                 !string.IsNullOrWhiteSpace(image.AltText))
             .ToList();
@@ -696,7 +697,7 @@ public sealed class WebsiteHealthMonitorService(
         return null;
     }
 
-    private static string? GetImageContext(
+    internal static string? GetImageContext(
         IElement image,
         Uri pageUrl)
     {
@@ -712,21 +713,23 @@ public sealed class WebsiteHealthMonitorService(
             interactive?.GetAttribute("aria-label"),
             interactive?.GetAttribute("title"),
             image.Closest("figure")?.QuerySelector("figcaption")
-                ?.TextContent
+                ?.TextContent,
+            GetLinkedImageTopic(interactive, pageUrl)
         };
         var ancestor = image.ParentElement;
         for (var depth = 0;
-            ancestor is not null && depth < 4;
+            ancestor is not null && depth < 10;
             ancestor = ancestor.ParentElement, depth++)
         {
+            candidates.Add(ancestor.GetAttribute("data-product-title"));
+            candidates.Add(ancestor.GetAttribute("data-title"));
+            candidates.Add(ancestor.GetAttribute("aria-label"));
             candidates.Add(
                 ancestor.QuerySelector(
                     "[data-product-title], [data-title], h1, h2, h3, h4")
                     ?.TextContent);
-            candidates.Add(ancestor.TextContent);
         }
 
-        candidates.Add(GetLinkedImageTopic(interactive, pageUrl));
         return candidates
             .Select(NormalizeImageContext)
             .FirstOrDefault(candidate =>
@@ -734,6 +737,19 @@ public sealed class WebsiteHealthMonitorService(
                 !candidate.Equals(
                     currentAlt,
                     StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsBrandLogo(IElement image)
+    {
+        var className = image.GetAttribute("class") ?? "";
+        if (className.Contains("logo", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var interactive = FindInteractiveAncestor(image);
+        return image.Closest("header") is not null &&
+            interactive?.GetAttribute("href")?.TrimEnd('/') is "";
     }
 
     private static string? GetLinkedImageTopic(
@@ -1571,7 +1587,7 @@ public sealed class WebsiteHealthMonitorService(
             {
                 Page = page,
                 Image = image,
-                AssetKey = NormalizeImageAssetUrl(
+                AssetKey = NormalizeImageAssetKey(
                     page.Url,
                     image.Source) ?? $"{page.Url}|{image.Source}",
                 NormalizedAlt = NormalizeAltText(image.AltText)
@@ -1615,6 +1631,7 @@ public sealed class WebsiteHealthMonitorService(
                 !IsGenericImageAlt(
                     item.Image.AltText,
                     item.Image.Source) &&
+                !item.Image.IsBrandLogo &&
                 !IsReusableBrandAlt(item.NormalizedAlt))
             .GroupBy(
                 item => item.NormalizedAlt,
@@ -1723,6 +1740,31 @@ public sealed class WebsiteHealthMonitorService(
         }
 
         return resolved.GetLeftPart(UriPartial.Path);
+    }
+
+    internal static string? NormalizeImageAssetKey(
+        Uri pageUrl,
+        string? source)
+    {
+        var normalizedUrl = NormalizeImageAssetUrl(pageUrl, source);
+        if (normalizedUrl is null ||
+            !Uri.TryCreate(normalizedUrl, UriKind.Absolute, out var resolved))
+        {
+            return null;
+        }
+
+        if (resolved.AbsolutePath.Contains(
+                "/cdn/shop/",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var filename = Path.GetFileName(resolved.AbsolutePath);
+            if (!string.IsNullOrWhiteSpace(filename))
+            {
+                return $"shopify:{filename.ToLowerInvariant()}";
+            }
+        }
+
+        return normalizedUrl;
     }
 
     private static void AddPresenceObservation(

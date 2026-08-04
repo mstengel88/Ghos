@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AngleSharp.Html.Parser;
 using Ghos.Web.WebsiteHealth;
 using Xunit;
 
@@ -262,6 +263,79 @@ public sealed class WebsiteHealthOperationsTests
         Assert.DoesNotContain(
             "alt=\"Istock\"",
             recommendation.SuggestedValue);
+    }
+
+    [Fact]
+    public async Task ImageContext_UsesLinkedCollectionBeforeNavigationText()
+    {
+        var document = await new HtmlParser().ParseDocumentAsync(
+            """
+            <header>
+              <a href="/">
+                <img class="logo" src="/logo.png" alt="Green Hills Supply">
+                Search Clear Pro-Access Hub Sign in Register Cart
+              </a>
+            </header>
+            <main>
+              <a href="/collections/mulch" aria-label="Mulch">
+                <picture><img src="/mulch.jpg" alt="Green Hills Supply"></picture>
+              </a>
+            </main>
+            """);
+        var image = document.QuerySelector("main img");
+
+        Assert.NotNull(image);
+        Assert.Equal(
+            "Mulch",
+            WebsiteHealthMonitorService.GetImageContext(
+                image,
+                new Uri("https://www.greenhillssupply.com/")));
+    }
+
+    [Fact]
+    public async Task ImageContext_UsesHeadingFromItsOwnSlideshowPanel()
+    {
+        var document = await new HtmlParser().ParseDocumentAsync(
+            """
+            <div class="slideshow__item">
+              <div><div><motion-element><picture>
+                <img src="/aggregate.jpg" alt="Green Hills Supply">
+              </picture></motion-element></div></div>
+              <div><h2>Aggregate</h2></div>
+            </div>
+            <div class="slideshow__item">
+              <div><div><motion-element><picture>
+                <img src="/mulch.jpg" alt="Green Hills Supply">
+              </picture></motion-element></div></div>
+              <div><h2>Mulch</h2></div>
+            </div>
+            """);
+        var images = document.QuerySelectorAll("img");
+
+        Assert.Equal(
+            "Aggregate",
+            WebsiteHealthMonitorService.GetImageContext(
+                images[0],
+                new Uri("https://www.greenhillssupply.com/")));
+        Assert.Equal(
+            "Mulch",
+            WebsiteHealthMonitorService.GetImageContext(
+                images[1],
+                new Uri("https://www.greenhillssupply.com/")));
+    }
+
+    [Fact]
+    public void ImageAssetKey_TreatsShopifyFileAndCollectionCopiesAsSameAsset()
+    {
+        var page = new Uri("https://www.greenhillssupply.com/");
+
+        Assert.Equal(
+            WebsiteHealthMonitorService.NormalizeImageAssetKey(
+                page,
+                "/cdn/shop/files/iStock-1402995921.jpg?v=1"),
+            WebsiteHealthMonitorService.NormalizeImageAssetKey(
+                page,
+                "/cdn/shop/collections/iStock-1402995921.jpg?v=2"));
     }
 
     [Theory]
