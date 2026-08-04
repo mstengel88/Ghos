@@ -662,6 +662,33 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void BrokenImage_ListsAffectedPagesAndProductMediaLocation()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.BrokenImage(
+                new Uri(
+                    "https://cdn.shopify.com/files/clear-stone.jpg"),
+                [
+                    new Uri(
+                        "https://www.greenhillssupply.com/products/clear-stone"),
+                    new Uri(
+                        "https://www.greenhillssupply.com/collections/aggregate")
+                ],
+                404);
+
+        Assert.Contains("returned HTTP 404", recommendation.Guidance);
+        Assert.Contains(
+            "/products/clear-stone",
+            recommendation.CurrentValue);
+        Assert.Contains(
+            "/collections/aggregate",
+            recommendation.CurrentValue);
+        Assert.Contains(
+            "Products → open the product",
+            recommendation.FixLocation);
+    }
+
+    [Fact]
     public void WebsiteHealthIssueExport_IncludesComparisonAndShopifyFields()
     {
         var csv = WebsiteHealthIssueExportBuilder.BuildCsv(
