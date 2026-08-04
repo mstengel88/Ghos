@@ -175,6 +175,67 @@ public sealed class WebsiteHealthMonitorServiceTests
     }
 
     [Fact]
+    public void AnalyzeSecurityHeaders_AcceptsShopifyProtections()
+    {
+        var analysis =
+            WebsiteHealthMonitorService.AnalyzeSecurityHeaders(
+                new Dictionary<string, string>
+                {
+                    ["strict-transport-security"] = "max-age=7889238",
+                    ["x-content-type-options"] = "nosniff",
+                    ["x-frame-options"] = "DENY",
+                    ["content-security-policy"] =
+                        "block-all-mixed-content; frame-ancestors 'none'"
+                });
+
+        Assert.True(analysis.IsHealthy);
+        Assert.Empty(analysis.MissingHeaders);
+    }
+
+    [Fact]
+    public void AnalyzeSecurityHeaders_AcceptsCspFramingWithoutXFrameOptions()
+    {
+        var analysis =
+            WebsiteHealthMonitorService.AnalyzeSecurityHeaders(
+                new Dictionary<string, string>
+                {
+                    ["Strict-Transport-Security"] = "max-age=31536000",
+                    ["X-Content-Type-Options"] = "nosniff",
+                    ["Content-Security-Policy"] =
+                        "default-src 'self'; frame-ancestors 'self'"
+                });
+
+        Assert.True(analysis.HasFramingProtection);
+        Assert.True(analysis.IsHealthy);
+    }
+
+    [Fact]
+    public void AnalyzeSecurityHeaders_ReportsMissingOrDisabledProtections()
+    {
+        var analysis =
+            WebsiteHealthMonitorService.AnalyzeSecurityHeaders(
+                new Dictionary<string, string>
+                {
+                    ["Strict-Transport-Security"] = "max-age=0",
+                    ["X-Content-Type-Options"] = "invalid"
+                });
+
+        Assert.False(analysis.IsHealthy);
+        Assert.Contains(
+            "Strict-Transport-Security",
+            analysis.MissingHeaders);
+        Assert.Contains(
+            "X-Content-Type-Options: nosniff",
+            analysis.MissingHeaders);
+        Assert.Contains(
+            "framing protection",
+            analysis.MissingHeaders);
+        Assert.Contains(
+            "Content-Security-Policy",
+            analysis.MissingHeaders);
+    }
+
+    [Fact]
     public void GetMissingSocialPreviewFields_ReportsOnlyMissingOrInvalidValues()
     {
         var missing =

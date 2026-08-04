@@ -643,6 +643,20 @@ internal static class WebsiteHealthRecommendationBuilder
             requestedUrl.ToString());
     }
 
+    internal static WebsiteHealthRecommendation SecurityHeaders(
+        Uri pageUrl,
+        IReadOnlyList<string> missingHeaders)
+    {
+        return new WebsiteHealthRecommendation(
+            "These headers are delivered by Shopify and the storefront CDN, not by page content or a Liquid metadata snippet. Confirm the primary domain has a fully provisioned TLS certificate and that Cloudflare is not stripping or replacing Shopify response headers. Review proxy/transform rules and app proxies, then contact Shopify Support if the headers are still absent at the origin. Do not paste header text into theme.liquid.",
+            $"Expected protections:\n{string.Join(
+                Environment.NewLine,
+                missingHeaders.Select(header => $"- {header}"))}",
+            "Shopify Admin → Settings → Domains → open the primary domain and confirm TLS status; Cloudflare → Rules/Transform Rules and SSL/TLS → review response-header changes for this hostname",
+            "https://help.shopify.com/en/manual/domains/managing-domains/secure-connections",
+            pageUrl.ToString());
+    }
+
     internal static WebsiteHealthRecommendation RobotsQuality(
         Uri baseUri,
         bool blocksStorefront,
