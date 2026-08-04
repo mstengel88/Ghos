@@ -63,6 +63,10 @@
             <strong>@Analytics.SearchesNeedingReview</strong>
         </article>
         <article class="panel">
+            <span>Typos corrected</span>
+            <strong>@Analytics.CorrectionsApplied</strong>
+        </article>
+        <article class="panel">
             <span>Product selections</span>
             <strong>@Analytics.ProductSelections</strong>
         </article>
@@ -80,6 +84,19 @@
 
 @if (Response is not null)
 {
+    @if (!string.IsNullOrWhiteSpace(Response.CorrectedQuery))
+    {
+        <section class="correction-notice" role="status">
+            <div>
+                <span>TYPO CORRECTED</span>
+                <strong>
+                    Showing results for “@Response.CorrectedQuery”
+                </strong>
+            </div>
+            <small>@string.Join(" · ", Response.Corrections)</small>
+        </section>
+    }
+
     <section class="search-summary">
         <div>
             <span>UNDERSTOOD AS</span>

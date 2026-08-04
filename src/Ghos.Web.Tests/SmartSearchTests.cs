@@ -231,6 +231,62 @@ public sealed class SmartSearchTests
         Assert.Null(ranked.PinnedPosition);
     }
 
+    [Theory]
+    [InlineData("drivway ston", "driveway stone")]
+    [InlineData("mulhc for gardne", "mulch for garden")]
+    public void TypoCorrection_RepairsObviousCatalogMisspellings(
+        string query,
+        string expected)
+    {
+        var correction = SmartSearchTypoCorrector.Suggest(
+            query,
+            ["driveway", "stone", "mulch", "garden"]);
+
+        Assert.NotNull(correction);
+        Assert.Equal(expected, correction.CorrectedQuery);
+        Assert.NotEmpty(correction.Replacements);
+    }
+
+    [Fact]
+    public void TypoCorrection_DoesNotRewriteAmbiguousWords()
+    {
+        var correction = SmartSearchTypoCorrector.Suggest(
+            "stane",
+            ["stone", "stage"]);
+
+        Assert.Null(correction);
+    }
+
+    [Fact]
+    public void TypoCorrection_DoesNotRewriteUnknownCustomerLanguage()
+    {
+        var correction = SmartSearchTypoCorrector.Suggest(
+            "pizza oven",
+            ["stone", "gravel", "mulch", "topsoil"]);
+
+        Assert.Null(correction);
+    }
+
+    [Fact]
+    public void TypoCorrection_PreservesCorrectCatalogTerms()
+    {
+        var correction = SmartSearchTypoCorrector.Suggest(
+            "gray driveway stone",
+            ["gray", "driveway", "stone"]);
+
+        Assert.Null(correction);
+    }
+
+    [Fact]
+    public void TypoCorrection_PreservesNormalCustomerWording()
+    {
+        var correction = SmartSearchTypoCorrector.Suggest(
+            "need some stone",
+            ["reed", "stone"]);
+
+        Assert.Null(correction);
+    }
+
     private static SmartProductSearchResult SearchResult(
         string confidence = "High",
         IReadOnlyList<string>? unmatchedIntents = null) =>

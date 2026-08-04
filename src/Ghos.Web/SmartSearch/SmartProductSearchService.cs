@@ -23,6 +23,8 @@ public sealed record SmartProductSearchResult(
 public sealed record SmartProductSearchResponse(
     Guid? SearchEventId,
     string Query,
+    string? CorrectedQuery,
+    IReadOnlyList<string> Corrections,
     IReadOnlyList<string> Intents,
     int SynonymMappings,
     IReadOnlyList<SmartProductSearchResult> Results);
@@ -45,24 +47,14 @@ public sealed class SmartProductSearchService(
                 rule.Phrase,
                 rule.Expansion))
             .ToListAsync(cancellationToken);
-        var plan = SmartSearchSynonymLibrary.Plan(
+        var originalPlan = SmartSearchSynonymLibrary.Plan(
             query,
             customSynonyms);
-        if (plan.NormalizedQuery.Length < 2)
+        if (originalPlan.NormalizedQuery.Length < 2)
         {
-            return Empty(plan, customSynonyms.Count);
+            return Empty(originalPlan, customSynonyms.Count);
         }
 
-        var merchandisingRules =
-            await dbContext.SmartSearchMerchandisingRules
-                .AsNoTracking()
-                .Where(rule =>
-                    rule.IsActive &&
-                    rule.NormalizedQueryPhrase ==
-                        plan.NormalizedQuery)
-                .ToDictionaryAsync(
-                    rule => rule.ProductId,
-                    cancellationToken);
         var products = await dbContext.Products
             .AsNoTracking()
             .Include(product => product.ProductCategory)
@@ -74,6 +66,24 @@ public sealed class SmartProductSearchService(
                 product.ShopifyHandle != null &&
                 product.ShopifyStatus == "ACTIVE")
             .ToListAsync(cancellationToken);
+        var correction = SmartSearchTypoCorrector.Suggest(
+            originalPlan.OriginalQuery,
+            CatalogVocabulary(products, customSynonyms));
+        var plan = correction is null
+            ? originalPlan
+            : SmartSearchSynonymLibrary.Plan(
+                correction.CorrectedQuery,
+                customSynonyms);
+        var merchandisingRules =
+            await dbContext.SmartSearchMerchandisingRules
+                .AsNoTracking()
+                .Where(rule =>
+                    rule.IsActive &&
+                    rule.NormalizedQueryPhrase ==
+                        originalPlan.NormalizedQuery)
+                .ToDictionaryAsync(
+                    rule => rule.ProductId,
+                    cancellationToken);
 
         var results = products
             .Select(product => Score(product, plan))
@@ -92,8 +102,10 @@ public sealed class SmartProductSearchService(
         var topResult = results.FirstOrDefault();
         var searchEvent = new SmartSearchEvent
         {
-            Query = Truncate(plan.OriginalQuery, 300),
-            NormalizedQuery = Truncate(plan.NormalizedQuery, 300),
+            Query = Truncate(originalPlan.OriginalQuery, 300),
+            NormalizedQuery = Truncate(
+                originalPlan.NormalizedQuery,
+                300),
             IntentSummary = Truncate(
                 string.Join(" · ", plan.Intents),
                 500),
@@ -111,13 +123,26 @@ public sealed class SmartProductSearchService(
                     : string.Join(
                         " · ",
                         topResult.UnmatchedIntents),
-                500)
+                500),
+            CorrectedQuery = TruncateNullable(
+                correction?.CorrectedQuery,
+                300),
+            CorrectionSummary = TruncateNullable(
+                correction is null
+                    ? null
+                    : string.Join(
+                        " · ",
+                        correction.Replacements),
+                500),
+            CorrectionApplied = correction is not null
         };
         dbContext.SmartSearchEvents.Add(searchEvent);
         await dbContext.SaveChangesAsync(cancellationToken);
         return new SmartProductSearchResponse(
             searchEvent.Id,
-            plan.OriginalQuery,
+            originalPlan.OriginalQuery,
+            correction?.CorrectedQuery,
+            correction?.Replacements ?? [],
             plan.Intents,
             SmartSearchSynonymLibrary.SynonymMappingCount +
                 customSynonyms.Count,
@@ -210,6 +235,7 @@ public sealed class SmartProductSearchService(
             events.Count,
             events.Count(item => item.ResultCount == 0),
             events.Count(NeedsReview),
+            events.Count(item => item.CorrectionApplied),
             events.Count(item => item.SelectedProductId is not null),
             topQueries,
             zeroQueries,
@@ -406,10 +432,52 @@ public sealed class SmartProductSearchService(
         new(
             null,
             plan.OriginalQuery,
+            null,
+            [],
             plan.Intents,
             SmartSearchSynonymLibrary.SynonymMappingCount +
                 customSynonymCount,
             []);
+
+    private static IEnumerable<string?> CatalogVocabulary(
+        IEnumerable<Product> products,
+        IEnumerable<SmartSearchCustomSynonym> customSynonyms)
+    {
+        foreach (var phrase in
+            SmartSearchSynonymLibrary.VocabularyPhrases)
+        {
+            yield return phrase;
+        }
+
+        foreach (var synonym in customSynonyms)
+        {
+            yield return synonym.Phrase;
+            yield return synonym.Expansion;
+        }
+
+        foreach (var product in products)
+        {
+            yield return product.ShopifyTitle;
+            yield return product.Name;
+            yield return product.BestUses;
+            yield return product.ProductCategory.Name;
+            yield return product.ShopifyTags;
+            foreach (var alternateName in product.AlternateNames)
+            {
+                yield return alternateName.Name;
+            }
+
+            foreach (var variant in product.Variants)
+            {
+                yield return variant.Title;
+            }
+
+            foreach (var link in product.ShopifyCollectionLinks)
+            {
+                yield return link.ShopifyCollection.Title;
+            }
+        }
+    }
 
     private static string Truncate(string value, int maximumLength) =>
         value.Length <= maximumLength
@@ -491,6 +559,7 @@ public sealed record SmartSearchAnalyticsSnapshot(
     int Searches,
     int ZeroResultSearches,
     int SearchesNeedingReview,
+    int CorrectionsApplied,
     int ProductSelections,
     IReadOnlyList<SmartSearchQueryStat> TopQueries,
     IReadOnlyList<SmartSearchQueryStat> ZeroResultQueries,

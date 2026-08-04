@@ -72,6 +72,9 @@ public static partial class SmartSearchSynonymLibrary
         Concepts.Sum(concept =>
             concept.Terms.Count * (concept.Terms.Count - 1));
 
+    internal static IEnumerable<string> VocabularyPhrases =>
+        Concepts.SelectMany(concept => concept.Terms);
+
     public static SmartSearchQueryPlan Plan(
         string? query,
         IEnumerable<SmartSearchCustomSynonym>? customSynonyms = null)
