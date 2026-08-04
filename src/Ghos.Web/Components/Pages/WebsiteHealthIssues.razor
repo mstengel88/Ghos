@@ -169,6 +169,14 @@ else
                                                 <div class="fix-location">
                                                     <span>WHERE TO MAKE THIS CHANGE</span>
                                                     <strong>@issue.FixLocation</strong>
+                                                    @if (!string.IsNullOrWhiteSpace(issue.FixDocumentationUrl))
+                                                    {
+                                                        <a href="@issue.FixDocumentationUrl"
+                                                           target="_blank"
+                                                           rel="noopener noreferrer">
+                                                            Official Shopify instructions ↗
+                                                        </a>
+                                                    }
                                                 </div>
                                             }
                                             <p>@issue.Recommendation</p>

@@ -385,6 +385,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasMaxLength(6000);
             issue.Property(item => item.FixLocation)
                 .HasMaxLength(1000);
+            issue.Property(item => item.FixDocumentationUrl)
+                .HasMaxLength(1000);
 
             issue.HasOne(item => item.MonitoredSite)
                 .WithMany(site => site.Issues)
