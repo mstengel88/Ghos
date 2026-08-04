@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Ghos.Web.WebsiteHealth;
 
@@ -350,9 +351,76 @@ internal static class WebsiteHealthRecommendationBuilder
 
     private static string FitSearchDescription(string value)
     {
-        var fitted = TruncateAtWord(value, 154)
+        var sentences = Regex.Matches(
+                NormalizeText(value),
+                @"[^.!?]+[.!?]")
+            .Select(match => NormalizeText(match.Value))
+            .Where(sentence => sentence.Length >= 40)
+            .ToList();
+        var candidates = sentences
+            .Concat(sentences.Select(CompressDescriptionSentence))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(sentence => sentence.Length is >= 70 and <= 155)
+            .OrderByDescending(sentence => sentence.Length)
+            .ToList();
+        if (candidates.Count > 0)
+        {
+            return candidates[0];
+        }
+
+        var compressed = CompressDescriptionSentence(
+            sentences.FirstOrDefault() ?? value);
+        if (compressed.Length is >= 70 and <= 155)
+        {
+            return EnsureSentence(compressed);
+        }
+
+        var fitted = TruncateAtWord(compressed, 151)
             .TrimEnd(' ', ',', ';', ':', '-', '—', '.', '!', '?');
-        return $"{fitted}.";
+        return $"{fitted}…";
+    }
+
+    private static string CompressDescriptionSentence(string value)
+    {
+        var compressed = NormalizeText(value);
+        compressed = Regex.Replace(
+            compressed,
+            @"^From\s+(.+?),\s+our\s+[^,]{1,60}\s+(?:are|is)\s+ideal\s+for\s+",
+            "$1 support ",
+            RegexOptions.IgnoreCase);
+        compressed = Regex.Replace(
+            compressed,
+            @"^Our\s+",
+            "",
+            RegexOptions.IgnoreCase);
+        var replacements = new[]
+        {
+            (" selection includes ", " offers "),
+            (" products include a full range of ", " offers "),
+            (" make it easy to get ", " provide "),
+            (" offer an effective way to improve ", " improve "),
+            (" are perfect for ", " suit "),
+            (" are ideal for ", " support "),
+            (" you need for ", " for "),
+            (", and other products", " and more"),
+            (" throughout the winter season", " all winter")
+        };
+        foreach (var replacement in replacements)
+        {
+            compressed = compressed.Replace(
+                replacement.Item1,
+                replacement.Item2,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        compressed = compressed.Replace(", and ", " and ");
+        if (compressed.Length > 0)
+        {
+            compressed =
+                char.ToUpperInvariant(compressed[0]) + compressed[1..];
+        }
+
+        return compressed;
     }
 
     private static string BuildTitle(Uri url, string? heading)
