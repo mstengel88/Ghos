@@ -138,7 +138,7 @@ internal static class WebsiteHealthRecommendationBuilder
                 topic,
                 introductoryText);
         var guidance = isShopifyCatalog
-            ? "This is Shopify's built-in catalog URL, which exists even when no All collection appears under Products → Collections. Creating a smart collection with the handle all attaches editable collection and SEO settings to this existing catalog URL. It does not replace your separate collections landing page, other collections, homepage sections, or navigation. Do not rename another collection or change any menu link."
+            ? "This is Shopify's built-in catalog URL, which exists even when no All collection appears under Products → Collections. Shopify only lets you choose Manual or Smart/Automated while creating a new collection; a saved collection's type cannot be changed. You do not need to change the collection type merely to edit an existing All collection's SEO listing. A separate All collection does not replace your separate collections landing page. Do not rename another collection, your collections landing page, or any menu link."
             : "Add a unique meta description that explains what a customer will find on this page and gives them a reason to click. Aim for roughly 120–155 characters and do not reuse it across paginated or related pages.";
         return new WebsiteHealthRecommendation(
             guidance,
@@ -1022,7 +1022,7 @@ internal static class WebsiteHealthRecommendationBuilder
             "/collections/all",
             StringComparison.OrdinalIgnoreCase))
         {
-            return "Shopify Admin → Products → Collections → search for All. If it exists, open it; if it does not, choose Create collection → title it All → select Smart collection → condition Product price is greater than $0 → Save. In Search engine listing, choose Edit website SEO → keep the handle exactly all → paste the suggested description. Leave your existing collections landing page, homepage sections, theme template, and menu links unchanged.";
+            return "Shopify Admin → Products → Collections → search for All. If an existing collection's Search engine listing has the handle all, leave its type and products unchanged; choose Edit website SEO and paste the suggested description. If no editable All collection exists, return to the collection list and choose Create collection. On that brand-new form, title it All → choose Smart (some Shopify screens call this Automated) → condition Product price is greater than $0 → Save → Edit website SEO → keep the handle exactly all. Shopify does not show an editable type choice after a collection has been saved. If the brand-new form also has no Smart/Automated option, stop rather than renaming or deleting another collection and use the Official Shopify instructions to check the store plan and permissions. Leave your existing collections landing page, homepage sections, theme template, and menu links unchanged.";
         }
 
         if (path.StartsWith(
