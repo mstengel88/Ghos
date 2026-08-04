@@ -77,6 +77,16 @@ collection, page, blog, and utility links. This ensures a 25-page run validates
 representative commerce pages instead of exhausting its limit on navigation
 and policy routes.
 
+The crawler also uses Shopify's generated sitemap index as a discovery
+inventory. It reads no more than eight same-domain product, collection, page,
+or blog sitemap files and no more than 5,000 listed locations. Agent-discovery
+and external sitemap files are excluded. Sitemap URLs are normalized to the
+configured storefront host and still must pass the HTTPS, public-address,
+robots.txt, timeout, delay, and maximum-page safeguards before GHOS requests
+them. Within each content category, pages that have never been evaluated are
+queued before recently checked pages, allowing recurring 25-page runs to
+expand coverage over time without turning one run into an unbounded crawl.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,
