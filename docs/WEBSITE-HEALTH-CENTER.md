@@ -36,8 +36,11 @@ Website Health stores timestamps in UTC and displays them in
 as daylight-saving time changes.
 
 The content scan checks more than presence. It flags page titles outside the
-20–60 character range, meta descriptions outside the 70–160 character range,
-and exact duplicate titles or descriptions across indexable pages in the
+20–60 character range and uses a soft 70–170 character range for meta
+descriptions. Google has no fixed description length limit, so the soft ceiling
+avoids treating a useful description as defective for exceeding a display
+heuristic by one or two characters.
+It also detects exact duplicate titles or descriptions across indexable pages in the
 bounded crawl. Duplicate comparison ignores capitalization, encoded HTML
 characters, and repeated whitespace. Paginated collection URLs are treated as
 one metadata target to prevent duplicate work. Each finding includes unique
@@ -123,6 +126,11 @@ finding and select **Verify fix** after publishing the Shopify change. GHOS
 runs a fresh live check and reports whether that specific issue resolved or is
 still present. Verification uses the same single-run coordinator, timeouts,
 rate limits, and crawl boundaries as scheduled monitoring.
+
+A finding is resolved only after a later run evaluates the same affected page
+or image and no longer detects the problem. Findings from pages outside a
+later bounded crawl remain open instead of being incorrectly cleared merely
+because that run sampled different URLs.
 
 Image accessibility checks distinguish a missing alt attribute from an
 intentional `alt=""`. Empty alt text is accepted for decorative images and for

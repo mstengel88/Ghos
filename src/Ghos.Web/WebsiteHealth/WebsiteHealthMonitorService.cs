@@ -373,11 +373,16 @@ public sealed class WebsiteHealthMonitorService(
             site.LastCheckedAtUtc = run.CompletedAtUtc;
 
             AddMetrics(dbContext, site, run, observations);
+            var evaluatedIssueFingerprints =
+                BuildEvaluatedIssueFingerprints(
+                    observations,
+                    pages.Values);
             await SynchronizeIssuesAsync(
                 dbContext,
                 site.Id,
                 run.Id,
                 issues,
+                evaluatedIssueFingerprints,
                 run.CompletedAtUtc.Value,
                 cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -3214,6 +3219,7 @@ public sealed class WebsiteHealthMonitorService(
         Guid siteId,
         Guid runId,
         IEnumerable<DetectedIssue> detectedIssues,
+        IReadOnlySet<string> evaluatedIssueFingerprints,
         DateTime detectedAtUtc,
         CancellationToken cancellationToken)
     {
@@ -3300,11 +3306,74 @@ public sealed class WebsiteHealthMonitorService(
 
         foreach (var issue in knownIssues.Where(issue =>
             issue.ResolvedAtUtc == null &&
-            !seenFingerprints.Contains(issue.Fingerprint)))
+            ShouldResolveIssue(
+                issue.Fingerprint,
+                seenFingerprints,
+                evaluatedIssueFingerprints)))
         {
             issue.ResolvedAtUtc = detectedAtUtc;
         }
     }
+
+    private static HashSet<string> BuildEvaluatedIssueFingerprints(
+        IEnumerable<Observation> observations,
+        IEnumerable<PageSnapshot> pages)
+    {
+        var fingerprints = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var observation in observations.Where(item =>
+            !string.IsNullOrWhiteSpace(item.AffectedUrl)))
+        {
+            fingerprints.Add(CreateFingerprint(
+                observation.Key,
+                observation.AffectedUrl));
+            if (Uri.TryCreate(
+                    observation.AffectedUrl,
+                    UriKind.Absolute,
+                    out var affectedUri))
+            {
+                fingerprints.Add(CreateFingerprint(
+                    observation.Key,
+                    NormalizeMetadataTarget(affectedUri)));
+            }
+        }
+
+        foreach (var page in pages)
+        {
+            foreach (var image in page.Images)
+            {
+                var assetUrl = NormalizeImageAssetUrl(
+                    page.Url,
+                    image.Source);
+                if (!string.IsNullOrWhiteSpace(assetUrl))
+                {
+                    fingerprints.Add(CreateFingerprint(
+                        "image-alt",
+                        assetUrl));
+                }
+            }
+
+            foreach (var image in page.MissingImages)
+            {
+                var assetUrl = NormalizeImageAssetUrl(
+                    page.Url,
+                    image.Source) ??
+                    page.Url.ToString();
+                fingerprints.Add(CreateFingerprint(
+                    "image-alt",
+                    assetUrl));
+            }
+        }
+
+        return fingerprints;
+    }
+
+    internal static bool ShouldResolveIssue(
+        string issueFingerprint,
+        IReadOnlySet<string> seenFingerprints,
+        IReadOnlySet<string> evaluatedIssueFingerprints) =>
+        !seenFingerprints.Contains(issueFingerprint) &&
+        evaluatedIssueFingerprints.Contains(issueFingerprint);
 
     private static string CreateFingerprint(string checkKey, string? url)
     {
