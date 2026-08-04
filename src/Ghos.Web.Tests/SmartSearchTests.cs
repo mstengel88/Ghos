@@ -73,4 +73,16 @@ public sealed class SmartSearchTests
         Assert.Contains("Material: Crushed stone", partialMatches);
         Assert.Contains("Color: Gray", partialMatches);
     }
+
+    [Fact]
+    public void IntentCoverage_DoesNotMatchTermsInsideDifferentWords()
+    {
+        var plan = SmartSearchSynonymLibrary.Plan("crushed stone");
+
+        var matches = SmartProductSearchService.EvaluateIntentMatches(
+            "paver leveling sand for stepping stones",
+            plan);
+
+        Assert.DoesNotContain("Material: Crushed stone", matches);
+    }
 }
