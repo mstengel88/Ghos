@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Ghos.Web.Data;
@@ -580,6 +581,20 @@ public sealed class WebsiteHealthMonitorService(
                     image.ParentElement?.TextContent,
                 url.ToString()))
             .ToList();
+        var images = document.QuerySelectorAll("img[alt]")
+            .Select(image => new WebsiteHealthImage(
+                image.GetAttribute("src") ??
+                    image.GetAttribute("data-src"),
+                image.GetAttribute("alt")?.Trim() ?? "",
+                image.GetAttribute("title") ??
+                    image.GetAttribute("aria-label") ??
+                    image.ParentElement?.GetAttribute("aria-label") ??
+                    image.ParentElement?.GetAttribute("title") ??
+                    image.ParentElement?.TextContent,
+                url.ToString()))
+            .Where(image =>
+                !string.IsNullOrWhiteSpace(image.AltText))
+            .ToList();
         var introductoryText = document.QuerySelectorAll("main p, article p")
             .Select(element => element.TextContent?.Trim())
             .FirstOrDefault(text => text?.Length >= 50) ??
@@ -611,6 +626,7 @@ public sealed class WebsiteHealthMonitorService(
                     "noindex",
                     StringComparison.OrdinalIgnoreCase) == true,
             missingImages,
+            images,
             links);
     }
 
@@ -1011,25 +1027,33 @@ public sealed class WebsiteHealthMonitorService(
 
             if (enabledCheckKeys.Contains("image-alt"))
             {
+                var genericAltCount = page.Images.Count(image =>
+                    IsGenericImageAlt(
+                        image.AltText,
+                        image.Source));
+                var issueCount =
+                    page.MissingImages.Count + genericAltCount;
                 observations.Add(new Observation(
                     "image-alt",
                     "Image alt text",
                     "Content",
-                    page.MissingImages.Count == 0
+                    issueCount == 0
                         ? WebsiteHealthCheckStatus.Passed
                         : WebsiteHealthCheckStatus.Warning,
-                    (decimal)page.MissingImages.Count,
+                    (decimal)issueCount,
                     "images",
                     page.Url.ToString(),
-                    page.MissingImages.Count == 0
-                        ? "All images have alt text."
-                        : $"{page.MissingImages.Count} image(s) are missing alt text."));
+                    issueCount == 0
+                        ? "All meaningful images have descriptive alt text."
+                        : $"{page.MissingImages.Count} image(s) are missing alt text; " +
+                            $"{genericAltCount} image(s) have generic alt text."));
             }
         }
 
         if (enabledCheckKeys.Contains("image-alt"))
         {
             AddGroupedImageAltIssues(pageSnapshots, issues);
+            AddImageAltQualityIssues(pageSnapshots, issues);
         }
 
         if (enabledCheckKeys.Contains("meta-description"))
@@ -1472,6 +1496,155 @@ public sealed class WebsiteHealthMonitorService(
         }
     }
 
+    private static void AddImageAltQualityIssues(
+        IReadOnlyCollection<PageSnapshot> pages,
+        ICollection<DetectedIssue> issues)
+    {
+        var occurrences = pages
+            .SelectMany(page => page.Images.Select(image => new
+            {
+                Page = page,
+                Image = image,
+                AssetKey = NormalizeImageAssetUrl(
+                    page.Url,
+                    image.Source) ?? $"{page.Url}|{image.Source}",
+                NormalizedAlt = NormalizeAltText(image.AltText)
+            }))
+            .ToList();
+        foreach (var assetGroup in occurrences
+            .Where(item => IsGenericImageAlt(
+                item.Image.AltText,
+                item.Image.Source))
+            .GroupBy(
+                item => item.AssetKey,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            var first = assetGroup.First();
+            var affectedPages = assetGroup
+                .Select(item => item.Page.Url.ToString())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            issues.Add(new DetectedIssue(
+                "image-alt",
+                "Image alt text is not descriptive",
+                $"The image uses generic alt text: " +
+                    $"\"{first.Image.AltText}\" across " +
+                    $"{affectedPages.Count} page(s).",
+                NormalizeImageAssetUrl(
+                    first.Page.Url,
+                    first.Image.Source) ??
+                    first.Page.Url.ToString(),
+                WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.ImageAltQuality(
+                    first.Page.Url,
+                    first.Page.Title,
+                    first.Page.Heading,
+                    first.Image.AltText,
+                    assetGroup.Select(item => item.Image).ToList(),
+                    false)));
+        }
+
+        foreach (var altGroup in occurrences
+            .Where(item =>
+                !IsGenericImageAlt(
+                    item.Image.AltText,
+                    item.Image.Source) &&
+                !IsReusableBrandAlt(item.NormalizedAlt))
+            .GroupBy(
+                item => item.NormalizedAlt,
+                StringComparer.OrdinalIgnoreCase)
+            .Where(group =>
+                group.Select(item => item.AssetKey)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count() >= 3))
+        {
+            var distinctAssets = altGroup
+                .GroupBy(
+                    item => item.AssetKey,
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+            var first = distinctAssets[0];
+            var pageCount = distinctAssets
+                .Select(item => item.Page.Url.ToString())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            issues.Add(new DetectedIssue(
+                "image-alt",
+                "Alt text is reused across different images",
+                $"\"{first.Image.AltText}\" is used for " +
+                    $"{distinctAssets.Count} different image files across " +
+                    $"{pageCount} page(s).",
+                NormalizeImageAssetUrl(
+                    first.Page.Url,
+                    first.Image.Source) ??
+                    first.Page.Url.ToString(),
+                WebsiteHealthIssueSeverity.Warning,
+                WebsiteHealthRecommendationBuilder.ImageAltQuality(
+                    first.Page.Url,
+                    first.Page.Title,
+                    first.Page.Heading,
+                    first.Image.AltText,
+                    distinctAssets
+                        .Select(item => item.Image)
+                        .ToList(),
+                    true)));
+        }
+    }
+
+    internal static bool IsGenericImageAlt(
+        string? altText,
+        string? source)
+    {
+        var normalized = NormalizeAltText(altText);
+        if (normalized.Length < 3 ||
+            normalized is
+                "image" or
+                "photo" or
+                "picture" or
+                "thumbnail" or
+                "product image" or
+                "product photo" or
+                "icon" or
+                "logo" ||
+            normalized.Contains(
+                "untitled design",
+                StringComparison.Ordinal) ||
+            Regex.IsMatch(
+                normalized,
+                @"^(img|dsc|image)[\s_-]*\d+"))
+        {
+            return true;
+        }
+
+        var filename = Path.GetFileNameWithoutExtension(
+            Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)
+                ? sourceUri.AbsolutePath
+                : source ?? "");
+        return filename.Length >= 3 &&
+            NormalizeAltText(filename).Equals(
+                normalized,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeAltText(string? value) =>
+        string.Join(
+            ' ',
+            WebUtility.HtmlDecode(value ?? "")
+                .Split(
+                    [' ', '\r', '\n', '\t', '_', '-'],
+                    StringSplitOptions.RemoveEmptyEntries))
+            .Trim()
+            .ToLowerInvariant();
+
+    private static bool IsReusableBrandAlt(string normalizedAlt) =>
+        normalizedAlt.Contains(
+            "green hills supply",
+            StringComparison.Ordinal) &&
+        normalizedAlt.Contains(
+            "logo",
+            StringComparison.Ordinal);
+
     internal static string? NormalizeImageAssetUrl(
         Uri pageUrl,
         string? source)
@@ -1765,6 +1938,7 @@ public sealed class WebsiteHealthMonitorService(
         string? RobotsDirective,
         bool IsNoIndex,
         IReadOnlyList<WebsiteHealthMissingImage> MissingImages,
+        IReadOnlyList<WebsiteHealthImage> Images,
         IReadOnlySet<Uri> InternalLinks);
 
     private sealed record Observation(

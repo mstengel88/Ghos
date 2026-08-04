@@ -178,6 +178,67 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Theory]
+    [InlineData("image", "/files/red-mulch.jpg", true)]
+    [InlineData("Untitled Design 2", "/files/photo.png", true)]
+    [InlineData("IMG_2048", "/files/photo.jpg", true)]
+    [InlineData("red-mulch", "/files/red-mulch.jpg", true)]
+    [InlineData(
+        "Premium red mulch installed in a garden bed",
+        "/files/red-mulch.jpg",
+        false)]
+    [InlineData(
+        "Green Hills Supply logo",
+        "/files/green-hills-logo.png",
+        false)]
+    public void ImageAltQuality_DetectsOnlyGenericOrFilenameText(
+        string altText,
+        string source,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            WebsiteHealthMonitorService.IsGenericImageAlt(
+                altText,
+                source));
+    }
+
+    [Fact]
+    public void ImageAltQuality_TailorsEachDifferentImageSuggestion()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.ImageAltQuality(
+                new Uri(
+                    "https://www.greenhillssupply.com/collections/mulch"),
+                "Mulch",
+                "Mulch",
+                "Product image",
+                [
+                    new WebsiteHealthImage(
+                        "https://cdn.example.com/red-mulch.jpg",
+                        "Product image",
+                        "Premium red mulch"),
+                    new WebsiteHealthImage(
+                        "https://cdn.example.com/brown-mulch.jpg",
+                        "Product image",
+                        "Natural brown mulch")
+                ],
+                true);
+
+        Assert.Contains(
+            "red-mulch.jpg: alt=\"Premium red mulch\"",
+            recommendation.SuggestedValue);
+        Assert.Contains(
+            "brown-mulch.jpg: alt=\"Natural brown mulch\"",
+            recommendation.SuggestedValue);
+        Assert.Contains(
+            "Current alt text: \"Product image\"",
+            recommendation.CurrentValue);
+        Assert.Contains(
+            "if this is a product-card image",
+            recommendation.FixLocation);
+    }
+
+    [Theory]
     [InlineData(false, null, false, false, true)]
     [InlineData(true, "Red mulch product bag", false, false, false)]
     [InlineData(true, "", false, false, false)]
