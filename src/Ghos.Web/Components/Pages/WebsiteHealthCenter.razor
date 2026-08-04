@@ -84,6 +84,23 @@ else
                 <strong>@FormatRunStatus(LatestRun.Status)</strong>
             </div>
             <small>Last checked @FormatDateTime(LatestRun.CompletedAtUtc)</small>
+            @if (WarningMetricCount > 0)
+            {
+                <a class="score-impact"
+                   href="@(SuppressedIssues.Count > 0
+                       ? "/website-health/issues?status=suppressed"
+                       : "/website-health/issues")">
+                    <strong>@WarningMetricCount warning check@(WarningMetricCount == 1 ? "" : "s") reduce this score</strong>
+                    @if (SuppressedIssues.Count > 0)
+                    {
+                        <span>@SuppressedIssues.Count suppressed finding@(SuppressedIssues.Count == 1 ? "" : "s") remain part of site health</span>
+                    }
+                    else
+                    {
+                        <span>Review the findings affecting this score</span>
+                    }
+                </a>
+            }
         </article>
 
         <div class="category-grid">
@@ -103,7 +120,10 @@ else
         @foreach (var card in GetStatusCards())
         {
             var metric = LatestMetrics
-                .Where(item => item.Key == card.Key)
+                .Where(item =>
+                    card.Category is not null
+                        ? item.Category == card.Category
+                        : item.Key == card.Key)
                 .OrderByDescending(item => item.Status)
                 .FirstOrDefault();
             var status = metric?.Status ?? WebsiteHealthCheckStatus.Warning;
@@ -132,7 +152,21 @@ else
             {
                 <div class="health-empty compact">
                     <strong>No active issues</strong>
-                    <span>The latest run did not detect anything requiring attention.</span>
+                    @if (SuppressedIssues.Count > 0)
+                    {
+                        <span>
+                            @SuppressedIssues.Count suppressed finding@(SuppressedIssues.Count == 1 ? "" : "s")
+                            still affect the objective health score.
+                        </span>
+                        <a class="suppressed-link"
+                           href="/website-health/issues?status=suppressed">
+                            Review suppressed findings →
+                        </a>
+                    }
+                    else
+                    {
+                        <span>The latest run did not detect anything requiring attention.</span>
+                    }
                 </div>
             }
             else
@@ -227,10 +261,14 @@ else
     private WebsiteCheckRun? LatestRun { get; set; }
     private List<WebsiteHealthMetric> LatestMetrics { get; set; } = [];
     private List<WebsiteHealthIssue> ActiveIssues { get; set; } = [];
+    private List<WebsiteHealthIssue> SuppressedIssues { get; set; } = [];
     private List<WebsiteCheckRun> RecentRuns { get; set; } = [];
     private bool Loading { get; set; } = true;
     private bool Running { get; set; }
     private string? ErrorMessage { get; set; }
+    private int WarningMetricCount =>
+        LatestMetrics.Count(metric =>
+            metric.Status != WebsiteHealthCheckStatus.Passed);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -271,6 +309,16 @@ else
                 issue.MonitoredSiteId == Site.Id &&
                 issue.ResolvedAtUtc == null &&
                 issue.SuppressedAtUtc == null)
+            .OrderByDescending(issue => issue.Severity)
+            .ThenByDescending(issue => issue.LastDetectedAtUtc)
+            .Take(100)
+            .ToListAsync();
+        SuppressedIssues = await dbContext.WebsiteHealthIssues
+            .AsNoTracking()
+            .Where(issue =>
+                issue.MonitoredSiteId == Site.Id &&
+                issue.ResolvedAtUtc == null &&
+                issue.SuppressedAtUtc != null)
             .OrderByDescending(issue => issue.Severity)
             .ThenByDescending(issue => issue.LastDetectedAtUtc)
             .Take(100)
@@ -331,12 +379,20 @@ else
 
     private IReadOnlyList<StatusCardModel> GetStatusCards() =>
     [
-        new("Homepage", "homepage", "Live response"),
-        new("SSL certificate", "ssl", "Validity and expiration"),
-        new("robots.txt", "robots", "Crawler guidance"),
-        new("Sitemap", "sitemap", "Search discovery"),
-        new("Internal links", "internal-link", $"{LatestRun!.LinksChecked} URLs checked"),
-        new("Page content", "title", $"{LatestRun.PagesCrawled} pages analyzed")
+        new("Homepage", "homepage", null, "Live response"),
+        new("SSL certificate", "ssl", null, "Validity and expiration"),
+        new("robots.txt", "robots", null, "Crawler guidance"),
+        new("Sitemap", "sitemap", null, "Search discovery"),
+        new(
+            "Internal links",
+            "internal-link",
+            null,
+            $"{LatestRun!.LinksChecked} URLs checked"),
+        new(
+            "Page content",
+            null,
+            "Content",
+            $"{LatestRun.PagesCrawled} pages analyzed")
     ];
 
     private static string FormatCheckStatus(WebsiteHealthMetric? metric)
@@ -396,6 +452,7 @@ else
 
     private sealed record StatusCardModel(
         string Title,
-        string Key,
+        string? Key,
+        string? Category,
         string Description);
 }

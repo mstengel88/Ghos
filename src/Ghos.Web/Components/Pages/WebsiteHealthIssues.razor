@@ -442,6 +442,10 @@ else
 }
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "status")]
+    public string? RequestedStatus { get; set; }
+
     private List<WebsiteHealthIssue> Issues { get; set; } = [];
     private Dictionary<Guid, string?> Notes { get; } = [];
     private Dictionary<Guid, string?> ReviewedDrafts { get; } = [];
@@ -455,8 +459,31 @@ else
     private Guid? VerifyingIssueId { get; set; }
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
+    private bool AppliedRequestedStatus { get; set; }
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        ApplyRequestedStatus();
+        await LoadAsync();
+    }
+
+    protected override void OnParametersSet() => ApplyRequestedStatus();
+
+    private void ApplyRequestedStatus()
+    {
+        if (AppliedRequestedStatus ||
+            string.IsNullOrWhiteSpace(RequestedStatus) ||
+            !Enum.TryParse<IssueView>(
+                RequestedStatus,
+                true,
+                out var requestedView))
+        {
+            return;
+        }
+
+        SelectedView = requestedView;
+        AppliedRequestedStatus = true;
+    }
 
     private async Task LoadAsync()
     {
