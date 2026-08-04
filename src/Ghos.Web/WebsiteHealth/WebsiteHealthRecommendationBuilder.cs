@@ -554,13 +554,21 @@ internal static class WebsiteHealthRecommendationBuilder
             return null;
         }
 
+        var normalizedSource = source.StartsWith(
+            "//",
+            StringComparison.Ordinal)
+            ? $"https:{source}"
+            : source;
         Uri? resolved = null;
-        if (Uri.TryCreate(source, UriKind.Absolute, out var absolute))
+        if (Uri.TryCreate(
+            normalizedSource,
+            UriKind.Absolute,
+            out var absolute))
         {
             resolved = absolute;
         }
         else if (Uri.TryCreate(pageUrl, UriKind.Absolute, out var page) &&
-            Uri.TryCreate(page, source, out var relative))
+            Uri.TryCreate(page, normalizedSource, out var relative))
         {
             resolved = relative;
         }
@@ -1286,7 +1294,11 @@ internal static class WebsiteHealthRecommendationBuilder
     {
         var builder = new StringBuilder(value.Length);
         var previousWasSeparator = true;
-        foreach (var character in WebUtility.UrlDecode(value))
+        var decoded = Regex.Replace(
+            WebUtility.UrlDecode(value),
+            @"(?<=[a-z])(?=[A-Z])",
+            " ");
+        foreach (var character in decoded)
         {
             if (character is '-' or '_' or '.')
             {
@@ -1457,9 +1469,11 @@ internal static class WebsiteHealthRecommendationBuilder
     {
         var normalized = value.ToLowerInvariant();
         return normalized is "image" or "photo" or "picture" or "thumbnail" ||
+            normalized is "gallery viewer" or "featured collections" ||
             normalized.Contains("untitled design", StringComparison.Ordinal) ||
             normalized.Contains("blank logo", StringComparison.Ordinal) ||
             normalized.StartsWith("istock", StringComparison.Ordinal) ||
+            normalized.StartsWith("i stock", StringComparison.Ordinal) ||
             normalized.StartsWith("depositphotos", StringComparison.Ordinal) ||
             normalized.StartsWith("shutterstock", StringComparison.Ordinal) ||
             normalized.StartsWith("getty", StringComparison.Ordinal) ||

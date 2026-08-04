@@ -148,6 +148,12 @@ images inside links or buttons that already have an accessible name. Genuine
 failures for a shared image asset are grouped into one finding across affected
 pages.
 
+For product galleries, interface labels such as **Gallery Viewer** are ignored
+when generating alt-text recommendations. GHOS instead derives specific finish,
+color, and variant wording from descriptive Shopify media filenames, including
+camel-cased names, and resolves protocol-relative CDN URLs for direct evidence
+links. Stock-library and generic filenames remain excluded.
+
 Image reliability checks also request a bounded set of unique image assets
 found during the crawl. Responsive size variants are grouped as one asset,
 requests use the site's existing timeout and delay controls, and no more than
@@ -247,3 +253,10 @@ The crawler only follows public HTTPS targets on the default port, caps
 redirects and response size, respects wildcard `robots.txt` disallow rules,
 uses explicit timeouts, delays requests, limits concurrent connections, and
 bounds each crawl.
+
+HTTP 408, 425, 429, and selected 5xx responses are treated as transient rather
+than broken links. For Shopify rate limits, GHOS retries the same request up to
+two times, honors a short `Retry-After` delay when supplied, and caps each wait
+at three seconds so one URL cannot stall the bounded run. An exhausted 429 is
+recorded as a temporary warning and never produces instructions to remove or
+redirect a valid storefront link.

@@ -595,7 +595,9 @@ public sealed class WebsiteHealthMonitorService(
         try
         {
             var currentTarget = target;
-            for (var redirectCount = 0; redirectCount <= 5; redirectCount++)
+            var redirectCount = 0;
+            var rateLimitRetries = 0;
+            while (redirectCount <= 5)
             {
                 await ValidatePublicTargetAsync(currentTarget, timeout.Token);
                 using var request = new HttpRequestMessage(
@@ -608,12 +610,26 @@ public sealed class WebsiteHealthMonitorService(
                     HttpCompletionOption.ResponseHeadersRead,
                     timeout.Token);
 
+                if ((int)response.StatusCode == 429 &&
+                    rateLimitRetries < 2)
+                {
+                    rateLimitRetries++;
+                    await Task.Delay(
+                        GetRateLimitRetryDelay(
+                            response,
+                            site,
+                            rateLimitRetries),
+                        timeout.Token);
+                    continue;
+                }
+
                 if ((int)response.StatusCode is >= 300 and <= 399 &&
                     response.Headers.Location is not null)
                 {
                     currentTarget = response.Headers.Location.IsAbsoluteUri
                         ? response.Headers.Location
                         : new Uri(currentTarget, response.Headers.Location);
+                    redirectCount++;
                     continue;
                 }
 
@@ -688,6 +704,29 @@ public sealed class WebsiteHealthMonitorService(
                 target,
                 0);
         }
+    }
+
+    private static TimeSpan GetRateLimitRetryDelay(
+        HttpResponseMessage response,
+        MonitoredSite site,
+        int retryNumber)
+    {
+        var retryAfter = response.Headers.RetryAfter?.Delta;
+        if (retryAfter is null &&
+            response.Headers.RetryAfter?.Date is { } retryAt)
+        {
+            retryAfter = retryAt - DateTimeOffset.UtcNow;
+        }
+
+        var fallbackMilliseconds = Math.Max(
+            1_000,
+            site.RequestDelayMilliseconds * (retryNumber + 2));
+        var delay = retryAfter is { } requested && requested > TimeSpan.Zero
+            ? requested
+            : TimeSpan.FromMilliseconds(fallbackMilliseconds);
+        return delay > TimeSpan.FromSeconds(3)
+            ? TimeSpan.FromSeconds(3)
+            : delay;
     }
 
     private static async Task<string> ReadBoundedContentAsync(
@@ -1628,18 +1667,26 @@ public sealed class WebsiteHealthMonitorService(
         ICollection<Observation> observations,
         ICollection<DetectedIssue> issues)
     {
+        var isTransient = IsTransientFetchStatus(snapshot.StatusCode);
         observations.Add(new Observation(
             "internal-link",
             "Internal link",
             "Availability",
             snapshot.IsSuccess
                 ? WebsiteHealthCheckStatus.Passed
-                : WebsiteHealthCheckStatus.Failed,
+                : isTransient
+                    ? WebsiteHealthCheckStatus.Warning
+                    : WebsiteHealthCheckStatus.Failed,
             snapshot.StatusCode,
             "HTTP",
             target.ToString(),
-            snapshot.Error ?? $"HTTP {snapshot.StatusCode}."));
-        if (!snapshot.IsSuccess)
+            snapshot.IsSuccess
+                ? $"HTTP {snapshot.StatusCode}."
+                : isTransient
+                    ? $"Temporarily returned HTTP {snapshot.StatusCode}; " +
+                        "the link is not classified as broken."
+                    : snapshot.Error ?? $"HTTP {snapshot.StatusCode}."));
+        if (!snapshot.IsSuccess && !isTransient)
         {
             issues.Add(new DetectedIssue(
                 "internal-link",
@@ -1652,6 +1699,9 @@ public sealed class WebsiteHealthMonitorService(
                     snapshot.StatusCode)));
         }
     }
+
+    internal static bool IsTransientFetchStatus(int? statusCode) =>
+        statusCode is 408 or 425 or 429 or 500 or 502 or 503 or 504;
 
     private static void AddRedirectObservation(
         Uri requestedUrl,

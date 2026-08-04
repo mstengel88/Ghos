@@ -341,6 +341,43 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void ImageAltQuality_UsesVariantFilenameInsteadOfGalleryUiText()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.ImageAltQuality(
+                new Uri(
+                    "https://www.greenhillssupply.com/products/discover-pavers"),
+                "Discover Pavers",
+                "Discover Pavers",
+                "Discover Pavers",
+                [
+                    new WebsiteHealthImage(
+                        "//greenhillssupply.com/cdn/shop/files/2_GrandDiscover-Allure.png",
+                        "Discover Pavers",
+                        "Gallery Viewer",
+                        "https://www.greenhillssupply.com/products/discover-pavers")
+                ],
+                true);
+
+        Assert.Contains(
+            "alt=\"Grand Discover Allure\"",
+            recommendation.SuggestedValue);
+        Assert.DoesNotContain(
+            "alt=\"Gallery Viewer\"",
+            recommendation.SuggestedValue);
+
+        var evidence = JsonSerializer.Deserialize<
+            List<WebsiteHealthImageEvidence>>(
+                recommendation.EvidenceJson!);
+        Assert.NotNull(evidence);
+        var item = Assert.Single(evidence);
+        Assert.Equal(
+            "https://greenhillssupply.com/cdn/shop/files/2_GrandDiscover-Allure.png",
+            item.SourceUrl);
+        Assert.Equal("Descriptive filename", item.SuggestionSource);
+    }
+
+    [Fact]
     public async Task ImageContext_UsesLinkedCollectionBeforeNavigationText()
     {
         var document = await new HtmlParser().ParseDocumentAsync(

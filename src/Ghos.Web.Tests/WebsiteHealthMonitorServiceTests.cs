@@ -180,6 +180,21 @@ public sealed class WebsiteHealthMonitorServiceTests
         Assert.Equal(unseenCollection, ordered[2]);
     }
 
+    [Theory]
+    [InlineData(408, true)]
+    [InlineData(429, true)]
+    [InlineData(503, true)]
+    [InlineData(404, false)]
+    [InlineData(410, false)]
+    public void IsTransientFetchStatus_DistinguishesRateLimitsFromBrokenLinks(
+        int statusCode,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            WebsiteHealthMonitorService.IsTransientFetchStatus(statusCode));
+    }
+
     [Fact]
     public void NormalizeUrl_RemovesFragmentAndTrailingSlash()
     {
