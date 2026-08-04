@@ -1003,8 +1003,12 @@ internal static class WebsiteHealthRecommendationBuilder
             ("Garden & Landscape Beds", "Gardens & Beds"),
             ("Landscape Beds & Gardens", "Beds & Gardens"),
             ("Beds, Trees & Landscape", "Beds & Trees"),
+            ("Lawns, Garden & Landscaping", "Lawns & Gardens"),
             ("Decorative Drainage Stone", "Drainage Stone"),
+            ("Decorative Landscape Rock", "Landscape Rock"),
+            ("Premium Colored Mulch", "Colored Mulch"),
             ("Premium Soil Blend", "Soil Blend"),
+            ("Concrete & Construction", "Concrete Work"),
             ("Landscape Features", "Landscaping"),
             ("Landscape Bed & Garden", "Beds & Gardens"),
             ("Landscape Bed and Garden", "Beds & Gardens"),
@@ -1032,6 +1036,16 @@ internal static class WebsiteHealthRecommendationBuilder
                     "Premium Brown Mulch",
                     "Premium Brown",
                     StringComparison.OrdinalIgnoreCase);
+
+            if (topic.Contains(
+                "cedar",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                compact = compact.Replace(
+                    "100% Cedar Mulch",
+                    "100% Cedar",
+                    StringComparison.OrdinalIgnoreCase);
+            }
         }
 
         if (topic.Contains("base", StringComparison.OrdinalIgnoreCase))
@@ -1039,6 +1053,14 @@ internal static class WebsiteHealthRecommendationBuilder
             compact = compact.Replace(
                 "Limestone Base",
                 "Limestone",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (topic.Contains("topsoil", StringComparison.OrdinalIgnoreCase))
+        {
+            compact = compact.Replace(
+                "Premium Topsoil for ",
+                "",
                 StringComparison.OrdinalIgnoreCase);
         }
 
