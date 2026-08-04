@@ -11,7 +11,7 @@ public static class SmartSearchEndpoints
                 "/api/storefront/search",
                 async (
                     [FromQuery] string? q,
-                    [FromQuery] int limit,
+                    [FromQuery] int? limit,
                     SmartProductSearchService searchService,
                     HttpContext httpContext,
                     CancellationToken cancellationToken) =>
@@ -29,7 +29,7 @@ public static class SmartSearchEndpoints
 
                     var response = await searchService.SearchAsync(
                         q,
-                        limit == 0 ? 8 : limit,
+                        limit is null or 0 ? 8 : limit.Value,
                         "Storefront API",
                         cancellationToken);
                     return Results.Ok(response);
