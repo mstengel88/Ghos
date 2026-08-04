@@ -395,6 +395,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasMaxLength(6000);
             issue.Property(item => item.CurrentValue)
                 .HasMaxLength(6000);
+            issue.Property(item => item.EvidenceJson)
+                .HasMaxLength(16000);
             issue.Property(item => item.ReviewedValue)
                 .HasMaxLength(6000);
             issue.Property(item => item.ReviewedByUserId)

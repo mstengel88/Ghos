@@ -387,6 +387,103 @@
     line-height: 1.45;
 }
 
+.image-evidence {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 9px;
+    background: var(--ghos-surface-muted);
+}
+
+.image-evidence-heading {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.image-evidence-heading strong {
+    color: var(--ghos-text);
+    font-size: .61rem;
+}
+
+.image-evidence-heading span {
+    color: var(--ghos-text-muted);
+    font-size: .53rem;
+}
+
+.image-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.image-evidence-grid > article {
+    min-width: 0;
+    padding: 7px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 8px;
+    background: var(--ghos-surface);
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 8px;
+}
+
+.image-evidence-preview {
+    height: 88px;
+    border-radius: 6px;
+    display: block;
+    overflow: hidden;
+}
+
+.image-evidence-preview img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.image-evidence-copy {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 5px;
+}
+
+.image-evidence-copy > div {
+    min-width: 0;
+}
+
+.image-evidence-copy span {
+    color: var(--ghos-accent-text);
+    display: block;
+    font-size: .44rem;
+    font-weight: 900;
+    letter-spacing: .07em;
+}
+
+.finding-main .image-evidence-copy p {
+    margin: 1px 0 0;
+    color: var(--ghos-text);
+    font-size: .54rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.image-evidence-copy small {
+    color: var(--ghos-text-muted);
+    font-size: .46rem;
+}
+
+.image-evidence-copy > a {
+    width: fit-content;
+    color: var(--ghos-accent-text);
+    font-size: .48rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
 .finding-meta {
     margin-top: 7px;
     display: flex;
@@ -709,6 +806,10 @@
     .value-comparison {
         grid-template-columns: 1fr;
     }
+
+    .image-evidence-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 640px) {
@@ -737,5 +838,9 @@
 
     .image-issue-preview a {
         height: 170px;
+    }
+
+    .image-evidence-grid > article {
+        grid-template-columns: 112px minmax(0, 1fr);
     }
 }

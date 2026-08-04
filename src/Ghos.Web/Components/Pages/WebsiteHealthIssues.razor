@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.WebsiteHealth)]
 @using Microsoft.EntityFrameworkCore
+@using System.Text.Json
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject WebsiteHealthIssueService IssueService
 @inject WebsiteHealthRunCoordinator RunCoordinator
@@ -160,7 +161,58 @@ else
                                             @issue.AffectedUrl ↗
                                         </a>
                                     }
-                                    @if (GetImagePreviewUrl(issue) is { } imagePreviewUrl)
+                                    @if (GetImageEvidence(issue) is { Count: > 0 } imageEvidence)
+                                    {
+                                        <section class="image-evidence">
+                                            <div class="image-evidence-heading">
+                                                <strong>Images to review</strong>
+                                                <span>@imageEvidence.Count image@(imageEvidence.Count == 1 ? "" : "s")</span>
+                                            </div>
+                                            <div class="image-evidence-grid">
+                                                @foreach (var evidence in imageEvidence)
+                                                {
+                                                    <article>
+                                                        @if (GetSafeImageUrl(evidence.SourceUrl) is { } sourceUrl)
+                                                        {
+                                                            <a class="image-evidence-preview"
+                                                               href="@sourceUrl"
+                                                               target="_blank"
+                                                               rel="noopener noreferrer"
+                                                               aria-label="Open affected image in a new tab">
+                                                                <img src="@sourceUrl"
+                                                                     alt=""
+                                                                     loading="lazy"
+                                                                     decoding="async" />
+                                                            </a>
+                                                        }
+                                                        <div class="image-evidence-copy">
+                                                            @if (!string.IsNullOrWhiteSpace(evidence.CurrentAltText))
+                                                            {
+                                                                <div>
+                                                                    <span>CURRENT</span>
+                                                                    <p>@evidence.CurrentAltText</p>
+                                                                </div>
+                                                            }
+                                                            <div>
+                                                                <span>PROPOSED</span>
+                                                                <p>@evidence.SuggestedAltText</p>
+                                                            </div>
+                                                            <small>@evidence.SuggestionSource</small>
+                                                            @if (GetSafePageUrl(evidence.PageUrl) is { } pageUrl)
+                                                            {
+                                                                <a href="@pageUrl"
+                                                                   target="_blank"
+                                                                   rel="noopener noreferrer">
+                                                                    View page ↗
+                                                                </a>
+                                                            }
+                                                        </div>
+                                                    </article>
+                                                }
+                                            </div>
+                                        </section>
+                                    }
+                                    else if (GetImagePreviewUrl(issue) is { } imagePreviewUrl)
                                     {
                                         <figure class="image-issue-preview">
                                             <a href="@imagePreviewUrl"
@@ -393,6 +445,8 @@ else
     private List<WebsiteHealthIssue> Issues { get; set; } = [];
     private Dictionary<Guid, string?> Notes { get; } = [];
     private Dictionary<Guid, string?> ReviewedDrafts { get; } = [];
+    private Dictionary<Guid, IReadOnlyList<WebsiteHealthImageEvidence>>
+        ImageEvidence { get; } = [];
     private IssueView SelectedView { get; set; } = IssueView.Active;
     private string SelectedCheckKey { get; set; } = "";
     private string Search { get; set; } = "";
@@ -415,11 +469,14 @@ else
             .ToListAsync();
         Notes.Clear();
         ReviewedDrafts.Clear();
+        ImageEvidence.Clear();
         foreach (var issue in Issues)
         {
             Notes[issue.Id] = issue.TriageNote;
             ReviewedDrafts[issue.Id] =
                 issue.ReviewedValue ?? issue.SuggestedValue;
+            ImageEvidence[issue.Id] =
+                DeserializeImageEvidence(issue.EvidenceJson);
         }
 
         Loading = false;
@@ -557,6 +614,54 @@ else
                 ? affectedUri.ToString()
                 : null;
     }
+
+    private IReadOnlyList<WebsiteHealthImageEvidence> GetImageEvidence(
+        WebsiteHealthIssue issue) =>
+        ImageEvidence.GetValueOrDefault(issue.Id) ?? [];
+
+    private static IReadOnlyList<WebsiteHealthImageEvidence>
+        DeserializeImageEvidence(string? evidenceJson)
+    {
+        if (string.IsNullOrWhiteSpace(evidenceJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<
+                    List<WebsiteHealthImageEvidence>>(evidenceJson) ??
+                [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static string? GetSafeImageUrl(string? value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return null;
+        }
+
+        var extension = Path.GetExtension(uri.AbsolutePath);
+        return extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".webp", StringComparison.OrdinalIgnoreCase) ||
+            extension.Equals(".gif", StringComparison.OrdinalIgnoreCase)
+                ? uri.ToString()
+                : null;
+    }
+
+    private static string? GetSafePageUrl(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        uri.Scheme == Uri.UriSchemeHttps
+            ? uri.ToString()
+            : null;
 
     private async Task SaveReviewedValueAsync(WebsiteHealthIssue issue)
     {

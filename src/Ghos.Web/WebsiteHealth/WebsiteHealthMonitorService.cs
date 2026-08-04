@@ -1946,6 +1946,9 @@ public sealed class WebsiteHealthMonitorService(
                     CurrentValue = Truncate(
                         detected.Recommendation?.CurrentValue,
                         6000),
+                    EvidenceJson = Truncate(
+                        detected.Recommendation?.EvidenceJson,
+                        16000),
                     FixLocation = Truncate(
                         detected.Recommendation?.FixLocation,
                         1000),
@@ -1971,6 +1974,9 @@ public sealed class WebsiteHealthMonitorService(
                 existing.CurrentValue = Truncate(
                     detected.Recommendation?.CurrentValue,
                     6000);
+                existing.EvidenceJson = Truncate(
+                    detected.Recommendation?.EvidenceJson,
+                    16000);
                 existing.FixLocation = Truncate(
                     detected.Recommendation?.FixLocation,
                     1000);
