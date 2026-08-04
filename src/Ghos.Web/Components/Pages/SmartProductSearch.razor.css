@@ -1,0 +1,242 @@
+.search-heading {
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.search-heading h2 {
+    margin: 7px 0 5px;
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
+    letter-spacing: -.04em;
+}
+
+.search-heading p {
+    margin: 0;
+    color: var(--ghos-text-muted);
+}
+
+.library-stat {
+    min-width: 180px;
+    padding: 14px 16px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 10px;
+    background: var(--ghos-surface);
+}
+
+.library-stat strong,
+.library-stat span {
+    display: block;
+}
+
+.library-stat strong {
+    color: var(--ghos-accent-text);
+    font-size: 1.35rem;
+}
+
+.library-stat span {
+    margin-top: 3px;
+    color: var(--ghos-text-muted);
+    font-size: .6rem;
+}
+
+.search-lab {
+    padding: 22px;
+}
+
+.search-lab > label {
+    margin-bottom: 8px;
+    display: block;
+    font-size: .7rem;
+    font-weight: 800;
+}
+
+.search-box {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.search-box input {
+    min-height: 48px;
+    padding: 10px 13px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 8px;
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text);
+    font: inherit;
+}
+
+.search-box button,
+.examples button {
+    border: 1px solid var(--ghos-accent);
+    border-radius: 8px;
+    background: var(--ghos-accent);
+    color: #13200a;
+    font-size: .64rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.search-box button {
+    padding: 0 16px;
+}
+
+.search-box button:disabled {
+    cursor: wait;
+    opacity: .55;
+}
+
+.examples {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.examples span {
+    color: var(--ghos-text-muted);
+    font-size: .58rem;
+}
+
+.examples button {
+    padding: 5px 8px;
+    border-color: var(--ghos-border);
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text-secondary);
+}
+
+.search-alert {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid rgba(190, 65, 57, .25);
+    border-radius: 8px;
+    background: rgba(190, 65, 57, .08);
+    color: #a73f39;
+}
+
+.search-summary {
+    margin: 16px 0 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.search-summary div span,
+.search-summary div strong {
+    display: block;
+}
+
+.search-summary div span {
+    color: var(--ghos-accent-text);
+    font-size: .5rem;
+    font-weight: 900;
+    letter-spacing: .09em;
+}
+
+.search-summary div strong,
+.search-summary > strong {
+    margin-top: 4px;
+    font-size: .68rem;
+}
+
+.result-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 11px;
+}
+
+.product-result {
+    overflow: hidden;
+}
+
+.product-result img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    background: var(--ghos-surface-muted);
+}
+
+.product-result > div {
+    padding: 14px;
+}
+
+.product-result h3 {
+    margin: 0 0 5px;
+    font-size: .82rem;
+}
+
+.price {
+    color: var(--ghos-accent-text);
+    font-size: .65rem;
+}
+
+.product-result p {
+    min-height: 42px;
+    margin: 7px 0;
+    color: var(--ghos-text-muted);
+    font-size: .59rem;
+    line-height: 1.45;
+}
+
+.reasons {
+    margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.reasons span {
+    padding: 4px 6px;
+    border-radius: 999px;
+    background: var(--ghos-accent-soft);
+    color: var(--ghos-accent-text);
+    font-size: .5rem;
+    font-weight: 750;
+}
+
+.product-result a {
+    color: var(--ghos-accent-text);
+    font-size: .59rem;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.no-results {
+    min-height: 180px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 6px;
+    text-align: center;
+}
+
+.no-results span {
+    max-width: 520px;
+    color: var(--ghos-text-muted);
+    font-size: .68rem;
+}
+
+@media (max-width: 1000px) {
+    .result-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 650px) {
+    .search-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .search-box,
+    .result-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .search-box button {
+        min-height: 42px;
+    }
+}
