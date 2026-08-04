@@ -39,6 +39,11 @@ characters, and repeated whitespace. Paginated collection URLs are treated as
 one metadata target to prevent duplicate work. Each finding includes unique
 replacement wording and the correct Shopify editing surface.
 
+Blog-index metadata is managed through **Content → Blog posts → Manage blogs →
+open the blog → Search engine listing preview**, not through a presumed Liquid
+template. Individual blog posts continue to point to their own search engine
+listing editor.
+
 Administrators and Managers can copy a suggested value directly from the
 finding and select **Verify fix** after publishing the Shopify change. GHOS
 runs a fresh live check and reports whether that specific issue resolved or is

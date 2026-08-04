@@ -491,12 +491,21 @@ internal static class WebsiteHealthRecommendationBuilder
             return "Shopify Admin → Products → open this product → Search engine listing → Edit";
         }
 
-        if (path.Equals("/blogs/news", StringComparison.OrdinalIgnoreCase))
+        var segments = path.Split(
+            '/',
+            StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 2 &&
+            segments[0].Equals(
+                "blogs",
+                StringComparison.OrdinalIgnoreCase))
         {
-            return "Shopify Admin → Online Store → Themes → … → Edit code → layout/theme.liquid → inside <head> for the blog index";
+            return "Shopify Admin → Content → Blog posts → Manage blogs → open this blog → Search engine listing preview → pencil icon";
         }
 
-        if (path.StartsWith("/blogs/", StringComparison.OrdinalIgnoreCase))
+        if (segments.Length >= 3 &&
+            segments[0].Equals(
+                "blogs",
+                StringComparison.OrdinalIgnoreCase))
         {
             return "Shopify Admin → Content → Blog posts → open this post → Search engine listing → Edit";
         }
