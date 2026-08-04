@@ -51,6 +51,12 @@ HTTPS URL on the production domain. Recommendations preserve Shopify's default
 crawler protections and never tell a manager to hand-author a static Shopify
 sitemap.
 
+Redirect checks record the final destination and hop count for each crawled
+page. A single `www` to canonical-domain redirect is treated as healthy when it
+keeps the same HTTPS path. Multi-hop chains, cross-domain destinations, and
+single redirects to another path are reported with the final replacement URL
+and Shopify navigation/URL-redirect locations.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,

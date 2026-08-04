@@ -630,6 +630,19 @@ internal static class WebsiteHealthRecommendationBuilder
                 $"Affected crawled page(s):\n{pageList}");
     }
 
+    internal static WebsiteHealthRecommendation RedirectChain(
+        Uri requestedUrl,
+        Uri finalUrl,
+        int redirectCount)
+    {
+        return new WebsiteHealthRecommendation(
+            $"Replace links to the starting URL with the final HTTPS URL so customers and search engines do not traverse {redirectCount} redirects. Keep the final redirect in place for old bookmarks and external links, but remove intermediate redirects after confirming they are no longer needed.",
+            finalUrl.ToString(),
+            "Shopify Admin → Online Store → Navigation, Content → Pages/Blog posts, and Online Store → Themes → Customize → find links using the starting URL; also review Online Store → Navigation → URL redirects",
+            "https://help.shopify.com/en/manual/online-store/menus-and-links/url-redirect",
+            requestedUrl.ToString());
+    }
+
     internal static WebsiteHealthRecommendation RobotsQuality(
         Uri baseUri,
         bool blocksStorefront,

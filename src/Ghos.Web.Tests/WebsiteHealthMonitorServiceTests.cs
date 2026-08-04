@@ -138,6 +138,42 @@ public sealed class WebsiteHealthMonitorServiceTests
             normalized);
     }
 
+    [Theory]
+    [InlineData(
+        "https://www.example.com/products/stone",
+        "https://example.com/products/stone",
+        1,
+        true)]
+    [InlineData(
+        "https://example.com/products/stone",
+        "https://example.com/products/stone",
+        0,
+        true)]
+    [InlineData(
+        "https://example.com/products/stone",
+        "https://example.com/collections/stone",
+        1,
+        false)]
+    [InlineData(
+        "https://example.com/products/stone",
+        "https://example.com/products/stone",
+        2,
+        false)]
+    public void IsRedirectChainHealthy_AllowsOnlyOneCanonicalHostRedirect(
+        string requestedUrl,
+        string finalUrl,
+        int redirectCount,
+        bool expected)
+    {
+        var healthy =
+            WebsiteHealthMonitorService.IsRedirectChainHealthy(
+                new Uri(requestedUrl),
+                new Uri(finalUrl),
+                redirectCount);
+
+        Assert.Equal(expected, healthy);
+    }
+
     [Fact]
     public void GetMissingSocialPreviewFields_ReportsOnlyMissingOrInvalidValues()
     {
