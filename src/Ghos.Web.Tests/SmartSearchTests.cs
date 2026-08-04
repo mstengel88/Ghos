@@ -38,7 +38,8 @@ public sealed class SmartSearchTests
         Assert.Contains("Size: Small", plan.Intents);
         Assert.Contains("Use: Patios", plan.Intents);
         Assert.Contains("pea gravel", plan.ExpandedTerms);
-        Assert.Contains("charcoal", plan.ExpandedTerms);
+        Assert.Contains("silver", plan.ExpandedTerms);
+        Assert.DoesNotContain("charcoal", plan.ExpandedTerms);
     }
 
     [Fact]

@@ -50,7 +50,7 @@ public static partial class SmartSearchSynonymLibrary
         new("Material", "Soil", ["soil", "dirt", "topsoil", "garden soil", "planting mix", "earth", "screened soil"]),
         new("Material", "Sand", ["sand", "masonry sand", "bedding sand", "play sand", "fill sand", "washed sand", "joint sand"]),
         new("Material", "Salt", ["salt", "rock salt", "road salt", "deicer", "ice melt", "deicing salt", "winter salt"]),
-        new("Color", "Gray", ["gray", "grey", "charcoal", "slate", "silver", "granite color", "neutral gray"]),
+        new("Color", "Gray", ["gray", "grey", "silver", "granite color", "neutral gray", "cool gray", "ash gray"]),
         new("Color", "Brown", ["brown", "tan", "buff", "earth tone", "beige", "sand color", "natural brown"]),
         new("Color", "Red", ["red", "brick red", "rust", "burgundy", "terracotta", "cranberry", "warm red"]),
         new("Color", "Black", ["black", "dark", "ebony", "midnight", "jet black", "deep charcoal", "blackened"]),
