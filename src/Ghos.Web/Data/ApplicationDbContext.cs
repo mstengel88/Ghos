@@ -383,6 +383,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
                 .HasMaxLength(3000);
             issue.Property(item => item.SuggestedValue)
                 .HasMaxLength(6000);
+            issue.Property(item => item.CurrentValue)
+                .HasMaxLength(6000);
             issue.Property(item => item.FixLocation)
                 .HasMaxLength(1000);
             issue.Property(item => item.FixDocumentationUrl)

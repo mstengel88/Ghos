@@ -309,6 +309,22 @@ public sealed class WebsiteHealthOperationsTests
         Assert.Contains(
             "condensed from the current live description",
             recommendation.Guidance);
+        Assert.Equal(current, recommendation.CurrentValue);
+    }
+
+    [Fact]
+    public void TitleLength_PreservesTheCurrentLiveTitleForComparison()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.TitleLength(
+                new Uri("https://www.greenhillssupply.com/"),
+                "Landscape and outdoor materials",
+                "Green Hills Supply");
+
+        Assert.Equal("Green Hills Supply", recommendation.CurrentValue);
+        Assert.NotEqual(
+            recommendation.CurrentValue,
+            recommendation.SuggestedValue);
     }
 
     [Fact]

@@ -875,7 +875,7 @@ public sealed class WebsiteHealthMonitorService(
                     WebsiteHealthRecommendationBuilder.TitleLength(
                         page.Url,
                         page.Heading,
-                        page.Title.Length));
+                        page.Title));
             }
 
             if (enabledCheckKeys.Contains("meta-description") &&
@@ -1454,6 +1454,9 @@ public sealed class WebsiteHealthMonitorService(
                     SuggestedValue = Truncate(
                         detected.Recommendation?.SuggestedValue,
                         6000),
+                    CurrentValue = Truncate(
+                        detected.Recommendation?.CurrentValue,
+                        6000),
                     FixLocation = Truncate(
                         detected.Recommendation?.FixLocation,
                         1000),
@@ -1475,6 +1478,9 @@ public sealed class WebsiteHealthMonitorService(
                     3000);
                 existing.SuggestedValue = Truncate(
                     detected.Recommendation?.SuggestedValue,
+                    6000);
+                existing.CurrentValue = Truncate(
+                    detected.Recommendation?.CurrentValue,
                     6000);
                 existing.FixLocation = Truncate(
                     detected.Recommendation?.FixLocation,

@@ -182,16 +182,32 @@ else
                                             <p>@issue.Recommendation</p>
                                             @if (!string.IsNullOrWhiteSpace(issue.SuggestedValue))
                                             {
-                                                <div class="suggested-value">
-                                                    <div>
-                                                        <span>@SuggestionLabel(issue.CheckKey)</span>
-                                                        <button type="button"
-                                                                disabled="@Busy"
-                                                                @onclick="() => CopySuggestionAsync(issue)">
-                                                            Copy suggestion
-                                                        </button>
+                                                <div class="value-comparison @(
+                                                    string.IsNullOrWhiteSpace(issue.CurrentValue)
+                                                        ? "single"
+                                                        : "")">
+                                                    @if (!string.IsNullOrWhiteSpace(issue.CurrentValue))
+                                                    {
+                                                        <div class="current-value">
+                                                            <div>
+                                                                <span>CURRENT LIVE VALUE</span>
+                                                                <small>@CharacterCount(issue.CurrentValue)</small>
+                                                            </div>
+                                                            <pre>@issue.CurrentValue</pre>
+                                                        </div>
+                                                    }
+                                                    <div class="suggested-value">
+                                                        <div>
+                                                            <span>@SuggestionLabel(issue.CheckKey)</span>
+                                                            <small>@CharacterCount(issue.SuggestedValue)</small>
+                                                            <button type="button"
+                                                                    disabled="@Busy"
+                                                                    @onclick="() => CopySuggestionAsync(issue)">
+                                                                Copy suggestion
+                                                            </button>
+                                                        </div>
+                                                        <pre>@issue.SuggestedValue</pre>
                                                     </div>
-                                                    <pre>@issue.SuggestedValue</pre>
                                                 </div>
                                             }
                                         </section>
@@ -542,6 +558,9 @@ else
 
     private static string FormatDate(DateTime date) =>
         date.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+
+    private static string CharacterCount(string value) =>
+        $"{value.Length} character{(value.Length == 1 ? "" : "s")}";
 
     private static string FormatView(IssueView view) => view switch
     {

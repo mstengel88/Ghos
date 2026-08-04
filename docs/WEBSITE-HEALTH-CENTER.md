@@ -45,6 +45,11 @@ page-specific products, applications, and benefits, decodes HTML entities,
 ends on a word boundary, and remains within 155 characters. Short descriptions
 retain useful existing wording and add page-specific context.
 
+Metadata-quality findings store and display the current live value next to the
+suggested replacement, with character counts for both. This comparison is
+historical issue data, so managers can review exactly what the scanner observed
+before copying a recommendation into Shopify.
+
 Blog-index metadata is managed through **Content → Blog posts → Manage blogs →
 open the blog → Search engine listing preview**, not through a presumed Liquid
 template. Individual blog posts continue to point to their own search engine
@@ -133,6 +138,7 @@ The migrations are:
 20260803234045_AddWebsiteHealthRecommendations
 20260804003828_AddWebsiteHealthFixLocations
 20260804011540_AddWebsiteHealthFixDocumentation
+20260804014042_AddWebsiteHealthCurrentValues
 ```
 
 To apply it explicitly from a machine with the .NET 10 SDK:

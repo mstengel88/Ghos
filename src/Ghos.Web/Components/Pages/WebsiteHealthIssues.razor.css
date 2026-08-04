@@ -346,7 +346,8 @@
 }
 
 .recommendation > div:first-child span,
-.suggested-value > div > span {
+.suggested-value > div > span,
+.current-value > div > span {
     color: var(--ghos-accent-text);
     font-size: .49rem;
     font-weight: 900;
@@ -401,18 +402,32 @@
     font-size: .59rem;
 }
 
-.suggested-value {
+.value-comparison {
     margin-top: 10px;
     padding-top: 9px;
     border-top: 1px solid rgba(126, 167, 27, .22);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
 }
 
-.suggested-value > div {
+.value-comparison.single {
+    grid-template-columns: 1fr;
+}
+
+.suggested-value > div,
+.current-value > div {
     margin-bottom: 5px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
+}
+
+.suggested-value > div > small,
+.current-value > div > small {
+    margin-left: auto;
+    color: var(--ghos-text-muted);
+    font-size: .49rem;
 }
 
 .suggested-value button {
@@ -431,7 +446,8 @@
     opacity: .6;
 }
 
-.suggested-value pre {
+.suggested-value pre,
+.current-value pre {
     max-height: 190px;
     margin: 0;
     padding: 9px;
@@ -446,6 +462,11 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     user-select: text;
+}
+
+.current-value pre {
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text-secondary);
 }
 
 .triage-controls {
@@ -502,6 +523,10 @@
     }
 
     .finding-row {
+        grid-template-columns: 1fr;
+    }
+
+    .value-comparison {
         grid-template-columns: 1fr;
     }
 }

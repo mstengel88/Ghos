@@ -9,7 +9,8 @@ internal sealed record WebsiteHealthRecommendation(
     string Guidance,
     string? SuggestedValue,
     string? FixLocation = null,
-    string? DocumentationUrl = null);
+    string? DocumentationUrl = null,
+    string? CurrentValue = null);
 
 internal sealed record WebsiteHealthMissingImage(
     string? Source,
@@ -34,8 +35,9 @@ internal static class WebsiteHealthRecommendationBuilder
     internal static WebsiteHealthRecommendation TitleLength(
         Uri url,
         string? heading,
-        int currentLength)
+        string currentTitle)
     {
+        var currentLength = NormalizeText(currentTitle).Length;
         var problem = currentLength < 20
             ? "The current title is too short to explain the page clearly in search results."
             : "The current title is likely to be truncated in search results.";
@@ -43,7 +45,8 @@ internal static class WebsiteHealthRecommendationBuilder
             $"{problem} Replace it with a unique title near 50–60 characters that leads with the page topic and ends with the Green Hills Supply brand.",
             BuildTitle(url, heading),
             GetShopifySeoLocation(url),
-            GetShopifySeoDocumentation(url));
+            GetShopifySeoDocumentation(url),
+            NormalizeText(currentTitle));
     }
 
     internal static WebsiteHealthRecommendation DuplicateTitle(
@@ -111,7 +114,8 @@ internal static class WebsiteHealthRecommendationBuilder
                 introductoryText,
                 currentDescription),
             GetShopifySeoLocation(url),
-            GetShopifySeoDocumentation(url));
+            GetShopifySeoDocumentation(url),
+            NormalizeText(currentDescription));
     }
 
     internal static WebsiteHealthRecommendation DuplicateMetaDescription(
