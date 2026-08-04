@@ -69,6 +69,11 @@ offers, price, ISO currency, and availability. Repair guidance requires live
 Shopify product and variant values so price and inventory markup cannot drift
 from what customers can actually purchase.
 
+Within the bounded crawl, customer-facing product links are queued before
+collection, page, blog, and utility links. This ensures a 25-page run validates
+representative commerce pages instead of exhausting its limit on navigation
+and policy routes.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,

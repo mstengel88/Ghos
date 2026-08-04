@@ -1008,7 +1008,8 @@ public sealed class WebsiteHealthMonitorService(
             .Where(link =>
                 IsSameOrigin(baseUri, link) &&
                 !IsDisallowed(link, disallowedPaths))
-            .OrderBy(link => link.AbsolutePath))
+            .OrderBy(GetCrawlPriority)
+            .ThenBy(link => link.AbsolutePath))
         {
             var normalized = NormalizeUrl(link);
             if (!checkedUrls.Contains(normalized) && queued.Add(normalized))
@@ -1016,6 +1017,36 @@ public sealed class WebsiteHealthMonitorService(
                 queue.Enqueue(link);
             }
         }
+    }
+
+    internal static int GetCrawlPriority(Uri url)
+    {
+        var path = url.AbsolutePath;
+        if (path.StartsWith(
+            "/products/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (path.StartsWith(
+            "/collections/",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (path.StartsWith(
+            "/pages/",
+            StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith(
+                "/blogs/",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        return 3;
     }
 
     internal static IReadOnlyCollection<string> ParseRobotsDisallowRules(
