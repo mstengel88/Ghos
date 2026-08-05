@@ -18,6 +18,9 @@ public sealed class DispatchSyncService(
     DispatchIntegrationClient integrationClient,
     ILogger<DispatchSyncService> logger)
 {
+    internal const string MissingFromDispatchNote =
+        "Closed automatically because this order is no longer open in Dispatch.";
+
     private static readonly SemaphoreSlim SynchronizationLock =
         new(1, 1);
 
@@ -198,6 +201,23 @@ public sealed class DispatchSyncService(
                 }
             }
 
+            var reconciled = 0;
+            if (payload.OpenOrderIds is not null)
+            {
+                var openDeliveries = await dbContext.Deliveries
+                    .Include(delivery => delivery.SalesOrder)
+                    .Where(delivery =>
+                        delivery.Status != DeliveryStatus.Delivered &&
+                        delivery.Status != DeliveryStatus.Cancelled)
+                    .ToListAsync(cancellationToken);
+                reconciled = ReconcileMissingOpenDeliveries(
+                    openDeliveries,
+                    payload.OpenOrderIds,
+                    synchronizedAt,
+                    userId);
+                updated += reconciled;
+            }
+
             settings.LastCursor = payload.Cursor;
             settings.LastSyncCompletedAtUtc = synchronizedAt;
             settings.LastSuccessfulSyncAtUtc = synchronizedAt;
@@ -205,9 +225,14 @@ public sealed class DispatchSyncService(
             settings.LastImportedCount = payload.Count;
             settings.LastCreatedCount = created;
             settings.LastUpdatedCount = updated;
+            var reconciliationMessage = reconciled > 0
+                ? $" Closed {reconciled} stale open mirror record{(reconciled == 1 ? string.Empty : "s")}."
+                : string.Empty;
             settings.LastSyncMessage = payload.HasMore
-                ? "Synchronized the newest 1,000 dispatch records. Run again after current updates are processed."
-                : "Dispatch synchronization completed.";
+                ? "Synchronized the newest 1,000 dispatch records. Run again after current updates are processed." +
+                    reconciliationMessage
+                : "Dispatch synchronization completed." +
+                    reconciliationMessage;
             await dbContext.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
@@ -312,6 +337,67 @@ public sealed class DispatchSyncService(
             ParseTimestamp(source.UpdatedAt);
         target.LastSyncedAtUtc = synchronizedAt;
         target.UpdatedAtUtc = synchronizedAt;
+        if (string.Equals(
+                target.ReconciliationNote,
+                MissingFromDispatchNote,
+                StringComparison.Ordinal))
+        {
+            target.ReconciliationNote = null;
+            target.ReconciledAtUtc = null;
+            target.ReconciledByUserId = null;
+        }
+    }
+
+    internal static int ReconcileMissingOpenDeliveries(
+        IEnumerable<Delivery> deliveries,
+        IReadOnlyCollection<string> sourceOpenIds,
+        DateTime synchronizedAt,
+        string? userId)
+    {
+        var openIds = sourceOpenIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var reconciled = 0;
+
+        foreach (var delivery in deliveries)
+        {
+            if (delivery.Status is DeliveryStatus.Delivered or
+                    DeliveryStatus.Cancelled ||
+                string.IsNullOrWhiteSpace(
+                    delivery.ExternalDispatchId) ||
+                openIds.Contains(delivery.ExternalDispatchId))
+            {
+                continue;
+            }
+
+            delivery.Status = DeliveryStatus.Cancelled;
+            delivery.ReconciliationNote =
+                MissingFromDispatchNote;
+            delivery.ReconciledAtUtc = synchronizedAt;
+            delivery.ReconciledByUserId = userId;
+            delivery.LastSyncedAtUtc = synchronizedAt;
+            delivery.UpdatedAtUtc = synchronizedAt;
+
+            if (delivery.SalesOrder is not null &&
+                delivery.SalesOrder.Status is not
+                    SalesOrderStatus.Delivered and not
+                    SalesOrderStatus.Cancelled)
+            {
+                delivery.SalesOrder.Status =
+                    SalesOrderStatus.Cancelled;
+                delivery.SalesOrder.LastSyncedAtUtc =
+                    synchronizedAt;
+                delivery.SalesOrder.UpdatedAtUtc =
+                    synchronizedAt;
+                delivery.SalesOrder.UpdatedByUserId =
+                    userId;
+            }
+
+            reconciled++;
+        }
+
+        return reconciled;
     }
 
     private static SalesOrderStatus MapOrderStatus(string value) =>

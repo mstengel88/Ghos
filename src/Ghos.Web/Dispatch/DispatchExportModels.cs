@@ -11,7 +11,8 @@ public sealed record DispatchExportEnvelope(
     int Count,
     bool HasMore,
     IReadOnlyList<DispatchExportOrder> Orders,
-    IReadOnlyList<DispatchExportRoute> Routes);
+    IReadOnlyList<DispatchExportRoute> Routes,
+    IReadOnlyList<string>? OpenOrderIds = null);
 
 public sealed record DispatchExportOrder(
     string Id,
