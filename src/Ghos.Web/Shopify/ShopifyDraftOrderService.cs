@@ -65,7 +65,7 @@ public sealed class ShopifyDraftOrderService(
             false);
     }
 
-    private static Dictionary<string, object?> BuildInput(
+    internal static Dictionary<string, object?> BuildInput(
         CustomerQuote quote)
     {
         var input = new Dictionary<string, object?>
@@ -101,7 +101,8 @@ public sealed class ShopifyDraftOrderService(
         AddIfPresent(input, "email", quote.Email);
         AddIfPresent(input, "phone", quote.Phone);
 
-        if (quote.DeliveryAmount > 0)
+        var deliveryAmount = ResolveDeliveryAmount(quote);
+        if (deliveryAmount > 0)
         {
             input["shippingLine"] = new Dictionary<string, object?>
             {
@@ -109,7 +110,7 @@ public sealed class ShopifyDraftOrderService(
                     quote.DeliveryServiceName ??
                     quote.DeliveryDescription ??
                     "Green Hills delivery",
-                ["price"] = quote.DeliveryAmount
+                ["priceWithCurrency"] = Usd(deliveryAmount)
             };
         }
 
@@ -146,27 +147,26 @@ public sealed class ShopifyDraftOrderService(
         return input;
     }
 
-    private static Dictionary<string, object?> BuildLineItem(
+    internal static Dictionary<string, object?> BuildLineItem(
         CustomerQuoteLine line)
     {
         var quantityIsWhole =
             decimal.Truncate(line.Quantity) == line.Quantity &&
             line.Quantity > 0 &&
             line.Quantity <= int.MaxValue;
-        var currentVariantPrice = line.ProductVariant?.Price;
         var canUseShopifyVariant =
             quantityIsWhole &&
             !string.IsNullOrWhiteSpace(
-                line.ShopifyVariantIdSnapshot) &&
-            currentVariantPrice is not null &&
-            Math.Abs(currentVariantPrice.Value - line.UnitPrice) < .01m;
+                line.ShopifyVariantIdSnapshot);
 
         if (canUseShopifyVariant)
         {
             return new Dictionary<string, object?>
             {
                 ["variantId"] = line.ShopifyVariantIdSnapshot,
-                ["quantity"] = decimal.ToInt32(line.Quantity)
+                ["quantity"] = decimal.ToInt32(line.Quantity),
+                ["priceOverride"] = Usd(line.UnitPrice),
+                ["customAttributes"] = BuildLineAttributes(line)
             };
         }
 
@@ -216,13 +216,63 @@ public sealed class ShopifyDraftOrderService(
         {
             ["title"] = title,
             ["quantity"] = displayedQuantity,
-            ["originalUnitPrice"] = displayedUnitPrice,
+            ["originalUnitPriceWithCurrency"] = Usd(displayedUnitPrice),
+            ["requiresShipping"] = true,
             ["taxable"] = true,
             ["customAttributes"] = customAttributes
         };
         AddIfPresent(item, "sku", line.Sku);
         return item;
     }
+
+    private static List<Dictionary<string, object?>>
+        BuildLineAttributes(CustomerQuoteLine line)
+    {
+        return
+        [
+            new Dictionary<string, object?>
+            {
+                ["key"] = "GHOS Unit",
+                ["value"] = line.UnitLabel
+            },
+            new Dictionary<string, object?>
+            {
+                ["key"] = "GHOS Pricing",
+                ["value"] = line.PricingLabel
+            },
+            new Dictionary<string, object?>
+            {
+                ["key"] = "Quoted Unit Price",
+                ["value"] = line.UnitPrice.ToString(
+                    "0.00",
+                    System.Globalization.CultureInfo.InvariantCulture)
+            }
+        ];
+    }
+
+    internal static decimal ResolveDeliveryAmount(CustomerQuote quote)
+    {
+        if (quote.DeliveryAmount > 0)
+        {
+            return quote.DeliveryAmount;
+        }
+
+        if (quote.CustomDeliveryAmount > 0)
+        {
+            return quote.CustomDeliveryAmount.Value;
+        }
+
+        return Math.Max(0m, quote.CalculatedDeliveryAmount ?? 0m);
+    }
+
+    private static Dictionary<string, object?> Usd(decimal amount) =>
+        new()
+        {
+            ["amount"] = amount.ToString(
+                "0.00",
+                System.Globalization.CultureInfo.InvariantCulture),
+            ["currencyCode"] = "USD"
+        };
 
     private static Dictionary<string, object?> BuildAddress(
         string customerName,
