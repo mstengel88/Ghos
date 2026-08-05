@@ -993,6 +993,10 @@ public sealed class WebsiteHealthOperationsTests
         "how-to-diagnose-common-lawn-problems-diy-lawn-care-tips",
         "How to Diagnose Common Lawn Problems & DIY Lawn Care Tips",
         "How to Diagnose Common Lawn Problems & DIY Lawn Care Tips")]
+    [InlineData(
+        "mulch-matters-a-guide-to-bulk-mulch-options-from-green-hills-supply",
+        "Mulch Matters: A Guide to Bulk Mulch Options from Green Hills Supply",
+        "Mulch Matters: A Guide to Bulk Mulch Options")]
     public void TitleLength_ProducesCompleteBlogArticleTitles(
         string slug,
         string heading,

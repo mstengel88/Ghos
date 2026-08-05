@@ -1081,8 +1081,13 @@ internal static class WebsiteHealthRecommendationBuilder
             return clause;
         }
 
-        return TrimDanglingTitleWords(
-            TruncateAtWord(topic, 60))
+        var truncated = TrimDanglingTitleWords(
+            TruncateAtWord(topic, 60));
+        return Regex.Replace(
+                truncated,
+                @"\s+(?:from\s+)?Green(?:\s+Hills)?$",
+                "",
+                RegexOptions.IgnoreCase)
             .TrimEnd('(', '[', '{');
     }
 
