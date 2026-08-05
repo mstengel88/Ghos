@@ -311,6 +311,37 @@ globalThis.ghos = {
 };
 
 (() => {
+    const minimumHeight = 720;
+    const maximumHeight = 12000;
+
+    globalThis.addEventListener("message", (event) => {
+        const message = event.data;
+        if (!message ||
+            message.type !== "ghos:ticket-creator:resize" ||
+            !Number.isFinite(message.height)) {
+            return;
+        }
+
+        const frame = Array.from(
+            document.querySelectorAll(
+                "iframe[data-ghos-ticketing-frame]"))
+            .find((candidate) =>
+                candidate.contentWindow === event.source);
+
+        if (!frame) {
+            return;
+        }
+
+        const height = Math.min(
+            maximumHeight,
+            Math.max(minimumHeight, Math.ceil(message.height)));
+        frame.style.height = `${height}px`;
+        frame.dataset.embeddedPath =
+            typeof message.path === "string" ? message.path : "";
+    });
+})();
+
+(() => {
     let deferredInstallPrompt = null;
     let waitingWorker = null;
     let refreshing = false;

@@ -1,84 +1,217 @@
 @page "/ticketing"
+@page "/ticketing/{Section}"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = GhosPolicies.Operations)]
 @inject IConfiguration Configuration
 @inject NavigationManager Navigation
 
-<PageTitle>Ticketing | GHOS</PageTitle>
+<PageTitle>@PageTitleText | GHOS</PageTitle>
 
-<div class="ticketing-heading">
-    <div>
-        <span class="panel-label">TICKETING OPERATIONS</span>
-        <h2>Ticket Creator</h2>
-        <p>Create, review, print, and monitor Green Hills material tickets without leaving GHOS.</p>
-    </div>
-    <div class="ticketing-status">
-        <i></i>
-        <span>Parallel GHOS deployment</span>
-    </div>
-</div>
-
-<section class="ticketing-summary">
-    <article class="panel">
-        <span>Operations board</span>
-        <strong>Live queue</strong>
-        <small>Recent tickets, billable work, and activity</small>
-    </article>
-    <article class="panel">
-        <span>Ticket desk</span>
-        <strong>Create &amp; print</strong>
-        <small>Customer, order, product, and truck workflow</small>
-    </article>
-    <article class="panel">
-        <span>Loadrite</span>
-        <strong>Onsite relay</strong>
-        <small>Uses the existing secured LCI integration</small>
-    </article>
-</section>
-
-<div class="ticketing-tabs" role="tablist" aria-label="Ticketing workspace">
-    <a class="@(View == TicketingView.Operations ? "active" : null)"
-       href="/ticketing?view=operations">
-        Operations Board
-    </a>
-    <a class="@(View == TicketingView.Desk ? "active" : null)"
-       href="/ticketing?view=desk">
-        Ticket Desk
-    </a>
-    <a class="open-separate"
-       href="@CurrentWorkspaceUrl"
-       target="_blank"
-       rel="noopener noreferrer">
-        Open full screen ↗
-    </a>
-</div>
-
-<section class="panel ticketing-frame-panel">
-    <div class="frame-heading">
+<div class="ticketing-workspace @($"section-{ActiveSection}")">
+    <header class="ticketing-heading">
         <div>
-            <span class="panel-label">@(View == TicketingView.Operations ? "OPTION 1 · OPERATIONS BOARD" : "OPTION 2 · TICKET DESK")</span>
-            <h3>@(View == TicketingView.Operations ? "Ticketing at a glance" : "Create and maintain tickets")</h3>
+            <span class="panel-label">@Eyebrow</span>
+            <h2>@Heading</h2>
+            <p>@Description</p>
         </div>
-        <span>Ticket Creator authentication remains protected inside this workspace.</span>
-    </div>
-    <iframe title="@(View == TicketingView.Operations ? "Ticket Creator Operations Board" : "Ticket Creator Desk")"
-            src="@CurrentWorkspaceUrl"
-            allow="clipboard-read; clipboard-write"
-            referrerpolicy="same-origin">
-    </iframe>
-</section>
+        <div class="ticketing-heading-actions">
+            <span class="ticketing-status">
+                <i></i>
+                <span>Ticketing online</span>
+            </span>
+            <a class="open-separate"
+               href="@CurrentWorkspaceUrl"
+               target="_blank"
+               rel="noopener noreferrer">
+                Open full screen ↗
+            </a>
+        </div>
+    </header>
+
+    <nav class="ticketing-nav" aria-label="Ticketing workspace">
+        <div class="nav-group">
+            <span>WORK</span>
+            <a class="@ActiveClass("operations")" href="/ticketing">Operations</a>
+            <a class="@ActiveClass("desk")" href="/ticketing/desk">Ticket Desk</a>
+            <a class="@ActiveClass("billable")" href="/ticketing/billable">Billable</a>
+        </div>
+        <div class="nav-group">
+            <span>RECORDS</span>
+            <a class="@ActiveClass("customers")" href="/ticketing/customers">Customers</a>
+            <a class="@ActiveClass("products")" href="/ticketing/products">Products</a>
+            <a class="@ActiveClass("trucks")" href="/ticketing/trucks">Trucks</a>
+        </div>
+        <div class="nav-group">
+            <span>INSIGHT</span>
+            <a class="@ActiveClass("reports")" href="/ticketing/reports">Reports</a>
+            <a class="@ActiveClass("settings")" href="/ticketing/settings">Settings</a>
+        </div>
+    </nav>
+
+    @if (ActiveSection == "operations")
+    {
+        <section class="operations-intro">
+            <div>
+                <span class="intro-kicker">OPERATIONS BOARD</span>
+                <strong>Start the day here</strong>
+                <p>Monitor ticket volume, active customers, trucks, and material movement before opening the working queue.</p>
+            </div>
+            <a href="/ticketing/desk">Open Ticket Desk <span>→</span></a>
+        </section>
+    }
+    else if (ActiveSection == "desk")
+    {
+        <section class="desk-intro">
+            <div class="desk-marker">TD</div>
+            <div>
+                <span class="intro-kicker">WORKING CONSOLE</span>
+                <strong>Create, review, print, and close tickets</strong>
+                <p>The Ticket Desk is the focused production workspace. Operations remains your overview.</p>
+            </div>
+        </section>
+    }
+
+    @if (ActiveSection == "settings")
+    {
+        <nav class="settings-nav" aria-label="Ticketing settings">
+            <a class="@SettingsClass("general")" href="/ticketing/settings">General</a>
+            <a class="@SettingsClass("loadrite")" href="/ticketing/settings?panel=loadrite">Loadrite setup</a>
+            <a class="@SettingsClass("feedback")" href="/ticketing/settings?panel=feedback">Feedback</a>
+            <a class="@SettingsClass("audit")" href="/ticketing/settings?panel=audit">Audit log</a>
+        </nav>
+    }
+
+    <section class="ticketing-surface">
+        <iframe title="@FrameTitle"
+                src="@CurrentWorkspaceUrl"
+                allow="clipboard-read; clipboard-write"
+                referrerpolicy="same-origin"
+                scrolling="no"
+                data-ghos-ticketing-frame>
+        </iframe>
+    </section>
+</div>
 
 @code {
-    [SupplyParameterFromQuery(Name = "view")]
-    public string? RequestedView { get; set; }
+    [Parameter]
+    public string? Section { get; set; }
 
-    private TicketingView View =>
-        string.Equals(RequestedView, "desk", StringComparison.OrdinalIgnoreCase)
-            ? TicketingView.Desk
-            : TicketingView.Operations;
+    [SupplyParameterFromQuery(Name = "panel")]
+    public string? RequestedSettingsPanel { get; set; }
 
-    private string CurrentWorkspaceUrl =>
-        BuildTicketCreatorUrl(View == TicketingView.Operations ? "/home" : "/");
+    private string ActiveSection => NormalizeSection(Section);
+
+    private string ActiveSettingsPanel =>
+        RequestedSettingsPanel?.ToLowerInvariant() switch
+        {
+            "loadrite" => "loadrite",
+            "feedback" => "feedback",
+            "audit" => "audit",
+            _ => "general"
+        };
+
+    private (string Title, string Eyebrow, string Heading, string Description, string AppPath) Metadata =>
+        ActiveSection switch
+        {
+            "desk" => (
+                "Ticket Desk",
+                "TICKETING · DAILY WORK",
+                "Ticket Desk",
+                "A focused production console for ticket entry, printing, email, and status changes.",
+                "/"),
+            "billable" => (
+                "Billable Tickets",
+                "TICKETING · BILLING",
+                "Billable",
+                "Review the billing queue without mixing completed work into the active ticket desk.",
+                "/billable"),
+            "customers" => (
+                "Ticket Customers",
+                "TICKETING · RECORDS",
+                "Customers",
+                "Review ticketing accounts and each customer’s complete material history.",
+                "/customers"),
+            "products" => (
+                "Ticket Products",
+                "TICKETING · RECORDS",
+                "Products",
+                "Maintain the material catalog used by ticket entry and Loadrite workflows.",
+                "/products"),
+            "trucks" => (
+                "Ticket Trucks",
+                "TICKETING · FLEET",
+                "Trucks",
+                "Standardize fleet records and keep truck names consistent across every ticket.",
+                "/trucks"),
+            "reports" => (
+                "Ticket Reports",
+                "TICKETING · INSIGHT",
+                "Reports",
+                "Search, summarize, and export ticket activity from one reporting workspace.",
+                "/reports"),
+            "settings" => SettingsMetadata(),
+            _ => (
+                "Ticket Operations",
+                "TICKETING · OPERATIONS",
+                "Ticket Operations",
+                "A live operational view of ticket volume, production activity, customers, and trucks.",
+                "/home")
+        };
+
+    private (string Title, string Eyebrow, string Heading, string Description, string AppPath) SettingsMetadata() =>
+        ActiveSettingsPanel switch
+        {
+            "loadrite" => (
+                "Loadrite Setup",
+                "TICKETING · SETTINGS",
+                "Loadrite Setup",
+                "Manage the secured Loadrite connection and import configuration.",
+                "/loadrite-setup"),
+            "feedback" => (
+                "Ticket Feedback",
+                "TICKETING · SETTINGS",
+                "Feedback",
+                "Review team feedback and improvement requests for the ticketing workflow.",
+                "/feedback"),
+            "audit" => (
+                "Ticket Audit Log",
+                "TICKETING · SETTINGS",
+                "Audit Log",
+                "Review administrative and ticketing changes in one protected history.",
+                "/audit-log"),
+            _ => (
+                "Ticket Settings",
+                "TICKETING · SETTINGS",
+                "Ticketing Settings",
+                "Manage templates and the shared configuration for Ticket Creator.",
+                "/settings")
+        };
+
+    private string PageTitleText => Metadata.Title;
+    private string Eyebrow => Metadata.Eyebrow;
+    private string Heading => Metadata.Heading;
+    private string Description => Metadata.Description;
+    private string FrameTitle => $"{Metadata.Title} workspace";
+    private string CurrentWorkspaceUrl => BuildTicketCreatorUrl(Metadata.AppPath);
+
+    private string ActiveClass(string section) =>
+        ActiveSection == section ? "active" : string.Empty;
+
+    private string SettingsClass(string panel) =>
+        ActiveSettingsPanel == panel ? "active" : string.Empty;
+
+    private static string NormalizeSection(string? section) =>
+        section?.ToLowerInvariant() switch
+        {
+            "desk" => "desk",
+            "billable" => "billable",
+            "customers" => "customers",
+            "products" => "products",
+            "trucks" => "trucks",
+            "reports" => "reports",
+            "settings" => "settings",
+            _ => "operations"
+        };
 
     private string BuildTicketCreatorUrl(string path)
     {
@@ -89,13 +222,8 @@
         }
 
         var currentUri = new Uri(Navigation.Uri);
-        var localUri = new UriBuilder(currentUri.Scheme, currentUri.Host, 8084, path);
-        return localUri.Uri.ToString();
-    }
-
-    private enum TicketingView
-    {
-        Operations,
-        Desk
+        return new UriBuilder(currentUri.Scheme, currentUri.Host, 8084, path)
+            .Uri
+            .ToString();
     }
 }
