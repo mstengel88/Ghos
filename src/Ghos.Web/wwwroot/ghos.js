@@ -311,6 +311,60 @@ globalThis.ghos = {
 };
 
 (() => {
+    const messageType = "ghos:ticketing-boundary-scroll";
+
+    const findFrame = (source) =>
+        Array.from(document.querySelectorAll(
+            "iframe[data-ghos-ticketing-frame]"))
+            .find((frame) => frame.contentWindow === source);
+
+    const findScrollContainer = (element) => {
+        let current = element?.parentElement;
+        while (current) {
+            const style = globalThis.getComputedStyle(current);
+            if (/(auto|scroll|overlay)/.test(style.overflowY) &&
+                current.scrollHeight > current.clientHeight + 1) {
+                return current;
+            }
+
+            current = current.parentElement;
+        }
+
+        return document.scrollingElement;
+    };
+
+    globalThis.addEventListener("message", (event) => {
+        if (event.data?.type !== messageType) {
+            return;
+        }
+
+        const frame = findFrame(event.source);
+        if (!frame) {
+            return;
+        }
+
+        let frameOrigin;
+        try {
+            frameOrigin = new URL(frame.src, globalThis.location.href).origin;
+        } catch {
+            return;
+        }
+
+        if (event.origin !== frameOrigin) {
+            return;
+        }
+
+        const deltaY = Number(event.data.deltaY);
+        if (!Number.isFinite(deltaY) || Math.abs(deltaY) > 2000) {
+            return;
+        }
+
+        const scrollContainer = findScrollContainer(frame);
+        scrollContainer?.scrollBy({ top: deltaY, behavior: "auto" });
+    });
+})();
+
+(() => {
     let deferredInstallPrompt = null;
     let waitingWorker = null;
     let refreshing = false;
