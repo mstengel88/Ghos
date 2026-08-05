@@ -1361,10 +1361,10 @@ public sealed class WebsiteHealthMonitorService(
             measuredAtUtc.AddDays(-7));
         foreach (var definition in new[]
         {
-            (Key: "products", Label: "Products"),
-            (Key: "collections", Label: "Collections"),
-            (Key: "pages", Label: "Pages"),
-            (Key: "blogs", Label: "Blog content")
+            (Key: "products", Label: "Products", DetailLabel: "product pages"),
+            (Key: "collections", Label: "Collections", DetailLabel: "collection pages"),
+            (Key: "pages", Label: "Pages", DetailLabel: "standard pages"),
+            (Key: "blogs", Label: "Blog content", DetailLabel: "blog pages")
         })
         {
             var categoryCoverage = pageTypeCoverage[definition.Key];
@@ -1376,7 +1376,7 @@ public sealed class WebsiteHealthMonitorService(
                 categoryCoverage.CoveragePercent,
                 "%",
                 baseUri.ToString(),
-                $"{categoryCoverage.CoveredCount} of {categoryCoverage.InventoryCount} {definition.Label.ToLowerInvariant()} sitemap pages were evaluated in the last 7 days."));
+                $"{categoryCoverage.CoveredCount} of {categoryCoverage.InventoryCount} {definition.DetailLabel} in the sitemap were evaluated in the last 7 days."));
         }
     }
 
@@ -1417,11 +1417,11 @@ public sealed class WebsiteHealthMonitorService(
         IEnumerable<Uri> links,
         IReadOnlyDictionary<string, DateTime> lastEvaluatedAt) =>
         links
-            .OrderBy(GetCrawlPriority)
-            .ThenBy(link =>
+            .OrderBy(link =>
                 lastEvaluatedAt.GetValueOrDefault(
                     NormalizeUrl(link),
                     DateTime.MinValue))
+            .ThenBy(GetCrawlPriority)
             .ThenBy(link => link.AbsolutePath)
             .ThenBy(link => link.Query)
             .ToList();

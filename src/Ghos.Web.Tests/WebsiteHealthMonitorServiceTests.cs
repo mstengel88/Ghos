@@ -156,7 +156,7 @@ public sealed class WebsiteHealthMonitorServiceTests
     }
 
     [Fact]
-    public void OrderCrawlTargets_PrioritizesUnvisitedProducts()
+    public void OrderCrawlTargets_PrioritizesAllUnvisitedPagesBeforeRecrawls()
     {
         var previouslyChecked =
             new Uri("https://example.com/products/alpine-stone");
@@ -176,8 +176,8 @@ public sealed class WebsiteHealthMonitorServiceTests
             lastEvaluated);
 
         Assert.Equal(unseenProduct, ordered[0]);
-        Assert.Equal(previouslyChecked, ordered[1]);
-        Assert.Equal(unseenCollection, ordered[2]);
+        Assert.Equal(unseenCollection, ordered[1]);
+        Assert.Equal(previouslyChecked, ordered[2]);
     }
 
     [Fact]

@@ -84,8 +84,11 @@ and external sitemap files are excluded. Sitemap URLs are normalized to the
 configured storefront host and still must pass the HTTPS, public-address,
 robots.txt, timeout, delay, and maximum-page safeguards before GHOS requests
 them. Within each content category, pages that have never been evaluated are
-queued before recently checked pages, allowing recurring 25-page runs to
-expand coverage over time without turning one run into an unbounded crawl.
+queued before recently checked pages. Never-evaluated pages across every
+category are also queued before any recrawl, with product and collection
+priority used only to order pages of the same age. This allows recurring
+25-page runs to expand coverage over time without turning one run into an
+unbounded crawl.
 
 Each completed run also persists the eligible sitemap inventory and rolling
 seven-day crawl coverage. The dashboard reports both the percentage and exact
