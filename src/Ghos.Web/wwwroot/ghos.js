@@ -317,8 +317,8 @@ globalThis.ghos = {
     globalThis.addEventListener("message", (event) => {
         const message = event.data;
         if (!message ||
-            message.type !== "ghos:ticket-creator:resize" ||
-            !Number.isFinite(message.height)) {
+            (message.type !== "ghos:ticket-creator:resize" &&
+                message.type !== "ghos:ticket-creator:scroll")) {
             return;
         }
 
@@ -329,6 +329,34 @@ globalThis.ghos = {
                 candidate.contentWindow === event.source);
 
         if (!frame) {
+            return;
+        }
+
+        try {
+            if (new URL(frame.src).origin !== event.origin) {
+                return;
+            }
+        } catch {
+            return;
+        }
+
+        if (message.type === "ghos:ticket-creator:scroll") {
+            const deltaY = Number.isFinite(message.deltaY)
+                ? message.deltaY
+                : 0;
+            const deltaX = Number.isFinite(message.deltaX)
+                ? message.deltaX
+                : 0;
+
+            globalThis.scrollBy({
+                top: deltaY,
+                left: deltaX,
+                behavior: "auto"
+            });
+            return;
+        }
+
+        if (!Number.isFinite(message.height)) {
             return;
         }
 
