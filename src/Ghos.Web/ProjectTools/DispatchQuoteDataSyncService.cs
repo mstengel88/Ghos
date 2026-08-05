@@ -428,6 +428,7 @@ public sealed partial class DispatchQuoteDataSyncService(
         CancellationToken cancellationToken)
     {
         var existingIds = await dbContext.CustomerQuotes
+            .IgnoreQueryFilters()
             .Where(quote => quote.LegacyExternalId != null)
             .Select(quote => quote.LegacyExternalId!)
             .ToHashSetAsync(cancellationToken);

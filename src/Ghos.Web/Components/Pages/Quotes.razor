@@ -102,30 +102,62 @@ else
                     <span>Lines</span>
                     <span>Total</span>
                     <span>Status</span>
+                    <span>Actions</span>
                 </div>
                 @foreach (var quote in VisibleQuotes)
                 {
-                    <a class="quote-row" href="/quotes/@quote.Id">
-                        <span>
-                            <strong>@quote.QuoteNumber</strong>
-                            <small>@(quote.IsContractor ? "Contractor" : "Customer")</small>
-                        </span>
-                        <span>
-                            <strong>@(string.IsNullOrWhiteSpace(quote.CustomerName)
-                                ? "Unnamed draft"
-                                : quote.CustomerName)</strong>
-                            <small>@quote.CompanyName</small>
-                        </span>
-                        <span>
-                            <strong>@quote.UpdatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")</strong>
-                            <small>@quote.UpdatedAtUtc.ToLocalTime().ToString("h:mm tt")</small>
-                        </span>
-                        <span>@quote.Lines.Count</span>
-                        <span><strong>@quote.Total.ToString("C2")</strong></span>
-                        <span class="status-pill @GetStatusClass(quote.Status)">
-                            @GetStatusLabel(quote.Status)
-                        </span>
-                    </a>
+                    <div class="quote-record-row">
+                        <a class="quote-row" href="/quotes/@quote.Id">
+                            <span>
+                                <strong>@quote.QuoteNumber</strong>
+                                <small>@(quote.IsContractor ? "Contractor" : "Customer")</small>
+                            </span>
+                            <span>
+                                <strong>@(string.IsNullOrWhiteSpace(quote.CustomerName)
+                                    ? "Unnamed draft"
+                                    : quote.CustomerName)</strong>
+                                <small>@quote.CompanyName</small>
+                            </span>
+                            <span>
+                                <strong>@quote.UpdatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")</strong>
+                                <small>@quote.UpdatedAtUtc.ToLocalTime().ToString("h:mm tt")</small>
+                            </span>
+                            <span>@quote.Lines.Count</span>
+                            <span><strong>@quote.Total.ToString("C2")</strong></span>
+                            <span class="status-pill @GetStatusClass(quote.Status)">
+                                @GetStatusLabel(quote.Status)
+                            </span>
+                        </a>
+                        <button type="button"
+                                class="quote-delete-button"
+                                disabled="@Deleting"
+                                @onclick="() => BeginDelete(quote)">
+                            Delete
+                        </button>
+                    </div>
+                    @if (PendingDelete?.Id == quote.Id)
+                    {
+                        <div class="quote-delete-confirmation" role="alert">
+                            <div>
+                                <strong>Delete @quote.QuoteNumber?</strong>
+                                <span>
+                                    This removes the quote from GHOS. Any Shopify draft already created will remain in Shopify.
+                                </span>
+                            </div>
+                            <button type="button"
+                                    class="quote-delete-cancel"
+                                    disabled="@Deleting"
+                                    @onclick="CancelDelete">
+                                Keep quote
+                            </button>
+                            <button type="button"
+                                    class="quote-delete-confirm"
+                                    disabled="@Deleting"
+                                    @onclick="DeleteQuoteAsync">
+                                @(Deleting ? "Deleting…" : "Delete quote")
+                            </button>
+                        </div>
+                    }
                 }
             </div>
         }
@@ -136,6 +168,8 @@ else
     private List<CustomerQuote> QuoteItems { get; set; } = [];
     private bool Loading { get; set; } = true;
     private bool Syncing { get; set; }
+    private bool Deleting { get; set; }
+    private CustomerQuote? PendingDelete { get; set; }
     private string SearchText { get; set; } = string.Empty;
     private string StatusFilter { get; set; } = string.Empty;
     private string? SyncMessage { get; set; }
@@ -194,6 +228,64 @@ else
             .Include(quote => quote.Lines)
             .OrderByDescending(quote => quote.UpdatedAtUtc)
             .ToListAsync();
+    }
+
+    private void BeginDelete(CustomerQuote quote)
+    {
+        SyncMessage = null;
+        PendingDelete = quote;
+    }
+
+    private void CancelDelete()
+    {
+        PendingDelete = null;
+    }
+
+    private async Task DeleteQuoteAsync()
+    {
+        if (PendingDelete is null)
+        {
+            return;
+        }
+
+        Deleting = true;
+        var quoteId = PendingDelete.Id;
+        var quoteNumber = PendingDelete.QuoteNumber;
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                System.Security.Claims.ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var stored = await dbContext.CustomerQuotes
+                .SingleOrDefaultAsync(item => item.Id == quoteId);
+            if (stored is null)
+            {
+                SyncMessage = "That quote has already been deleted.";
+            }
+            else
+            {
+                stored.DeletedAtUtc = DateTime.UtcNow;
+                stored.DeletedByUserId = userId;
+                stored.UpdatedAtUtc = DateTime.UtcNow;
+                stored.UpdatedByUserId = userId;
+                await dbContext.SaveChangesAsync();
+                QuoteItems.RemoveAll(item => item.Id == quoteId);
+                SyncMessage = $"{quoteNumber} was deleted from GHOS.";
+            }
+        }
+        catch (DbUpdateException)
+        {
+            SyncMessage =
+                "The quote could not be deleted. No quote or Shopify draft was changed.";
+        }
+        finally
+        {
+            Deleting = false;
+            PendingDelete = null;
+        }
     }
 
     private static string BuildSyncMessage(

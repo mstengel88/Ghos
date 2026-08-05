@@ -26,11 +26,41 @@
     <div class="heading-actions">
         @if (!IsNew)
         {
+            <button type="button"
+                    class="quote-delete-action"
+                    disabled="@(Saving || Deleting)"
+                    @onclick="() => ConfirmingDelete = true">
+                Delete quote
+            </button>
             <a class="secondary-action" href="/quotes/@QuoteId/print" target="_blank">Print quote</a>
             <span class="quote-number">@Model.Status</span>
         }
     </div>
 </div>
+
+@if (ConfirmingDelete)
+{
+    <section class="quote-editor-delete-confirmation" role="alert">
+        <div>
+            <strong>Delete @Model.QuoteNumber?</strong>
+            <span>
+                This removes the quote from GHOS. Any Shopify draft already created will remain in Shopify.
+            </span>
+        </div>
+        <button type="button"
+                class="quote-delete-cancel"
+                disabled="@Deleting"
+                @onclick="() => ConfirmingDelete = false">
+            Keep quote
+        </button>
+        <button type="button"
+                class="quote-delete-confirm"
+                disabled="@Deleting"
+                @onclick="DeleteQuoteAsync">
+            @(Deleting ? "Deleting…" : "Delete quote")
+        </button>
+    </section>
+}
 
 @if (Loading)
 {
@@ -721,6 +751,8 @@ else
     private bool Loading { get; set; } = true;
     private bool NotFound { get; set; }
     private bool Saving { get; set; }
+    private bool Deleting { get; set; }
+    private bool ConfirmingDelete { get; set; }
     private bool SendingToShopify { get; set; }
     private bool ShopifyDraftOrdersConfigured { get; set; }
     private bool CalculatingDelivery { get; set; }
@@ -1418,6 +1450,51 @@ else
         {
             Saving = false;
             PrintAfterSave = false;
+        }
+    }
+
+    private async Task DeleteQuoteAsync()
+    {
+        if (QuoteId is null)
+        {
+            return;
+        }
+
+        Deleting = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                System.Security.Claims.ClaimTypes.NameIdentifier);
+            await using var dbContext =
+                await DbContextFactory.CreateDbContextAsync();
+            var quote = await dbContext.CustomerQuotes
+                .SingleOrDefaultAsync(item => item.Id == QuoteId);
+            if (quote is null)
+            {
+                ErrorMessage = "That quote has already been deleted.";
+                ConfirmingDelete = false;
+                return;
+            }
+
+            quote.DeletedAtUtc = DateTime.UtcNow;
+            quote.DeletedByUserId = userId;
+            quote.UpdatedAtUtc = DateTime.UtcNow;
+            quote.UpdatedByUserId = userId;
+            await dbContext.SaveChangesAsync();
+            Navigation.NavigateTo("/quotes", forceLoad: true);
+        }
+        catch (DbUpdateException)
+        {
+            ErrorMessage =
+                "The quote could not be deleted. No quote or Shopify draft was changed.";
+        }
+        finally
+        {
+            Deleting = false;
         }
     }
 

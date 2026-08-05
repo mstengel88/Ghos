@@ -494,6 +494,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
         builder.Entity<CustomerQuote>(quote =>
         {
+            quote.HasQueryFilter(item => item.DeletedAtUtc == null);
             quote.HasIndex(item => item.QuoteNumber).IsUnique();
             quote.HasIndex(item => new { item.Status, item.UpdatedAtUtc });
             quote.Property(item => item.Status)

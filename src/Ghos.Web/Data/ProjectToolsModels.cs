@@ -188,6 +188,11 @@ public sealed class CustomerQuote
     [MaxLength(450)]
     public string? UpdatedByUserId { get; set; }
 
+    public DateTime? DeletedAtUtc { get; set; }
+
+    [MaxLength(450)]
+    public string? DeletedByUserId { get; set; }
+
     [MaxLength(120)]
     public string? LegacyExternalId { get; set; }
 
