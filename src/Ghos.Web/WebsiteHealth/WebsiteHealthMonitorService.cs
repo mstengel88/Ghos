@@ -57,6 +57,11 @@ internal sealed record SecurityHeaderAnalysis(
     internal bool IsHealthy => MissingHeaders.Count == 0;
 }
 
+internal sealed record CrawlCoverageAnalysis(
+    int InventoryCount,
+    int CoveredCount,
+    decimal CoveragePercent);
+
 public sealed class WebsiteHealthMonitorService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
     HttpClient httpClient,
@@ -122,6 +127,10 @@ public sealed class WebsiteHealthMonitorService(
             var checkedUrls = new HashSet<string>(
                 StringComparer.OrdinalIgnoreCase);
             FetchSnapshot? sitemapSnapshot = null;
+            IReadOnlyList<Uri> sitemapPages = [];
+            IReadOnlyDictionary<string, DateTime> lastEvaluatedAt =
+                new Dictionary<string, DateTime>(
+                    StringComparer.OrdinalIgnoreCase);
 
             if (enabledCheckKeys.Contains("ssl"))
             {
@@ -298,19 +307,17 @@ public sealed class WebsiteHealthMonitorService(
             var queue = new Queue<Uri>();
             if (crawlEnabled)
             {
-                var lastEvaluatedAt =
-                    await GetLastEvaluatedPageTimesAsync(
-                        dbContext,
-                        site.Id,
-                        cancellationToken);
-                var sitemapPages =
-                    await DiscoverSitemapPagesAsync(
-                        baseUri,
-                        sitemapSnapshot,
-                        site,
-                        disallowedPaths,
-                        checkedUrls,
-                        cancellationToken);
+                lastEvaluatedAt = await GetLastEvaluatedPageTimesAsync(
+                    dbContext,
+                    site.Id,
+                    cancellationToken);
+                sitemapPages = await DiscoverSitemapPagesAsync(
+                    baseUri,
+                    sitemapSnapshot,
+                    site,
+                    disallowedPaths,
+                    checkedUrls,
+                    cancellationToken);
                 EnqueueInternalLinks(
                     sitemapPages,
                     baseUri,
@@ -388,6 +395,13 @@ public sealed class WebsiteHealthMonitorService(
             }
 
             ApplyScores(run, observations);
+            AddCrawlCoverageObservations(
+                baseUri,
+                sitemapPages,
+                lastEvaluatedAt,
+                pages.Values.Select(page => page.Url),
+                DateTime.UtcNow,
+                observations);
             run.PagesCrawled = pages.Count;
             run.LinksChecked = checkedUrls.Count;
             run.CompletedAtUtc = DateTime.UtcNow;
@@ -1226,6 +1240,77 @@ public sealed class WebsiteHealthMonitorService(
             item => item.Url,
             item => item.LastEvaluatedAtUtc,
             StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal static CrawlCoverageAnalysis AnalyzeCrawlCoverage(
+        IReadOnlyCollection<Uri> sitemapPages,
+        IReadOnlyDictionary<string, DateTime> lastEvaluatedAt,
+        IEnumerable<Uri> currentPages,
+        DateTime cutoffUtc)
+    {
+        var inventory = sitemapPages
+            .Select(NormalizeUrl)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (inventory.Count == 0)
+        {
+            return new CrawlCoverageAnalysis(0, 0, 0);
+        }
+
+        var covered = lastEvaluatedAt
+            .Where(item =>
+                item.Value >= cutoffUtc &&
+                inventory.Contains(item.Key))
+            .Select(item => item.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        covered.UnionWith(
+            currentPages
+                .Select(NormalizeUrl)
+                .Where(inventory.Contains));
+
+        return new CrawlCoverageAnalysis(
+            inventory.Count,
+            covered.Count,
+            Math.Round(
+                covered.Count * 100m / inventory.Count,
+                1));
+    }
+
+    private static void AddCrawlCoverageObservations(
+        Uri baseUri,
+        IReadOnlyCollection<Uri> sitemapPages,
+        IReadOnlyDictionary<string, DateTime> lastEvaluatedAt,
+        IEnumerable<Uri> currentPages,
+        DateTime measuredAtUtc,
+        ICollection<Observation> observations)
+    {
+        if (sitemapPages.Count == 0)
+        {
+            return;
+        }
+
+        var coverage = AnalyzeCrawlCoverage(
+            sitemapPages,
+            lastEvaluatedAt,
+            currentPages,
+            measuredAtUtc.AddDays(-7));
+        observations.Add(new Observation(
+            "crawl-inventory",
+            "Sitemap page inventory",
+            "Coverage",
+            WebsiteHealthCheckStatus.Passed,
+            (decimal)coverage.InventoryCount,
+            "pages",
+            new Uri(baseUri, "/sitemap.xml").ToString(),
+            $"{coverage.InventoryCount} eligible customer-facing pages were discovered in the sitemap."));
+        observations.Add(new Observation(
+            "crawl-coverage",
+            "Seven-day crawl coverage",
+            "Coverage",
+            WebsiteHealthCheckStatus.Passed,
+            coverage.CoveragePercent,
+            "%",
+            baseUri.ToString(),
+            $"{coverage.CoveredCount} of {coverage.InventoryCount} sitemap pages were evaluated in the last 7 days."));
     }
 
     private static void EnqueueInternalLinks(
