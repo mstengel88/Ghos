@@ -1,34 +1,56 @@
+.ticketing-workspace {
+    margin: -30px -32px -48px;
+    min-height: calc(100vh - 92px);
+    background: var(--ghos-page-bg);
+}
+
 .ticketing-heading {
-    margin-bottom: 20px;
+    min-height: 138px;
+    padding: 28px 34px 24px;
+    border-bottom: 1px solid var(--ghos-border);
+    background:
+        radial-gradient(circle at 82% -20%, rgba(155, 198, 35, .15), transparent 26rem),
+        var(--ghos-surface);
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 20px;
+    gap: 24px;
 }
 
 .ticketing-heading h2 {
     margin: 7px 0 6px;
-    font-size: clamp(1.85rem, 3vw, 2.55rem);
-    letter-spacing: -.04em;
+    font-size: clamp(2rem, 4vw, 3.15rem);
+    letter-spacing: -.055em;
 }
 
-.ticketing-heading p,
-.frame-heading > span {
+.ticketing-heading p {
+    max-width: 720px;
     margin: 0;
     color: var(--ghos-text-muted);
+    line-height: 1.55;
 }
 
-.ticketing-status {
-    padding: 10px 13px;
-    border: 1px solid var(--ghos-border);
-    border-radius: 999px;
-    background: var(--ghos-surface);
-    color: var(--ghos-text-secondary);
+.ticketing-heading-actions {
     display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ticketing-status,
+.open-separate {
+    min-height: 38px;
+    padding: 0 13px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 9px;
+    background: var(--ghos-surface-muted);
+    color: var(--ghos-text-secondary);
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     font-size: .7rem;
     font-weight: 800;
+    text-decoration: none;
+    white-space: nowrap;
 }
 
 .ticketing-status i {
@@ -39,143 +61,226 @@
     box-shadow: 0 0 0 4px rgba(155, 198, 35, .12);
 }
 
-.ticketing-summary {
-    margin-bottom: 16px;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+.open-separate {
+    color: var(--ghos-accent-text);
 }
 
-.ticketing-summary article {
-    padding: 16px 18px;
+.open-separate:hover {
+    border-color: #9BC623;
 }
 
-.ticketing-summary span,
-.ticketing-summary strong,
-.ticketing-summary small {
-    display: block;
+.ticketing-nav {
+    padding: 10px 28px;
+    border-bottom: 1px solid var(--ghos-border);
+    background: var(--ghos-surface);
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    position: sticky;
+    top: 92px;
+    z-index: 8;
+    overflow-x: auto;
 }
 
-.ticketing-summary span {
+.nav-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nav-group > span {
+    margin-right: 4px;
     color: var(--ghos-text-muted);
-    font-size: .62rem;
+    font-size: .56rem;
+    font-weight: 900;
+    letter-spacing: .13em;
+}
+
+.nav-group a,
+.settings-nav a {
+    min-height: 37px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--ghos-text-muted);
+    display: inline-flex;
+    align-items: center;
+    font-size: .7rem;
     font-weight: 850;
-    letter-spacing: .08em;
-    text-transform: uppercase;
+    text-decoration: none;
+    white-space: nowrap;
 }
 
-.ticketing-summary strong {
-    margin-top: 7px;
-    font-size: 1rem;
+.nav-group a:hover,
+.settings-nav a:hover {
+    color: var(--ghos-text);
+    background: var(--ghos-surface-muted);
 }
 
-.ticketing-summary small {
-    margin-top: 4px;
+.nav-group a.active,
+.settings-nav a.active {
+    color: #142116;
+    background: #9BC623;
+}
+
+.operations-intro,
+.desk-intro {
+    margin: 22px 32px 0;
+    padding: 20px 22px;
+    border: 1px solid var(--ghos-border);
+    border-radius: 16px;
+}
+
+.operations-intro {
+    background:
+        linear-gradient(120deg, rgba(155, 198, 35, .13), transparent 55%),
+        var(--ghos-surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.operations-intro strong,
+.desk-intro strong {
+    margin-top: 5px;
+    display: block;
+    font-size: 1.15rem;
+}
+
+.operations-intro p,
+.desk-intro p {
+    max-width: 730px;
+    margin: 5px 0 0;
     color: var(--ghos-text-muted);
-    font-size: .68rem;
+    font-size: .78rem;
 }
 
-.ticketing-tabs {
-    margin-bottom: 12px;
+.operations-intro > a {
+    min-height: 42px;
+    padding: 0 16px;
+    border-radius: 9px;
+    background: #9BC623;
+    color: #142116;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: .75rem;
+    font-weight: 900;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.operations-intro > a span {
+    font-size: 1.05rem;
+}
+
+.desk-intro {
+    border-color: rgba(82, 155, 196, .28);
+    background:
+        linear-gradient(120deg, rgba(82, 155, 196, .1), transparent 55%),
+        var(--ghos-surface);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.desk-marker {
+    width: 48px;
+    height: 48px;
+    border: 1px solid rgba(82, 155, 196, .38);
+    border-radius: 13px;
+    background: rgba(82, 155, 196, .12);
+    color: #72b7da;
+    display: grid;
+    place-items: center;
+    font-size: .75rem;
+    font-weight: 900;
+}
+
+.intro-kicker {
+    color: var(--ghos-text-muted);
+    font-size: .58rem;
+    font-weight: 900;
+    letter-spacing: .14em;
+}
+
+.settings-nav {
+    margin: 20px 32px 0;
     padding: 5px;
     border: 1px solid var(--ghos-border);
     border-radius: 12px;
     background: var(--ghos-surface);
     display: flex;
-    align-items: center;
     gap: 5px;
+    overflow-x: auto;
 }
 
-.ticketing-tabs a {
-    min-height: 42px;
-    padding: 0 16px;
-    border-radius: 8px;
-    color: var(--ghos-text-muted);
-    display: inline-flex;
-    align-items: center;
-    font-size: .76rem;
-    font-weight: 850;
-    text-decoration: none;
+.ticketing-surface {
+    margin-top: 18px;
+    border-top: 1px solid var(--ghos-border);
+    background: #0b1510;
+    overflow: clip;
 }
 
-.ticketing-tabs a:hover {
-    color: var(--ghos-text);
-    background: var(--ghos-surface-muted);
+.operations-intro + .ticketing-surface,
+.desk-intro + .ticketing-surface,
+.settings-nav + .ticketing-surface {
+    margin-top: 18px;
 }
 
-.ticketing-tabs a.active {
-    color: #142116;
-    background: #9BC623;
-}
-
-.ticketing-tabs .open-separate {
-    margin-left: auto;
-    color: var(--ghos-accent-text);
-}
-
-.ticketing-frame-panel {
-    padding: 0;
-    overflow: hidden;
-}
-
-.frame-heading {
-    min-height: 68px;
-    padding: 13px 17px;
-    border-bottom: 1px solid var(--ghos-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.frame-heading h3 {
-    margin: 4px 0 0;
-    font-size: .95rem;
-}
-
-.frame-heading > span {
-    max-width: 360px;
-    font-size: .65rem;
-    line-height: 1.4;
-    text-align: right;
-}
-
-.ticketing-frame-panel iframe {
+.ticketing-surface iframe {
     width: 100%;
-    min-height: 820px;
+    height: 900px;
+    min-height: 720px;
     border: 0;
     background: #0b1510;
     display: block;
+    overflow: hidden;
+}
+
+.section-operations .ticketing-surface {
+    border-top-color: rgba(155, 198, 35, .28);
+}
+
+.section-desk .ticketing-surface {
+    border-top-color: rgba(82, 155, 196, .28);
 }
 
 @media (max-width: 900px) {
+    .ticketing-workspace {
+        margin: -22px -18px -40px;
+        min-height: auto;
+    }
+
     .ticketing-heading {
+        min-height: 0;
+        padding: 24px 20px;
         align-items: flex-start;
         flex-direction: column;
     }
 
-    .ticketing-summary {
-        grid-template-columns: 1fr;
+    .ticketing-heading-actions {
+        width: 100%;
+        flex-wrap: wrap;
     }
 
-    .ticketing-tabs {
-        overflow-x: auto;
+    .ticketing-nav {
+        padding-inline: 16px;
+        top: 0;
     }
 
-    .ticketing-tabs a {
-        flex: 0 0 auto;
+    .nav-group > span {
+        display: none;
     }
 
-    .frame-heading {
+    .operations-intro,
+    .desk-intro,
+    .settings-nav {
+        margin-inline: 18px;
+    }
+
+    .operations-intro {
         align-items: flex-start;
         flex-direction: column;
-    }
-
-    .frame-heading > span {
-        text-align: left;
-    }
-
-    .ticketing-frame-panel iframe {
-        min-height: 760px;
     }
 }
