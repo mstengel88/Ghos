@@ -152,7 +152,7 @@
     background: #0b1510;
     display: block;
     overflow: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
 }
 
 .section-operations .ticketing-surface {
