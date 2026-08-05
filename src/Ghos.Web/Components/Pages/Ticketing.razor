@@ -1,0 +1,101 @@
+@page "/ticketing"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = GhosPolicies.Operations)]
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+<PageTitle>Ticketing | GHOS</PageTitle>
+
+<div class="ticketing-heading">
+    <div>
+        <span class="panel-label">TICKETING OPERATIONS</span>
+        <h2>Ticket Creator</h2>
+        <p>Create, review, print, and monitor Green Hills material tickets without leaving GHOS.</p>
+    </div>
+    <div class="ticketing-status">
+        <i></i>
+        <span>Parallel GHOS deployment</span>
+    </div>
+</div>
+
+<section class="ticketing-summary">
+    <article class="panel">
+        <span>Operations board</span>
+        <strong>Live queue</strong>
+        <small>Recent tickets, billable work, and activity</small>
+    </article>
+    <article class="panel">
+        <span>Ticket desk</span>
+        <strong>Create &amp; print</strong>
+        <small>Customer, order, product, and truck workflow</small>
+    </article>
+    <article class="panel">
+        <span>Loadrite</span>
+        <strong>Onsite relay</strong>
+        <small>Uses the existing secured LCI integration</small>
+    </article>
+</section>
+
+<div class="ticketing-tabs" role="tablist" aria-label="Ticketing workspace">
+    <a class="@(View == TicketingView.Operations ? "active" : null)"
+       href="/ticketing?view=operations">
+        Operations Board
+    </a>
+    <a class="@(View == TicketingView.Desk ? "active" : null)"
+       href="/ticketing?view=desk">
+        Ticket Desk
+    </a>
+    <a class="open-separate"
+       href="@CurrentWorkspaceUrl"
+       target="_blank"
+       rel="noopener noreferrer">
+        Open full screen ↗
+    </a>
+</div>
+
+<section class="panel ticketing-frame-panel">
+    <div class="frame-heading">
+        <div>
+            <span class="panel-label">@(View == TicketingView.Operations ? "OPTION 1 · OPERATIONS BOARD" : "OPTION 2 · TICKET DESK")</span>
+            <h3>@(View == TicketingView.Operations ? "Ticketing at a glance" : "Create and maintain tickets")</h3>
+        </div>
+        <span>Ticket Creator authentication remains protected inside this workspace.</span>
+    </div>
+    <iframe title="@(View == TicketingView.Operations ? "Ticket Creator Operations Board" : "Ticket Creator Desk")"
+            src="@CurrentWorkspaceUrl"
+            allow="clipboard-read; clipboard-write"
+            referrerpolicy="same-origin">
+    </iframe>
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? RequestedView { get; set; }
+
+    private TicketingView View =>
+        string.Equals(RequestedView, "desk", StringComparison.OrdinalIgnoreCase)
+            ? TicketingView.Desk
+            : TicketingView.Operations;
+
+    private string CurrentWorkspaceUrl =>
+        BuildTicketCreatorUrl(View == TicketingView.Operations ? "/home" : "/");
+
+    private string BuildTicketCreatorUrl(string path)
+    {
+        var configuredBaseUrl = Configuration["TicketCreator:PublicUrl"]?.Trim();
+        if (Uri.TryCreate(configuredBaseUrl, UriKind.Absolute, out var configuredUri))
+        {
+            return new Uri(configuredUri, path).ToString();
+        }
+
+        var currentUri = new Uri(Navigation.Uri);
+        var localUri = new UriBuilder(currentUri.Scheme, currentUri.Host, 8084, path);
+        return localUri.Uri.ToString();
+    }
+
+    private enum TicketingView
+    {
+        Operations,
+        Desk
+    }
+}
