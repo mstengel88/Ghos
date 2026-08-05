@@ -95,6 +95,12 @@ evaluated by earlier runs inside the rolling window. It is operational
 visibility, not a pass/fail SEO signal, so it does not raise or lower the
 website health score.
 
+The coverage panel breaks the rolling total into products, collections, pages,
+and blog content. Each page type stores its own percentage and exact evaluated
+and inventory counts. A category with low coverage simply indicates where the
+safe rotating crawl will work next; it does not create an issue or reduce the
+health score.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,

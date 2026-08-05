@@ -1275,6 +1275,48 @@ public sealed class WebsiteHealthMonitorService(
                 1));
     }
 
+    internal static IReadOnlyDictionary<string, CrawlCoverageAnalysis>
+        AnalyzeCrawlCoverageByPageType(
+            IReadOnlyCollection<Uri> sitemapPages,
+            IReadOnlyDictionary<string, DateTime> lastEvaluatedAt,
+            IEnumerable<Uri> currentPages,
+            DateTime cutoffUtc)
+    {
+        var currentPageList = currentPages.ToList();
+        return new Dictionary<string, CrawlCoverageAnalysis>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["products"] = AnalyzeCrawlCoverage(
+                sitemapPages
+                    .Where(page => HasPathPrefix(page, "/products/"))
+                    .ToList(),
+                lastEvaluatedAt,
+                currentPageList,
+                cutoffUtc),
+            ["collections"] = AnalyzeCrawlCoverage(
+                sitemapPages
+                    .Where(page => HasPathPrefix(page, "/collections/"))
+                    .ToList(),
+                lastEvaluatedAt,
+                currentPageList,
+                cutoffUtc),
+            ["pages"] = AnalyzeCrawlCoverage(
+                sitemapPages
+                    .Where(page => HasPathPrefix(page, "/pages/"))
+                    .ToList(),
+                lastEvaluatedAt,
+                currentPageList,
+                cutoffUtc),
+            ["blogs"] = AnalyzeCrawlCoverage(
+                sitemapPages
+                    .Where(page => HasPathPrefix(page, "/blogs/"))
+                    .ToList(),
+                lastEvaluatedAt,
+                currentPageList,
+                cutoffUtc)
+        };
+    }
+
     private static void AddCrawlCoverageObservations(
         Uri baseUri,
         IReadOnlyCollection<Uri> sitemapPages,
@@ -1311,7 +1353,37 @@ public sealed class WebsiteHealthMonitorService(
             "%",
             baseUri.ToString(),
             $"{coverage.CoveredCount} of {coverage.InventoryCount} sitemap pages were evaluated in the last 7 days."));
+
+        var pageTypeCoverage = AnalyzeCrawlCoverageByPageType(
+            sitemapPages,
+            lastEvaluatedAt,
+            currentPages,
+            measuredAtUtc.AddDays(-7));
+        foreach (var definition in new[]
+        {
+            (Key: "products", Label: "Products"),
+            (Key: "collections", Label: "Collections"),
+            (Key: "pages", Label: "Pages"),
+            (Key: "blogs", Label: "Blog content")
+        })
+        {
+            var categoryCoverage = pageTypeCoverage[definition.Key];
+            observations.Add(new Observation(
+                $"crawl-coverage-{definition.Key}",
+                $"{definition.Label} seven-day crawl coverage",
+                "Coverage",
+                WebsiteHealthCheckStatus.Passed,
+                categoryCoverage.CoveragePercent,
+                "%",
+                baseUri.ToString(),
+                $"{categoryCoverage.CoveredCount} of {categoryCoverage.InventoryCount} {definition.Label.ToLowerInvariant()} sitemap pages were evaluated in the last 7 days."));
+        }
     }
+
+    private static bool HasPathPrefix(Uri page, string prefix) =>
+        page.AbsolutePath.StartsWith(
+            prefix,
+            StringComparison.OrdinalIgnoreCase);
 
     private static void EnqueueInternalLinks(
         IEnumerable<Uri> links,
