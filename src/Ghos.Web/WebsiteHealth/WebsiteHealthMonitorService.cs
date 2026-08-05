@@ -3548,7 +3548,9 @@ public sealed class WebsiteHealthMonitorService(
             dbContext.WebsiteHealthMetrics.Add(new WebsiteHealthMetric
             {
                 WebsiteCheckRunId = run.Id,
-                WebsiteCheckId = checkIds.GetValueOrDefault(observation.Key),
+                WebsiteCheckId = ResolveWebsiteCheckId(
+                    checkIds,
+                    observation.Key),
                 Key = observation.Key,
                 Label = observation.Label,
                 Category = observation.Category,
@@ -3560,6 +3562,13 @@ public sealed class WebsiteHealthMonitorService(
             });
         }
     }
+
+    internal static Guid? ResolveWebsiteCheckId(
+        IReadOnlyDictionary<string, Guid> checkIds,
+        string key) =>
+        checkIds.TryGetValue(key, out var checkId)
+            ? checkId
+            : null;
 
     private static async Task SynchronizeIssuesAsync(
         ApplicationDbContext dbContext,
