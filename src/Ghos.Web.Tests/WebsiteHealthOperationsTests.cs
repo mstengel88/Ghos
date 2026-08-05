@@ -148,6 +148,33 @@ public sealed class WebsiteHealthOperationsTests
     }
 
     [Fact]
+    public void MissingMetaDescription_UsesB2bPurposeWhenHeadingIsMismatched()
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.MissingMetaDescription(
+                new Uri(
+                    "https://www.greenhillssupply.com/pages/b2b-portal"),
+                "Modern Retail B2B – Green Hills Supply",
+                "Accessibility Statement – Green Hills Supply",
+                null);
+
+        Assert.NotNull(recommendation.SuggestedValue);
+        Assert.Contains(
+            "contractor house account",
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "payment terms",
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "Accessibility",
+            recommendation.SuggestedValue,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.InRange(recommendation.SuggestedValue.Length, 120, 155);
+    }
+
+    [Fact]
     public void MissingTitle_ProducesBrandedTitleWithinRecommendedLength()
     {
         var recommendation = WebsiteHealthRecommendationBuilder.MissingTitle(
@@ -950,6 +977,38 @@ public sealed class WebsiteHealthOperationsTests
         Assert.Equal("Green Hills Supply", recommendation.CurrentValue);
         Assert.NotEqual(
             recommendation.CurrentValue,
+            recommendation.SuggestedValue);
+    }
+
+    [Theory]
+    [InlineData(
+        "top-10-landscaping-mistakes-homeowners-make-and-how-to-avoid-them",
+        "Top 10 Landscaping Mistakes Homeowners Make (and How to Avoid Them)",
+        "Top 10 Landscaping Mistakes Homeowners Make")]
+    [InlineData(
+        "preparing-your-wisconsin-lawn-for-spring-essential-steps-and-supplies",
+        "Preparing Your Wisconsin Lawn for Spring: Essential Steps and Supplies",
+        "Preparing Your Wisconsin Lawn for Spring")]
+    [InlineData(
+        "how-to-diagnose-common-lawn-problems-diy-lawn-care-tips",
+        "How to Diagnose Common Lawn Problems & DIY Lawn Care Tips",
+        "How to Diagnose Common Lawn Problems & DIY Lawn Care Tips")]
+    public void TitleLength_ProducesCompleteBlogArticleTitles(
+        string slug,
+        string heading,
+        string expected)
+    {
+        var recommendation =
+            WebsiteHealthRecommendationBuilder.TitleLength(
+                new Uri(
+                    $"https://www.greenhillssupply.com/blogs/news/{slug}"),
+                heading,
+                $"{heading} – Green Hills Supply");
+
+        Assert.Equal(expected, recommendation.SuggestedValue);
+        Assert.InRange(recommendation.SuggestedValue!.Length, 20, 60);
+        Assert.DoesNotMatch(
+            @"(?:\band\b|\bfor\b|\bwith\b|\bhow\b|\bto\b|&|\||\(|\[)$",
             recommendation.SuggestedValue);
     }
 

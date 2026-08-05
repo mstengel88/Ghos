@@ -110,6 +110,14 @@ page-specific products, applications, and benefits, decodes HTML entities,
 ends on a word boundary, and remains within 155 characters. Short descriptions
 retain useful existing wording and add page-specific context.
 
+Long blog titles are condensed at complete parenthetical or clause boundaries.
+When the page topic itself fits the recommended title range, GHOS keeps the
+complete topic instead of cutting off words merely to append the store name.
+For page metadata, a title that matches the URL can override an unrelated H1;
+this prevents a reused theme heading from producing recommendations for the
+wrong page. The Green Hills Supply B2B portal also receives contractor-account
+copy based on its live wholesale application purpose.
+
 Metadata-quality findings store and display the current live value next to the
 suggested replacement, with character counts for both. This comparison is
 historical issue data, so managers can review exactly what the scanner observed
