@@ -141,6 +141,86 @@
     text-decoration: none;
 }
 
+.table-head {
+    grid-template-columns: 1fr 1.25fr .9fr .45fr .7fr .8fr .48fr;
+}
+
+.quote-record-row {
+    border-bottom: 1px solid var(--ghos-border);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+}
+
+.quote-record-row .quote-row {
+    border-bottom: 0;
+}
+
+.quote-delete-button {
+    align-self: center;
+    margin-right: 10px;
+    padding: 7px 9px;
+    border: 1px solid color-mix(in srgb, #c84d4d 45%, var(--ghos-border));
+    border-radius: 6px;
+    background: transparent;
+    color: #c84d4d;
+    font-size: .58rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.quote-delete-button:hover {
+    background: color-mix(in srgb, #c84d4d 10%, transparent);
+}
+
+.quote-delete-confirmation {
+    margin: 8px 10px 12px;
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, #c84d4d 45%, var(--ghos-border));
+    border-radius: 8px;
+    background: color-mix(in srgb, #c84d4d 8%, var(--ghos-surface));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.quote-delete-confirmation strong,
+.quote-delete-confirmation span {
+    display: block;
+}
+
+.quote-delete-confirmation strong {
+    font-size: .68rem;
+}
+
+.quote-delete-confirmation span {
+    margin-top: 3px;
+    color: var(--ghos-text-muted);
+    font-size: .58rem;
+}
+
+.quote-delete-confirmation button {
+    min-height: 34px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: .58rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.quote-delete-cancel {
+    border: 1px solid var(--ghos-border);
+    background: var(--ghos-surface);
+    color: var(--ghos-text);
+}
+
+.quote-delete-confirm {
+    border: 1px solid #a93c3c;
+    background: #a93c3c;
+    color: white;
+}
+
 .quote-row:not(.table-head):hover {
     background: var(--ghos-surface-muted);
 }
@@ -212,8 +292,17 @@
         grid-template-columns: 1fr 1.2fr .8fr .7fr;
     }
 
+    .table-head {
+        grid-template-columns: 1fr 1.2fr .8fr .7fr auto;
+    }
+
     .quote-row > span:nth-child(3),
     .quote-row > span:nth-child(4) {
+        display: none;
+    }
+
+    .table-head > span:nth-child(3),
+    .table-head > span:nth-child(4) {
         display: none;
     }
 }
@@ -227,5 +316,13 @@
     .quote-toolbar,
     .quote-summary {
         grid-template-columns: 1fr;
+    }
+
+    .quote-delete-confirmation {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .quote-delete-confirmation > div {
+        grid-column: 1 / -1;
     }
 }
