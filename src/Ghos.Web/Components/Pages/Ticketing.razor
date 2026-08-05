@@ -33,6 +33,7 @@
             <span>WORK</span>
             <a class="@ActiveClass("operations")" href="/ticketing">Operations</a>
             <a class="@ActiveClass("desk")" href="/ticketing/desk">Ticket Desk</a>
+            <a class="@ActiveClass("orders")" href="/ticketing/orders">Orders</a>
             <a class="@ActiveClass("billable")" href="/ticketing/billable">Billable</a>
         </div>
         <div class="nav-group">
@@ -47,29 +48,6 @@
             <a class="@ActiveClass("settings")" href="/ticketing/settings">Settings</a>
         </div>
     </nav>
-
-    @if (ActiveSection == "operations")
-    {
-        <section class="operations-intro">
-            <div>
-                <span class="intro-kicker">OPERATIONS BOARD</span>
-                <strong>Start the day here</strong>
-                <p>Monitor ticket volume, active customers, trucks, and material movement before opening the working queue.</p>
-            </div>
-            <a href="/ticketing/desk">Open Ticket Desk <span>→</span></a>
-        </section>
-    }
-    else if (ActiveSection == "desk")
-    {
-        <section class="desk-intro">
-            <div class="desk-marker">TD</div>
-            <div>
-                <span class="intro-kicker">WORKING CONSOLE</span>
-                <strong>Create, review, print, and close tickets</strong>
-                <p>The Ticket Desk is the focused production workspace. Operations remains your overview.</p>
-            </div>
-        </section>
-    }
 
     @if (ActiveSection == "settings")
     {
@@ -119,6 +97,12 @@
                 "Ticket Desk",
                 "A focused production console for ticket entry, printing, email, and status changes.",
                 "/"),
+            "orders" => (
+                "Ticket Orders",
+                "TICKETING · ORDERS",
+                "Orders",
+                "Review customer orders, allocation balances, and the tickets pulled against each order.",
+                "/orders"),
             "billable" => (
                 "Billable Tickets",
                 "TICKETING · BILLING",
@@ -204,6 +188,7 @@
         section?.ToLowerInvariant() switch
         {
             "desk" => "desk",
+            "orders" => "orders",
             "billable" => "billable",
             "customers" => "customers",
             "products" => "products",

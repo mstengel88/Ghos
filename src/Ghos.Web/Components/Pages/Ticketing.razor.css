@@ -122,88 +122,6 @@
     background: #9BC623;
 }
 
-.operations-intro,
-.desk-intro {
-    margin: 22px 32px 0;
-    padding: 20px 22px;
-    border: 1px solid var(--ghos-border);
-    border-radius: 16px;
-}
-
-.operations-intro {
-    background:
-        linear-gradient(120deg, rgba(155, 198, 35, .13), transparent 55%),
-        var(--ghos-surface);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-}
-
-.operations-intro strong,
-.desk-intro strong {
-    margin-top: 5px;
-    display: block;
-    font-size: 1.15rem;
-}
-
-.operations-intro p,
-.desk-intro p {
-    max-width: 730px;
-    margin: 5px 0 0;
-    color: var(--ghos-text-muted);
-    font-size: .78rem;
-}
-
-.operations-intro > a {
-    min-height: 42px;
-    padding: 0 16px;
-    border-radius: 9px;
-    background: #9BC623;
-    color: #142116;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    font-size: .75rem;
-    font-weight: 900;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.operations-intro > a span {
-    font-size: 1.05rem;
-}
-
-.desk-intro {
-    border-color: rgba(82, 155, 196, .28);
-    background:
-        linear-gradient(120deg, rgba(82, 155, 196, .1), transparent 55%),
-        var(--ghos-surface);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.desk-marker {
-    width: 48px;
-    height: 48px;
-    border: 1px solid rgba(82, 155, 196, .38);
-    border-radius: 13px;
-    background: rgba(82, 155, 196, .12);
-    color: #72b7da;
-    display: grid;
-    place-items: center;
-    font-size: .75rem;
-    font-weight: 900;
-}
-
-.intro-kicker {
-    color: var(--ghos-text-muted);
-    font-size: .58rem;
-    font-weight: 900;
-    letter-spacing: .14em;
-}
-
 .settings-nav {
     margin: 20px 32px 0;
     padding: 5px;
@@ -222,8 +140,6 @@
     overflow: clip;
 }
 
-.operations-intro + .ticketing-surface,
-.desk-intro + .ticketing-surface,
 .settings-nav + .ticketing-surface {
     margin-top: 18px;
 }
@@ -273,14 +189,7 @@
         display: none;
     }
 
-    .operations-intro,
-    .desk-intro,
     .settings-nav {
         margin-inline: 18px;
-    }
-
-    .operations-intro {
-        align-items: flex-start;
-        flex-direction: column;
     }
 }
