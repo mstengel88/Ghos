@@ -215,6 +215,50 @@ public sealed class WebsiteHealthMonitorServiceTests
     }
 
     [Fact]
+    public void AnalyzeCrawlCoverageByPageType_SeparatesStorefrontInventory()
+    {
+        var measuredAtUtc = new DateTime(
+            2026,
+            8,
+            4,
+            18,
+            0,
+            0,
+            DateTimeKind.Utc);
+        var firstProduct =
+            new Uri("https://example.com/products/first");
+        var secondProduct =
+            new Uri("https://example.com/products/second");
+        var collection =
+            new Uri("https://example.com/collections/materials");
+        var page =
+            new Uri("https://example.com/pages/contact");
+        var blog =
+            new Uri("https://example.com/blogs/news/example");
+        var lastEvaluated = new Dictionary<string, DateTime>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [WebsiteHealthMonitorService.NormalizeUrl(firstProduct)] =
+                measuredAtUtc.AddDays(-1),
+            [WebsiteHealthMonitorService.NormalizeUrl(collection)] =
+                measuredAtUtc.AddDays(-8)
+        };
+
+        var result =
+            WebsiteHealthMonitorService.AnalyzeCrawlCoverageByPageType(
+                [firstProduct, secondProduct, collection, page, blog],
+                lastEvaluated,
+                [secondProduct, page],
+                measuredAtUtc.AddDays(-7));
+
+        Assert.Equal(100m, result["products"].CoveragePercent);
+        Assert.Equal(2, result["products"].CoveredCount);
+        Assert.Equal(0m, result["collections"].CoveragePercent);
+        Assert.Equal(100m, result["pages"].CoveragePercent);
+        Assert.Equal(0m, result["blogs"].CoveragePercent);
+    }
+
+    [Fact]
     public void ResolveWebsiteCheckId_ReturnsNullForOperationalMetric()
     {
         var configuredCheckId = Guid.NewGuid();

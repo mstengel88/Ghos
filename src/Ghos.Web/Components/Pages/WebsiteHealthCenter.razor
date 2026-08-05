@@ -138,6 +138,40 @@ else
         }
     </section>
 
+    var coverageCards = GetCoverageCards();
+    @if (coverageCards.Count > 0)
+    {
+        <section class="panel coverage-panel">
+            <div class="panel-heading">
+                <div>
+                    <span class="panel-label">CRAWL COVERAGE</span>
+                    <h3>Pages evaluated in the last 7 days</h3>
+                </div>
+                <span>Rotates through the live sitemap</span>
+            </div>
+            <div class="coverage-grid">
+                @foreach (var card in coverageCards)
+                {
+                    <article class="coverage-card">
+                        <div>
+                            <span>@card.Name</span>
+                            <strong>@card.Percent.ToString("0.0")%</strong>
+                        </div>
+                        <div class="coverage-track"
+                             role="progressbar"
+                             aria-label="@($"{card.Name} crawl coverage")"
+                             aria-valuemin="0"
+                             aria-valuemax="100"
+                             aria-valuenow="@card.Percent">
+                            <i style="width:@Math.Clamp(card.Percent, 0, 100)%"></i>
+                        </div>
+                        <small>@card.Detail</small>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
     <div class="health-layout">
         <section class="panel issues-panel">
             <div class="panel-heading">
@@ -437,6 +471,32 @@ else
         return metric?.Detail ?? "Waiting for sitemap coverage data";
     }
 
+    private IReadOnlyList<CoverageCardModel> GetCoverageCards()
+    {
+        var definitions = new[]
+        {
+            (Key: "crawl-coverage-products", Name: "Products"),
+            (Key: "crawl-coverage-collections", Name: "Collections"),
+            (Key: "crawl-coverage-pages", Name: "Pages"),
+            (Key: "crawl-coverage-blogs", Name: "Blog content")
+        };
+        return definitions
+            .Select(definition =>
+            {
+                var metric = LatestMetrics.FirstOrDefault(
+                    item => item.Key == definition.Key);
+                return metric is null
+                    ? null
+                    : new CoverageCardModel(
+                        definition.Name,
+                        metric.NumericValue ?? 0,
+                        metric.Detail ?? "No coverage detail recorded.");
+            })
+            .Where(card => card is not null)
+            .Cast<CoverageCardModel>()
+            .ToList();
+    }
+
     private static string ScoreClass(decimal score) => score switch
     {
         >= 90 => "healthy",
@@ -472,4 +532,9 @@ else
         string? Key,
         string? Category,
         string Description);
+
+    private sealed record CoverageCardModel(
+        string Name,
+        decimal Percent,
+        string Detail);
 }
