@@ -214,6 +214,27 @@ public sealed class WebsiteHealthMonitorServiceTests
         Assert.Equal(66.7m, result.CoveragePercent);
     }
 
+    [Fact]
+    public void ResolveWebsiteCheckId_ReturnsNullForOperationalMetric()
+    {
+        var configuredCheckId = Guid.NewGuid();
+        var checkIds = new Dictionary<string, Guid>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["homepage"] = configuredCheckId
+        };
+
+        Assert.Equal(
+            configuredCheckId,
+            WebsiteHealthMonitorService.ResolveWebsiteCheckId(
+                checkIds,
+                "homepage"));
+        Assert.Null(
+            WebsiteHealthMonitorService.ResolveWebsiteCheckId(
+                checkIds,
+                "crawl-coverage"));
+    }
+
     [Theory]
     [InlineData(408, true)]
     [InlineData(429, true)]
