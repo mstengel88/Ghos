@@ -101,6 +101,22 @@ public sealed class ShopifyDraftOrderService(
         AddIfPresent(input, "email", quote.Email);
         AddIfPresent(input, "phone", quote.Phone);
 
+        if (HasShopifyPurchasingCompany(quote))
+        {
+            input["purchasingEntity"] = new Dictionary<string, object?>
+            {
+                ["purchasingCompany"] =
+                    new Dictionary<string, object?>
+                    {
+                        ["companyId"] = quote.ShopifyCompanyId,
+                        ["companyContactId"] =
+                            quote.ShopifyCompanyContactId,
+                        ["companyLocationId"] =
+                            quote.ShopifyCompanyLocationId
+                    }
+            };
+        }
+
         var deliveryAmount = ResolveDeliveryAmount(quote);
         if (deliveryAmount > 0)
         {
@@ -145,6 +161,17 @@ public sealed class ShopifyDraftOrderService(
         }
 
         return input;
+    }
+
+    internal static bool HasShopifyPurchasingCompany(
+        CustomerQuote quote)
+    {
+        return
+            !string.IsNullOrWhiteSpace(quote.ShopifyCompanyId) &&
+            !string.IsNullOrWhiteSpace(
+                quote.ShopifyCompanyContactId) &&
+            !string.IsNullOrWhiteSpace(
+                quote.ShopifyCompanyLocationId);
     }
 
     internal static Dictionary<string, object?> BuildLineItem(
