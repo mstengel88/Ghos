@@ -106,6 +106,80 @@ public sealed class ShopifyDraftOrderPayloadTests
             MoneyAmount(shippingLine, "priceWithCurrency"));
     }
 
+    [Fact]
+    public void DraftInput_WithB2BIds_AssignsPurchasingCompany()
+    {
+        var input = ShopifyDraftOrderService.BuildInput(
+            new CustomerQuote
+            {
+                QuoteNumber = "GH-B2B-TEST",
+                CustomerName = "Company Contact",
+                CompanyName = "Sawall Development",
+                Email = "contact@example.com",
+                ShopifyCompanyId =
+                    "gid://shopify/Company/100",
+                ShopifyCompanyContactId =
+                    "gid://shopify/CompanyContact/200",
+                ShopifyCompanyLocationId =
+                    "gid://shopify/CompanyLocation/300",
+                Lines =
+                [
+                    new CustomerQuoteLine
+                    {
+                        Description = "#3 Stone",
+                        ShopifyVariantIdSnapshot =
+                            "gid://shopify/ProductVariant/123",
+                        Quantity = 22m,
+                        UnitPrice = 22.94m,
+                        UnitLabel = "PER TON",
+                        PricingLabel = "Contractor Tier 2"
+                    }
+                ]
+            });
+
+        var purchasingEntity = Assert.IsAssignableFrom<
+            IReadOnlyDictionary<string, object?>>(
+                input["purchasingEntity"]);
+        var purchasingCompany = Assert.IsAssignableFrom<
+            IReadOnlyDictionary<string, object?>>(
+                purchasingEntity["purchasingCompany"]);
+
+        Assert.Equal(
+            "gid://shopify/Company/100",
+            purchasingCompany["companyId"]);
+        Assert.Equal(
+            "gid://shopify/CompanyContact/200",
+            purchasingCompany["companyContactId"]);
+        Assert.Equal(
+            "gid://shopify/CompanyLocation/300",
+            purchasingCompany["companyLocationId"]);
+    }
+
+    [Fact]
+    public void DraftInput_WithoutCompleteB2BIds_DoesNotAssignCompany()
+    {
+        var input = ShopifyDraftOrderService.BuildInput(
+            new CustomerQuote
+            {
+                QuoteNumber = "GH-RETAIL-TEST",
+                ShopifyCompanyId =
+                    "gid://shopify/Company/100",
+                Lines =
+                [
+                    new CustomerQuoteLine
+                    {
+                        Description = "Material",
+                        Quantity = 1m,
+                        UnitPrice = 10m,
+                        UnitLabel = "each",
+                        PricingLabel = "Customer"
+                    }
+                ]
+            });
+
+        Assert.DoesNotContain("purchasingEntity", input.Keys);
+    }
+
     private static object? MoneyAmount(
         IReadOnlyDictionary<string, object?> item,
         string key)
