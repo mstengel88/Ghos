@@ -784,6 +784,13 @@ internal static class WebsiteHealthRecommendationBuilder
             description =
                 "Read landscaping tips, material guides, seasonal advice, and company updates from the team at Green Hills Supply.";
         }
+        else if (path.Equals(
+            "/pages/b2b-portal",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            description =
+                "Apply for a Green Hills Supply contractor house account with business billing, payment terms, and tax-exemption options for approved customers.";
+        }
         else if (path.StartsWith(
             "/collections/",
             StringComparison.OrdinalIgnoreCase))
@@ -991,11 +998,19 @@ internal static class WebsiteHealthRecommendationBuilder
 
     private static string BuildTitle(Uri url, string? heading)
     {
-        var topic = GetPageTopic(url, heading, null);
-        var title = url.AbsolutePath == "/"
-            ? "Green Hills Supply | Landscape & Outdoor Materials"
-            : $"{topic} | {BrandName}";
-        return TruncateAtWord(title, 60);
+        if (url.AbsolutePath == "/")
+        {
+            return "Green Hills Supply | Landscape & Outdoor Materials";
+        }
+
+        var topic = CondenseTitleTopic(
+            !string.IsNullOrWhiteSpace(heading)
+                ? heading
+                : GetPageTopic(url, null, null));
+        var branded = $"{topic} | {BrandName}";
+        return branded.Length <= 60
+            ? branded
+            : topic;
     }
 
     private static string BuildTailoredTitle(
@@ -1013,7 +1028,7 @@ internal static class WebsiteHealthRecommendationBuilder
             .Where(segment => segment.Length > 0)
             .ToList();
         var headingTopic = !string.IsNullOrWhiteSpace(heading)
-            ? GetPageTopic(url, heading, null)
+            ? CondenseTitleTopic(heading)
             : null;
         var currentTopic = segments.FirstOrDefault();
         var topic = BuildTailoredTitleTopic(
@@ -1036,6 +1051,39 @@ internal static class WebsiteHealthRecommendationBuilder
         return branded.Length <= 60
             ? branded
             : tailored;
+    }
+
+    private static string CondenseTitleTopic(string value)
+    {
+        var topic = NormalizeText(value);
+        if (topic.Length <= 60)
+        {
+            return topic;
+        }
+
+        var withoutParenthetical = Regex.Replace(
+            topic,
+            @"\s*\([^)]*\)\s*$",
+            "").Trim();
+        if (withoutParenthetical.Length is >= 20 and <= 60)
+        {
+            return withoutParenthetical;
+        }
+
+        var clause = topic
+            .Split(
+                [':', '–', '—'],
+                2,
+                StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+        if (clause?.Length is >= 20 and <= 60)
+        {
+            return clause;
+        }
+
+        return TrimDanglingTitleWords(
+            TruncateAtWord(topic, 60))
+            .TrimEnd('(', '[', '{');
     }
 
     private static string BuildTailoredTitleTopic(
@@ -1217,7 +1265,7 @@ internal static class WebsiteHealthRecommendationBuilder
         string? heading,
         string? title)
     {
-        var candidate = FirstMeaningful(heading, title);
+        var candidate = SelectPageTopicSource(url, heading, title);
         if (!string.IsNullOrWhiteSpace(candidate))
         {
             var withoutBrand = candidate.Replace(
@@ -1236,6 +1284,42 @@ internal static class WebsiteHealthRecommendationBuilder
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
             .LastOrDefault() ?? "Website";
         return HumanizeSlug(slug);
+    }
+
+    private static string? SelectPageTopicSource(
+        Uri url,
+        string? heading,
+        string? title)
+    {
+        var normalizedHeading = NormalizeText(heading);
+        var normalizedTitle = NormalizeText(title);
+        if (normalizedHeading.Length >= 3 &&
+            normalizedTitle.Length >= 3 &&
+            MatchesUrlTopic(url, normalizedTitle) &&
+            !MatchesUrlTopic(url, normalizedHeading))
+        {
+            return normalizedTitle;
+        }
+
+        return FirstMeaningful(normalizedHeading, normalizedTitle);
+    }
+
+    private static bool MatchesUrlTopic(Uri url, string value)
+    {
+        var normalizedValue = NormalizeText(value)
+            .ToLowerInvariant();
+        var slug = url.AbsolutePath
+            .Split('/', StringSplitOptions.RemoveEmptyEntries)
+            .LastOrDefault() ?? "";
+        var slugTerms = Regex
+            .Split(WebUtility.UrlDecode(slug).ToLowerInvariant(), @"[^a-z0-9]+")
+            .Where(term =>
+                term.Length >= 3 &&
+                term is not ("page" or "portal" or "green" or "hills" or
+                    "supply"))
+            .ToList();
+        return slugTerms.Count > 0 &&
+            slugTerms.Any(normalizedValue.Contains);
     }
 
     private static string BuildImageAltText(
