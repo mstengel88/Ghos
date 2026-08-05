@@ -180,6 +180,40 @@ public sealed class WebsiteHealthMonitorServiceTests
         Assert.Equal(unseenCollection, ordered[2]);
     }
 
+    [Fact]
+    public void AnalyzeCrawlCoverage_CombinesRecentHistoryAndCurrentRun()
+    {
+        var measuredAtUtc = new DateTime(
+            2026,
+            8,
+            4,
+            18,
+            0,
+            0,
+            DateTimeKind.Utc);
+        var first = new Uri("https://example.com/products/first");
+        var second = new Uri("https://example.com/products/second");
+        var third = new Uri("https://example.com/collections/third");
+        var lastEvaluated = new Dictionary<string, DateTime>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            [WebsiteHealthMonitorService.NormalizeUrl(first)] =
+                measuredAtUtc.AddDays(-2),
+            [WebsiteHealthMonitorService.NormalizeUrl(second)] =
+                measuredAtUtc.AddDays(-8)
+        };
+
+        var result = WebsiteHealthMonitorService.AnalyzeCrawlCoverage(
+            [first, second, third],
+            lastEvaluated,
+            [third],
+            measuredAtUtc.AddDays(-7));
+
+        Assert.Equal(3, result.InventoryCount);
+        Assert.Equal(2, result.CoveredCount);
+        Assert.Equal(66.7m, result.CoveragePercent);
+    }
+
     [Theory]
     [InlineData(408, true)]
     [InlineData(429, true)]

@@ -389,6 +389,11 @@ else
             null,
             $"{LatestRun!.LinksChecked} URLs checked"),
         new(
+            "Crawl coverage",
+            "crawl-coverage",
+            null,
+            GetCrawlCoverageDescription()),
+        new(
             "Page content",
             null,
             "Content",
@@ -412,12 +417,24 @@ else
             return $"{metric.NumericValue:0} ms";
         }
 
+        if (metric.Key == "crawl-coverage" && metric.NumericValue is not null)
+        {
+            return $"{metric.NumericValue:0.0}% in 7 days";
+        }
+
         return metric.Status switch
         {
             WebsiteHealthCheckStatus.Passed => "Healthy",
             WebsiteHealthCheckStatus.Warning => "Review",
             _ => "Failed"
         };
+    }
+
+    private string GetCrawlCoverageDescription()
+    {
+        var metric = LatestMetrics.FirstOrDefault(
+            item => item.Key == "crawl-coverage");
+        return metric?.Detail ?? "Waiting for sitemap coverage data";
     }
 
     private static string ScoreClass(decimal score) => score switch

@@ -87,6 +87,14 @@ them. Within each content category, pages that have never been evaluated are
 queued before recently checked pages, allowing recurring 25-page runs to
 expand coverage over time without turning one run into an unbounded crawl.
 
+Each completed run also persists the eligible sitemap inventory and rolling
+seven-day crawl coverage. The dashboard reports both the percentage and exact
+page count, such as `100 of 151 sitemap pages were evaluated in the last 7
+days`. Coverage includes pages checked during the current run and pages
+evaluated by earlier runs inside the rolling window. It is operational
+visibility, not a pass/fail SEO signal, so it does not raise or lower the
+website health score.
+
 For an overlong meta description, GHOS condenses the page's current live copy
 instead of replacing it with a generic category template. The result preserves
 page-specific products, applications, and benefits, decodes HTML entities,
