@@ -1,8 +1,10 @@
 # One absolute path per line. Missing required paths fail the backup.
-/opt/ghos/compose.yml
-/opt/ghos/.env
-/opt/ghos/assets
-/opt/ghos/src
+# Protect the complete GHOS application tree. This automatically includes new
+# applications, compose definitions, encrypted runtime configuration, assets,
+# Portainer state, and operational configuration added below /opt/ghos.
+# Live PostgreSQL and Redis files remain excluded in excludes.txt; PostgreSQL
+# is protected using consistent logical dumps instead.
+/opt/ghos
 /etc/ghos-backup
 
 # Add each self-hosted Supabase stack and its Storage object root:

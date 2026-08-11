@@ -56,7 +56,7 @@ if [[ -r "$APP_ENV_FILE" ]]; then
   fi
 fi
 
-for command_name in ghos-backup ghos-backup-init ghos-backup-maintenance ghos-backup-restore-drill ghos-backup-watchdog ghos-backup-configure-b2; do
+for command_name in ghos-backup ghos-backup-audit ghos-backup-register-current-workloads ghos-backup-init ghos-backup-maintenance ghos-backup-restore-drill ghos-backup-watchdog ghos-backup-configure-b2; do
   ln -sfn "$BIN_DIR/bin/$command_name" "/usr/local/sbin/$command_name"
 done
 

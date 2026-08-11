@@ -97,6 +97,21 @@ sudo /usr/local/sbin/ghos-backup
 sudo /usr/local/sbin/ghos-backup-restore-drill
 ```
 
+Whenever an application or database is added under `/opt/ghos`, reconcile and
+verify backup coverage before considering its deployment complete:
+
+```bash
+sudo /usr/local/sbin/ghos-backup-register-current-workloads
+sudo /usr/local/sbin/ghos-backup-audit
+```
+
+The normal backup also runs the audit and fails visibly rather than silently
+omitting an unregistered PostgreSQL database or persistent Docker mount. The
+standard source boundary is the complete `/opt/ghos` tree, while live database
+files and rebuildable Redis cache files remain excluded in favor of consistent
+PostgreSQL logical dumps. The monthly restore drill restores and queries every
+configured database by default.
+
 Only after the backup and restore drill both succeed, enable the schedules:
 
 ```bash

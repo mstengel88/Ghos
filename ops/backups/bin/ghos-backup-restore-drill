@@ -22,13 +22,13 @@ exec 9>"$LOCK_FILE"
 flock -n 9 || die "A GHOS backup or maintenance operation is already running."
 
 repository_name="${RESTORE_DRILL_REPOSITORY:-local}"
-database_name="${RESTORE_DRILL_DATABASE:-ghos}"
+database_name="${RESTORE_DRILL_DATABASE:-all}"
 restore_root="$(mktemp -d "$BACKUP_ROOT/restore-drill.XXXXXXXX")"
-container_name="ghos-restore-drill-$(date +%s)"
+container_name=""
 drill_password="restore-drill-only"
 
 cleanup() {
-  docker rm -f "$container_name" >/dev/null 2>&1 || true
+  [[ -z "$container_name" ]] || docker rm -f "$container_name" >/dev/null 2>&1 || true
   if [[ -d "$restore_root" && "$restore_root" == "$BACKUP_ROOT"/restore-drill.* ]]; then
     find "$restore_root" -depth -delete
   fi
@@ -42,37 +42,53 @@ restic restore latest \
   --host "$BACKUP_HOST_TAG" \
   --tag ghos-automatic \
   --target "$restore_root" \
-  --include "**/databases/$database_name.dump" \
-  --include "**/databases/$database_name-postgres-image"
+  --include '**/databases/*.dump' \
+  --include '**/databases/*-postgres-image'
 
-dump_file="$(find "$restore_root" -type f -path "*/databases/$database_name.dump" -print -quit)"
-image_file="$(find "$restore_root" -type f -path "*/databases/$database_name-postgres-image" -print -quit)"
-[[ -n "$dump_file" && -s "$dump_file" ]] || die "Latest snapshot does not contain $database_name.dump"
-[[ -n "$image_file" && -s "$image_file" ]] || die "Latest snapshot does not identify the PostgreSQL image."
-postgres_image="$(cat "$image_file")"
+mapfile -t configured_names < <(
+  while IFS='|' read -r backup_name _; do
+    if [[ "$database_name" == all || "$database_name" == "$backup_name" ]]; then
+      printf '%s\n' "$backup_name"
+    fi
+  done < <(each_config_line "$DATABASES_FILE")
+)
+(( ${#configured_names[@]} > 0 )) ||
+  die "No configured database matches restore drill selection '$database_name'."
 
-docker run -d --rm \
-  --name "$container_name" \
-  -e "POSTGRES_PASSWORD=$drill_password" \
-  "$postgres_image" >/dev/null
+for backup_name in "${configured_names[@]}"; do
+  dump_file="$(find "$restore_root" -type f -path "*/databases/$backup_name.dump" -print -quit)"
+  image_file="$(find "$restore_root" -type f -path "*/databases/$backup_name-postgres-image" -print -quit)"
+  [[ -n "$dump_file" && -s "$dump_file" ]] || die "Latest snapshot does not contain $backup_name.dump"
+  [[ -n "$image_file" && -s "$image_file" ]] || die "Latest snapshot does not identify the PostgreSQL image for $backup_name."
+  postgres_image="$(cat "$image_file")"
+  container_name="ghos-restore-drill-${backup_name//[^a-zA-Z0-9_.-]/-}-$(date +%s)"
 
-for _ in $(seq 1 60); do
-  if docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
-    break
-  fi
-  sleep 2
+  docker run -d --rm \
+    --name "$container_name" \
+    -e "POSTGRES_PASSWORD=$drill_password" \
+    "$postgres_image" >/dev/null
+
+  for _ in $(seq 1 60); do
+    if docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+  docker exec "$container_name" pg_isready -U postgres >/dev/null
+  docker exec "$container_name" createdb -U postgres restore_drill
+  docker exec -i "$container_name" \
+    pg_restore --exit-on-error --no-owner --no-acl -U postgres -d restore_drill <"$dump_file"
+  docker exec "$container_name" \
+    psql -v ON_ERROR_STOP=1 -U postgres -d restore_drill \
+    -c 'select current_database(), count(*) as schema_count from information_schema.schemata;' >/dev/null
+  docker rm -f "$container_name" >/dev/null
+  container_name=""
+  printf "Restore drill passed for database '%s'.\n" "$backup_name"
 done
-docker exec "$container_name" pg_isready -U postgres >/dev/null
-docker exec "$container_name" createdb -U postgres restore_drill
-docker exec -i "$container_name" \
-  pg_restore --exit-on-error --no-owner --no-acl -U postgres -d restore_drill <"$dump_file"
-docker exec "$container_name" \
-  psql -v ON_ERROR_STOP=1 -U postgres -d restore_drill \
-  -c 'select current_database(), count(*) as schema_count from information_schema.schemata;' >/dev/null
 
 write_status success restore-drill \
-  "Database '$database_name' restored and queried from repository '$repository_name'."
+  "All selected databases restored and queried from repository '$repository_name'."
 notify_status success restore-drill \
-  "Database '$database_name' restored and queried from repository '$repository_name'." || true
-printf "Restore drill passed for database '%s' from repository '%s'.\n" \
-  "$database_name" "$repository_name"
+  "All selected databases restored and queried from repository '$repository_name'." || true
+printf "Restore drill passed for %d database(s) from repository '%s'.\n" \
+  "${#configured_names[@]}" "$repository_name"

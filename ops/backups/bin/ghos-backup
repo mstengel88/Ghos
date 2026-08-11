@@ -18,6 +18,12 @@ require_command sha256sum
 require_command flock
 load_backup_config
 
+# Refuse to create a green backup that silently omits a newly introduced
+# database, persistent volume, or bind-mounted application path.
+if command -v ghos-backup-audit >/dev/null 2>&1; then
+  ghos-backup-audit --quiet
+fi
+
 ensure_private_directory "$BACKUP_ROOT"
 ensure_private_directory "$STATUS_DIR"
 

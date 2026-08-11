@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+umask 077
+
+if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
+  # shellcheck source=/dev/null
+  source /usr/local/lib/ghos-backup/lib/backup-common.sh
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=ops/backups/lib/backup-common.sh
+  source "$SCRIPT_DIR/../lib/backup-common.sh"
+fi
+
+require_root
+require_command docker
+load_backup_config
+
+quiet=false
+[[ "${1:-}" == "--quiet" ]] && quiet=true
+problems=0
+
+problem() {
+  printf 'BACKUP COVERAGE ERROR: %s\n' "$*" >&2
+  problems=$((problems + 1))
+}
+
+path_is_covered() {
+  local candidate="$1"
+  local source_path
+  while IFS= read -r source_path; do
+    [[ "$candidate" == "$source_path" || "$candidate" == "$source_path"/* ]] && return 0
+  done < <(each_config_line "$SOURCE_PATHS_FILE")
+  return 1
+}
+
+path_is_covered /opt/ghos || problem '/opt/ghos is not included in source-paths.conf'
+path_is_covered /etc/ghos-backup || problem '/etc/ghos-backup is not included in source-paths.conf'
+
+declare -A configured_databases=()
+while IFS='|' read -r _ _ _ _ database_name _; do
+  [[ -n "$database_name" ]] && configured_databases["$database_name"]=1
+done < <(each_config_line "$DATABASES_FILE")
+
+while IFS= read -r database_name; do
+  [[ -n "$database_name" ]] || continue
+  [[ -n "${configured_databases[$database_name]:-}" ]] ||
+    problem "local PostgreSQL database '$database_name' is not configured for a logical dump"
+done < <(
+  docker compose -f /opt/ghos/compose.yml exec -T postgres \
+    psql -U ghosadmin -d postgres -Atc \
+      'select datname from pg_database where not datistemplate order by datname'
+)
+
+mapfile -t running_containers < <(docker ps -q)
+while IFS='|' read -r container mount_type source destination; do
+  [[ -n "$container" ]] || continue
+  if [[ "$mount_type" == bind ]]; then
+    [[ "$source" == /var/run/docker.sock ]] && continue
+    path_is_covered "$source" ||
+      problem "bind mount for $container is outside protected paths: $source -> $destination"
+  elif [[ "$mount_type" == volume ]]; then
+    if ! each_config_line "$VOLUME_EXPORTS_FILE" |
+      awk -F '|' -v path="$destination" '$4 == path { found=1 } END { exit !found }'; then
+      problem "named volume for $container is not configured for export: $destination"
+    fi
+  fi
+done < <(
+  if (( ${#running_containers[@]} > 0 )); then
+    docker inspect "${running_containers[@]}" --format \
+      '{{range .Mounts}}{{$.Name}}|{{.Type}}|{{.Source}}|{{.Destination}}{{"\n"}}{{end}}' |
+      sed 's#^/##'
+  fi
+)
+
+if ((problems > 0)); then
+  printf 'Backup coverage audit failed with %d problem(s).\n' "$problems" >&2
+  exit 1
+fi
+
+if [[ "$quiet" != true ]]; then
+  printf 'Backup coverage audit passed: application tree, local databases, and active persistent mounts are protected.\n'
+fi
