@@ -34,6 +34,23 @@ public sealed class ShopifyDraftOrderClient(
         }
         """;
 
+    private const string UpdateMutation = """
+        mutation GhosDraftOrderUpdate($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder {
+              id
+              name
+              legacyResourceId
+              invoiceUrl
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """;
+
     private static readonly JsonSerializerOptions JsonOptions =
         new(JsonSerializerDefaults.Web);
     private readonly ShopifyOptions _options = options.Value;
@@ -42,11 +59,46 @@ public sealed class ShopifyDraftOrderClient(
         IReadOnlyDictionary<string, object?> input,
         CancellationToken cancellationToken = default)
     {
+        return await SendAsync(
+            CreateMutation,
+            new Dictionary<string, object?> { ["input"] = input },
+            isUpdate: false,
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task<ShopifyDraftOrderCreateResult> UpdateAsync(
+        string draftOrderId,
+        IReadOnlyDictionary<string, object?> input,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(draftOrderId))
+        {
+            throw new ArgumentException(
+                "A Shopify draft-order ID is required.",
+                nameof(draftOrderId));
+        }
+
+        return await SendAsync(
+            UpdateMutation,
+            new Dictionary<string, object?>
+            {
+                ["id"] = draftOrderId,
+                ["input"] = input
+            },
+            isUpdate: true,
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task<ShopifyDraftOrderCreateResult> SendAsync(
+        string mutation,
+        IReadOnlyDictionary<string, object?> variables,
+        bool isUpdate,
+        CancellationToken cancellationToken)
+    {
+        var operation = isUpdate ? "update" : "create";
         var accessToken =
             await accessTokenProvider.GetAccessTokenAsync(cancellationToken);
-        var payload = new GraphQlRequest(
-            CreateMutation,
-            new Dictionary<string, object?> { ["input"] = input });
+        var payload = new GraphQlRequest(mutation, variables);
 
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -67,8 +119,9 @@ public sealed class ShopifyDraftOrderClient(
         if (!response.IsSuccessStatusCode)
         {
             logger.LogWarning(
-                "Shopify returned HTTP {StatusCode} while creating a draft order.",
-                (int)response.StatusCode);
+                "Shopify returned HTTP {StatusCode} while {Operation} a draft order.",
+                (int)response.StatusCode,
+                isUpdate ? "updating" : "creating");
             throw new ShopifyConnectionException(
                 $"Shopify rejected the draft-order request with HTTP {(int)response.StatusCode}.");
         }
@@ -89,10 +142,12 @@ public sealed class ShopifyDraftOrderClient(
                 "Shopify draft-order GraphQL errors: {Errors}",
                 message);
             throw new ShopifyConnectionException(
-                $"Shopify could not create the draft order: {message}");
+                $"Shopify could not {operation} the draft order: {message}");
         }
 
-        var result = graphQlResponse.Data?.DraftOrderCreate
+        var result = (isUpdate
+            ? graphQlResponse.Data?.DraftOrderUpdate
+            : graphQlResponse.Data?.DraftOrderCreate)
             ?? throw new ShopifyConnectionException(
                 "Shopify did not return a draft-order result.");
 
@@ -105,12 +160,12 @@ public sealed class ShopifyDraftOrderClient(
                         ? error.Message
                         : $"{error.FieldText}: {error.Message}"));
             throw new ShopifyConnectionException(
-                $"Shopify could not create the draft order: {message}");
+                $"Shopify could not {operation} the draft order: {message}");
         }
 
         var draftOrder = result.DraftOrder
             ?? throw new ShopifyConnectionException(
-                "Shopify did not return the created draft order.");
+                "Shopify did not return the saved draft order.");
         var storeName = _options.StoreDomain
             .Split('.', 2, StringSplitOptions.RemoveEmptyEntries)[0];
         var adminUrl =
@@ -140,6 +195,9 @@ public sealed class ShopifyDraftOrderClient(
     {
         [JsonPropertyName("draftOrderCreate")]
         public DraftOrderCreatePayload? DraftOrderCreate { get; init; }
+
+        [JsonPropertyName("draftOrderUpdate")]
+        public DraftOrderCreatePayload? DraftOrderUpdate { get; init; }
     }
 
     private sealed class DraftOrderCreatePayload

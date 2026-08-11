@@ -7,7 +7,7 @@ public sealed record ShopifyQuoteDraftResult(
     string Id,
     string Name,
     string AdminUrl,
-    bool AlreadyCreated);
+    bool UpdatedExisting);
 
 public sealed class ShopifyDraftOrderService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
@@ -29,16 +29,6 @@ public sealed class ShopifyDraftOrderService(
             ?? throw new InvalidOperationException(
                 "The GHOS quote could not be found.");
 
-        if (!string.IsNullOrWhiteSpace(quote.ShopifyDraftOrderId) &&
-            !string.IsNullOrWhiteSpace(quote.ShopifyDraftOrderUrl))
-        {
-            return new ShopifyQuoteDraftResult(
-                quote.ShopifyDraftOrderId,
-                quote.QuoteNumber,
-                quote.ShopifyDraftOrderUrl,
-                true);
-        }
-
         if (quote.Lines.Count == 0 ||
             quote.Lines.All(line => line.Quantity <= 0))
         {
@@ -47,22 +37,29 @@ public sealed class ShopifyDraftOrderService(
         }
 
         var input = BuildInput(quote);
-        var created = await shopifyClient.CreateAsync(
-            input,
-            cancellationToken);
+        var updatingExisting =
+            !string.IsNullOrWhiteSpace(quote.ShopifyDraftOrderId);
+        var saved = updatingExisting
+            ? await shopifyClient.UpdateAsync(
+                quote.ShopifyDraftOrderId!,
+                input,
+                cancellationToken)
+            : await shopifyClient.CreateAsync(
+                input,
+                cancellationToken);
 
-        quote.ShopifyDraftOrderId = created.Id;
-        quote.ShopifyDraftOrderUrl = created.AdminUrl;
+        quote.ShopifyDraftOrderId = saved.Id;
+        quote.ShopifyDraftOrderUrl = saved.AdminUrl;
         quote.Status = QuoteStatus.ReadyForReview;
         quote.UpdatedAtUtc = DateTime.UtcNow;
         quote.UpdatedByUserId = userId;
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new ShopifyQuoteDraftResult(
-            created.Id,
-            created.Name,
-            created.AdminUrl,
-            false);
+            saved.Id,
+            saved.Name,
+            saved.AdminUrl,
+            updatingExisting);
     }
 
     internal static Dictionary<string, object?> BuildInput(
