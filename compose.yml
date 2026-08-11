@@ -87,8 +87,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      docker-status-proxy:
+        condition: service_started
     networks:
       - ghos-internal
+
+  docker-status-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: ghos-docker-status-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      INFO: 1
+      PING: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ghos-internal
+    tmpfs:
+      - /run
+    security_opt:
+      - no-new-privileges:true
 
   portainer:
     image: portainer/portainer-ce:latest

@@ -2,7 +2,9 @@
 @rendermode InteractiveServer
 @attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
+@using Ghos.Web.SystemHealth
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject SystemHealthMonitorService SystemHealthMonitor
 
 <PageTitle>Dashboard | GHOS</PageTitle>
 
@@ -131,6 +133,90 @@
         </div>
     </section>
 
+    <section class="panel large-panel service-health-panel">
+        <div class="panel-header">
+            <div>
+                <span class="panel-label">PLATFORM HEALTH</span>
+                <h3>Applications and containers</h3>
+            </div>
+            <div class="health-header-actions">
+                <span class="health-summary">@SystemHealthSummary</span>
+                <button class="health-refresh"
+                        type="button"
+                        disabled="@IsSystemHealthLoading"
+                        @onclick="RefreshSystemHealthAsync">
+                    @(IsSystemHealthLoading ? "Checking…" : "Refresh health")
+                </button>
+            </div>
+        </div>
+
+        @if (SystemHealth is null && IsSystemHealthLoading)
+        {
+            <div class="health-loading">Checking application endpoints and Docker containers…</div>
+        }
+        else if (SystemHealth is null)
+        {
+            <div class="health-error">@SystemHealthError</div>
+        }
+        else
+        {
+            <div class="application-health-grid">
+                @foreach (var application in SystemHealth.Applications)
+                {
+                    <article class="application-health-card @(application.IsHealthy ? "is-healthy" : "is-failed")">
+                        <div>
+                            <span class="health-state-dot"></span>
+                            <span>
+                                <strong>@application.Name</strong>
+                                <small>@application.Category</small>
+                            </span>
+                        </div>
+                        <span>
+                            <strong>@application.Status</strong>
+                            <small>@FormatResponseTime(application.ResponseMilliseconds)</small>
+                        </span>
+                    </article>
+                }
+            </div>
+
+            <div class="container-health-heading">
+                <div>
+                    <strong>Docker containers</strong>
+                    <small>Every container registered on the GHOS VM</small>
+                </div>
+                <span>@SystemHealth.Containers.Count total</span>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(SystemHealth.ContainerQueryError))
+            {
+                <div class="health-error">@SystemHealth.ContainerQueryError</div>
+            }
+            else
+            {
+                <div class="container-health-list">
+                    @foreach (var container in SystemHealth.Containers)
+                    {
+                        <article class="container-health-row @GetContainerHealthClass(container.Health)">
+                            <span class="health-state-dot"></span>
+                            <span class="container-identity">
+                                <strong>@container.Name</strong>
+                                <small>@container.Image</small>
+                            </span>
+                            <span class="container-status">
+                                <strong>@GetContainerHealthLabel(container.Health)</strong>
+                                <small>@container.Status</small>
+                            </span>
+                        </article>
+                    }
+                </div>
+            }
+
+            <p class="health-checked-at">
+                Checked @FormatHealthCheckTime(SystemHealth.CheckedAtUtc). App checks verify HTTP response; container checks are read-only Docker status.
+            </p>
+        }
+    </section>
+
     <section class="panel large-panel backup-panel">
         <div class="panel-header">
             <div>
@@ -222,6 +308,10 @@
     private string DispatchSyncStatus { get; set; } = "Not configured";
     private DateTime? LastDispatchSyncUtc { get; set; }
     private string DisplayName { get; set; } = "team member";
+    private SystemHealthSnapshot? SystemHealth { get; set; }
+    private bool IsSystemHealthLoading { get; set; }
+    private string SystemHealthError { get; set; } =
+        "System health has not been checked.";
 
     private static readonly IReadOnlyDictionary<string, string> BackupSources =
         new Dictionary<string, string>
@@ -255,7 +345,33 @@
                 ?? "team member";
         }
 
-        await LoadAsync();
+        await Task.WhenAll(
+            LoadAsync(),
+            RefreshSystemHealthAsync());
+    }
+
+    private async Task RefreshSystemHealthAsync()
+    {
+        if (IsSystemHealthLoading)
+        {
+            return;
+        }
+
+        IsSystemHealthLoading = true;
+        SystemHealthError = string.Empty;
+        try
+        {
+            SystemHealth = await SystemHealthMonitor.GetSnapshotAsync();
+        }
+        catch
+        {
+            SystemHealthError =
+                "Application and container health could not be checked.";
+        }
+        finally
+        {
+            IsSystemHealthLoading = false;
+        }
     }
 
     private async Task LoadAsync()
@@ -440,5 +556,55 @@
             DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc),
             TimeZoneInfo.FindSystemTimeZoneById("America/Chicago"));
         return local.ToString("MMM d · h:mm tt");
+    }
+
+    private string SystemHealthSummary
+    {
+        get
+        {
+            if (SystemHealth is null)
+            {
+                return IsSystemHealthLoading ? "Checking" : "Unavailable";
+            }
+
+            var applicationsOnline = SystemHealth.Applications.Count(item =>
+                item.IsHealthy);
+            var containersOnline = SystemHealth.Containers.Count(item =>
+                item.Health is not ContainerHealthState.Unhealthy and
+                    not ContainerHealthState.Stopped);
+            return $"{applicationsOnline}/{SystemHealth.Applications.Count} apps · " +
+                $"{containersOnline}/{SystemHealth.Containers.Count} containers";
+        }
+    }
+
+    private static string FormatResponseTime(long? milliseconds) =>
+        milliseconds is null ? "No response" : $"{milliseconds} ms";
+
+    private static string GetContainerHealthClass(ContainerHealthState health) =>
+        health switch
+        {
+            ContainerHealthState.Healthy => "is-healthy",
+            ContainerHealthState.Running => "is-running",
+            ContainerHealthState.Starting => "is-starting",
+            ContainerHealthState.Unhealthy => "is-failed",
+            _ => "is-stopped"
+        };
+
+    private static string GetContainerHealthLabel(ContainerHealthState health) =>
+        health switch
+        {
+            ContainerHealthState.Healthy => "Healthy",
+            ContainerHealthState.Running => "Running",
+            ContainerHealthState.Starting => "Starting",
+            ContainerHealthState.Unhealthy => "Unhealthy",
+            _ => "Stopped"
+        };
+
+    private static string FormatHealthCheckTime(DateTime utc)
+    {
+        var local = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc),
+            TimeZoneInfo.FindSystemTimeZoneById("America/Chicago"));
+        return local.ToString("MMM d · h:mm:ss tt");
     }
 }

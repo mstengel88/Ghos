@@ -12,6 +12,7 @@ using Ghos.Web.Marketing;
 using Ghos.Web.ProjectTools;
 using Ghos.Web.Shopify;
 using Ghos.Web.SmartSearch;
+using Ghos.Web.SystemHealth;
 using Ghos.Web.WinterWatch;
 using Ghos.Web.WebsiteHealth;
 using Microsoft.AspNetCore.DataProtection;
@@ -154,6 +155,13 @@ builder.Services.AddScoped<
     IUserClaimsPrincipalFactory<ApplicationUser>,
     ApplicationUserClaimsPrincipalFactory>();
 builder.Services.AddScoped<UserAdministrationService>();
+builder.Services.Configure<SystemHealthOptions>(
+    builder.Configuration.GetSection(SystemHealthOptions.SectionName));
+builder.Services.AddHttpClient<SystemHealthMonitorService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(35);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("GHOS-Health/1.0");
+});
 builder.Services.Configure<WebsiteHealthOptions>(
     builder.Configuration.GetSection(WebsiteHealthOptions.SectionName));
 builder.Services.AddHttpClient<WebsiteHealthMonitorService>(client =>
@@ -298,6 +306,12 @@ app.MapCsvExportEndpoints();
 app.MapMarketingCreativeEndpoints();
 app.MapMarketingPublicationPackageEndpoints();
 app.MapSmartSearchEndpoints();
+app.MapGet("/healthz", () => Results.Ok(new
+{
+    status = "healthy",
+    service = "ghos-web",
+    checkedAtUtc = DateTime.UtcNow
+})).AllowAnonymous();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

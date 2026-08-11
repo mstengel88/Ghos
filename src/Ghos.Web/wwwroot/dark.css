@@ -56,6 +56,8 @@
 :root[data-theme="dark"] .roadmap-item,
 :root[data-theme="dark"] .attention-grid > a,
 :root[data-theme="dark"] .backup-card,
+:root[data-theme="dark"] .application-health-card,
+:root[data-theme="dark"] .health-loading,
 :root[data-theme="dark"] .security-notes span,
 :root[data-theme="dark"] .sync-counts span,
 :root[data-theme="dark"] .ownership-flow article,
@@ -72,6 +74,17 @@
     background: var(--ghos-surface-muted) !important;
     border-color: var(--ghos-border) !important;
     color: var(--ghos-text-secondary) !important;
+}
+
+:root[data-theme="dark"] .health-refresh {
+    background: var(--ghos-surface-muted) !important;
+    border-color: var(--ghos-border-strong) !important;
+    color: #b5dc4b !important;
+}
+
+:root[data-theme="dark"] .container-health-row,
+:root[data-theme="dark"] .container-health-heading {
+    border-color: var(--ghos-border) !important;
 }
 
 :root[data-theme="dark"] .backup-card.backup-healthy {
