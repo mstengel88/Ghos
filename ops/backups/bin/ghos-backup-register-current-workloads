@@ -2,16 +2,19 @@
 set -Eeuo pipefail
 umask 077
 
-CONFIG_DIR="${GHOS_BACKUP_CONFIG_DIR:-/etc/ghos-backup}"
-DATABASES_FILE="$CONFIG_DIR/databases.conf"
-VOLUME_EXPORTS_FILE="$CONFIG_DIR/volume-exports.conf"
-SOURCE_PATHS_FILE="$CONFIG_DIR/source-paths.conf"
 COMPOSE_FILE=/opt/ghos/compose.yml
 
-if [[ "$EUID" -ne 0 ]]; then
-  printf 'Run this command with sudo.\n' >&2
-  exit 1
+if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
+  # shellcheck source=/dev/null
+  source /usr/local/lib/ghos-backup/lib/backup-common.sh
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=ops/backups/lib/backup-common.sh disable=SC1091
+  source "$SCRIPT_DIR/../lib/backup-common.sh"
 fi
+
+require_root
+load_backup_config
 
 for file in "$DATABASES_FILE" "$VOLUME_EXPORTS_FILE" "$SOURCE_PATHS_FILE"; do
   [[ -f "$file" ]] || {
@@ -30,7 +33,7 @@ upsert_pipe_record() {
   local key="$2"
   local record="$3"
   local temporary
-  temporary="$(mktemp "$CONFIG_DIR/.backup-config.XXXXXX")"
+  temporary="$(mktemp "$(dirname "$file")/.backup-config.XXXXXX")"
   awk -F '|' -v key="$key" '$1 != key { print }' "$file" >"$temporary"
   printf '%s\n' "$record" >>"$temporary"
   install -m 0600 "$temporary" "$file"
@@ -64,7 +67,7 @@ upsert_pipe_record "$VOLUME_EXPORTS_FILE" ghos-data-protection \
 
 # /opt/ghos is the required containment boundary. Preserve custom sources
 # outside that tree, collapse narrower GHOS entries, and retain comments.
-temporary="$(mktemp "$CONFIG_DIR/.source-paths.XXXXXX")"
+temporary="$(mktemp "$(dirname "$SOURCE_PATHS_FILE")/.source-paths.XXXXXX")"
 awk '
   /^[[:space:]]*#/ || /^[[:space:]]*$/ { print; next }
   $0 == "/opt/ghos" { next }
