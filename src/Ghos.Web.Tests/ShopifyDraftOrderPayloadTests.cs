@@ -136,7 +136,7 @@ public sealed class ShopifyDraftOrderPayloadTests
     }
 
     [Fact]
-    public void ShippingRateSelection_UsesClosestDeliveryEstimate()
+    public void ShippingRateSelection_PrefersExactGhsDeliveryRate()
     {
         var selected = ShopifyDraftOrderService.SelectShippingRate(
             [
@@ -146,15 +146,15 @@ public sealed class ShopifyDraftOrderPayloadTests
                     210m,
                     "USD"),
                 new ShopifyDraftOrderShippingRate(
-                    "far-handle",
-                    "Landscape Delivery",
+                    "ghs-handle",
+                    "GHS Delivery",
                     350m,
                     "USD")
             ],
             207.93m);
 
         Assert.NotNull(selected);
-        Assert.Equal("near-handle", selected.Handle);
+        Assert.Equal("ghs-handle", selected.Handle);
     }
 
     [Fact]

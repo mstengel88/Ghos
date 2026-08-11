@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using Ghos.Web.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +9,14 @@ public sealed record ShopifyQuoteDraftResult(
     string Id,
     string Name,
     string AdminUrl,
-    bool UpdatedExisting);
+    bool UpdatedExisting,
+    decimal? DeliveryAmount,
+    string? DeliveryServiceName);
+
+public sealed record ShopifyQuoteDeliveryResult(
+    decimal Amount,
+    string ServiceName,
+    string CurrencyCode);
 
 public sealed class ShopifyDraftOrderService(
     IDbContextFactory<ApplicationDbContext> dbContextFactory,
@@ -38,7 +46,7 @@ public sealed class ShopifyDraftOrderService(
         }
 
         var input = BuildInput(quote);
-        await AddCalculatedShippingRateAsync(
+        var shippingRate = await AddCalculatedShippingRateAsync(
             quote,
             input,
             cancellationToken);
@@ -56,6 +64,7 @@ public sealed class ShopifyDraftOrderService(
         quote.ShopifyDraftOrderId = saved.Id;
         quote.ShopifyDraftOrderUrl = saved.AdminUrl;
         quote.Status = QuoteStatus.ReadyForReview;
+        ApplyShopifyDeliveryRate(quote, shippingRate);
         quote.UpdatedAtUtc = DateTime.UtcNow;
         quote.UpdatedByUserId = userId;
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -64,7 +73,42 @@ public sealed class ShopifyDraftOrderService(
             saved.Id,
             saved.Name,
             saved.AdminUrl,
-            updatingExisting);
+            updatingExisting,
+            shippingRate?.Price,
+            shippingRate?.Title);
+    }
+
+    public async Task<ShopifyQuoteDeliveryResult> CalculateDeliveryAsync(
+        Guid quoteId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var dbContext =
+            await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var quote = await dbContext.CustomerQuotes
+            .Include(item => item.Lines.OrderBy(line => line.SortOrder))
+                .ThenInclude(line => line.ProductVariant)
+            .SingleOrDefaultAsync(item => item.Id == quoteId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The GHOS quote could not be found.");
+
+        if (quote.Audience == QuoteAudience.Custom)
+        {
+            throw new InvalidOperationException(
+                "Custom quotes use the custom delivery calculator.");
+        }
+
+        var input = BuildInput(quote);
+        var selectedRate = await CalculateShopifyDeliveryRateAsync(
+            input,
+            cancellationToken);
+        ApplyShopifyDeliveryRate(quote, selectedRate);
+        quote.UpdatedAtUtc = DateTime.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ShopifyQuoteDeliveryResult(
+            selectedRate.Price!.Value,
+            selectedRate.Title,
+            selectedRate.CurrencyCode);
     }
 
     internal static Dictionary<string, object?> BuildInput(
@@ -170,7 +214,7 @@ public sealed class ShopifyDraftOrderService(
 
     internal static ShopifyDraftOrderShippingRate? SelectShippingRate(
         IEnumerable<ShopifyDraftOrderShippingRate> rates,
-        decimal quotedDeliveryAmount)
+        decimal _)
     {
         var validRates = rates
             .Where(rate =>
@@ -196,33 +240,29 @@ public sealed class ShopifyDraftOrderService(
             : validRates;
 
         return candidates
-            .OrderBy(rate => rate.Price.HasValue ? 0 : 1)
-            .ThenBy(rate => rate.Price.HasValue
-                ? Math.Abs(rate.Price.Value - quotedDeliveryAmount)
-                : decimal.MaxValue)
+            .OrderByDescending(rate => rate.Title.Equals(
+                "GHS Delivery",
+                StringComparison.OrdinalIgnoreCase))
+            .ThenBy(rate => rate.Price.HasValue ? 0 : 1)
             .ThenBy(rate => rate.Title, StringComparer.OrdinalIgnoreCase)
             .First();
     }
 
-    private async Task AddCalculatedShippingRateAsync(
+    private async Task<ShopifyDraftOrderShippingRate?> AddCalculatedShippingRateAsync(
         CustomerQuote quote,
         Dictionary<string, object?> input,
         CancellationToken cancellationToken)
     {
         var quotedDeliveryAmount = ResolveDeliveryAmount(quote);
-        if (quotedDeliveryAmount <= 0)
+        if (quote.Audience == QuoteAudience.Custom &&
+            quotedDeliveryAmount <= 0)
         {
-            return;
+            return null;
         }
 
-        var rates = await shopifyClient.CalculateShippingRatesAsync(
+        var selectedRate = await CalculateShopifyDeliveryRateAsync(
             input,
             cancellationToken);
-        var selectedRate = SelectShippingRate(
-            rates,
-            quotedDeliveryAmount)
-            ?? throw new ShopifyConnectionException(
-                "Shopify did not return a delivery rate for this quote. Confirm the delivery address and that the Local-Delivery carrier service is active.");
 
         input["shippingLine"] = new Dictionary<string, object?>
         {
@@ -241,6 +281,51 @@ public sealed class ShopifyDraftOrderService(
                     : selectedRate.Title
             });
         }
+
+        return selectedRate;
+    }
+
+    private async Task<ShopifyDraftOrderShippingRate>
+        CalculateShopifyDeliveryRateAsync(
+            Dictionary<string, object?> input,
+            CancellationToken cancellationToken)
+    {
+        input.Remove("shippingLine");
+        var rates = await shopifyClient.CalculateShippingRatesAsync(
+            input,
+            cancellationToken);
+        return SelectShippingRate(rates, 0m) is { Price: not null } rate
+            ? rate
+            : throw new ShopifyConnectionException(
+                "Shopify did not return a priced GHS delivery rate for this quote. Confirm the delivery address, product variants, and that the Local-Delivery carrier service is active.");
+    }
+
+    private static void ApplyShopifyDeliveryRate(
+        CustomerQuote quote,
+        ShopifyDraftOrderShippingRate? rate)
+    {
+        if (quote.Audience == QuoteAudience.Custom || rate?.Price is null)
+        {
+            return;
+        }
+
+        var amount = Math.Max(0m, rate.Price.Value);
+        quote.CalculatedDeliveryAmount = amount;
+        quote.DeliveryAmount = amount;
+        quote.DeliveryServiceName = rate.Title;
+        quote.DeliveryDescription =
+            "Calculated by Shopify using the Local-Delivery carrier service.";
+        quote.DeliverySummary = $"{rate.Title}: {amount:C2}";
+        quote.SourceBreakdownJson = JsonSerializer.Serialize(new
+        {
+            source = "shopify-draft-order-calculate",
+            service = rate.Title,
+            amount,
+            currency = rate.CurrencyCode
+        });
+        quote.Total = Math.Round(
+            quote.Subtotal + amount + quote.TaxAmount,
+            2);
     }
 
     internal static bool HasShopifyPurchasingCompany(
