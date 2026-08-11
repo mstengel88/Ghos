@@ -692,19 +692,31 @@ else
                             This quote is linked to a Shopify draft order.
                         </small>
                     }
-                    else
-                    {
-                        <button type="button"
-                                class="shopify-draft"
-                                disabled="@(!ShopifyDraftOrdersConfigured ||
-                                    SendingToShopify ||
-                                    Saving)"
-                                @onclick="SendToShopifyAsync">
-                            @(SendingToShopify
+                    <button type="button"
+                            class="shopify-draft"
+                            disabled="@(!ShopifyDraftOrdersConfigured ||
+                                SendingToShopify ||
+                                Saving)"
+                            @onclick="SendToShopifyAsync">
+                        @if (SendingToShopify)
+                        {
+                            @(string.IsNullOrWhiteSpace(
+                                Model.ShopifyDraftOrderId)
                                 ? "Sending…"
-                                : "Save & send to Shopify")
-                        </button>
-                        @if (ShopifyDraftOrdersConfigured)
+                                : "Updating…")
+                        }
+                        else
+                        {
+                            @(string.IsNullOrWhiteSpace(
+                                Model.ShopifyDraftOrderId)
+                                ? "Save & send to Shopify"
+                                : "Save & update Shopify draft")
+                        }
+                    </button>
+                    @if (ShopifyDraftOrdersConfigured)
+                    {
+                        @if (string.IsNullOrWhiteSpace(
+                                Model.ShopifyDraftOrderId))
                         {
                             <small>
                                 Saves current changes, then creates one
@@ -714,13 +726,20 @@ else
                         else
                         {
                             <small>
-                                An administrator must
-                                <a href="/products/shopify">
-                                    connect Shopify draft orders
-                                </a>
-                                with <code>write_draft_orders</code>.
+                                Saves current changes to the linked Shopify
+                                draft without creating a duplicate.
                             </small>
                         }
+                    }
+                    else
+                    {
+                        <small>
+                            An administrator must
+                            <a href="/products/shopify">
+                                connect Shopify draft orders
+                            </a>
+                            with <code>write_draft_orders</code>.
+                        </small>
                     }
                 }
                 else
@@ -1332,14 +1351,14 @@ else
             Model.ShopifyDraftOrderId = result.Id;
             Model.ShopifyDraftOrderUrl = result.AdminUrl;
             Model.Status = QuoteStatus.ReadyForReview;
-            SuccessMessage = result.AlreadyCreated
-                ? $"{Model.QuoteNumber} is already linked to a Shopify draft."
+            SuccessMessage = result.UpdatedExisting
+                ? $"{Model.QuoteNumber} updated Shopify draft {result.Name}."
                 : $"{Model.QuoteNumber} was sent to Shopify as {result.Name}.";
         }
         catch (Exception exception)
         {
             ErrorMessage =
-                $"The quote was saved, but Shopify could not create the draft order. {exception.Message}";
+                $"The quote was saved, but Shopify could not save the draft order. {exception.Message}";
         }
         finally
         {
