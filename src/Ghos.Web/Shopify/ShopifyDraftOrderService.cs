@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Ghos.Web.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,6 +38,10 @@ public sealed class ShopifyDraftOrderService(
         }
 
         var input = BuildInput(quote);
+        await AddCalculatedShippingRateAsync(
+            quote,
+            input,
+            cancellationToken);
         var updatingExisting =
             !string.IsNullOrWhiteSpace(quote.ShopifyDraftOrderId);
         var saved = updatingExisting
@@ -65,6 +70,34 @@ public sealed class ShopifyDraftOrderService(
     internal static Dictionary<string, object?> BuildInput(
         CustomerQuote quote)
     {
+        var customAttributes = new List<Dictionary<string, object?>>
+        {
+            new()
+            {
+                ["key"] = "GHOS Quote",
+                ["value"] = quote.QuoteNumber
+            },
+            new()
+            {
+                ["key"] = "GHOS Audience",
+                ["value"] = quote.Audience.ToString()
+            }
+        };
+        var deliveryAmount = ResolveDeliveryAmount(quote);
+        if (deliveryAmount > 0)
+        {
+            customAttributes.Add(new Dictionary<string, object?>
+            {
+                ["key"] = "Quoted Delivery Estimate",
+                ["value"] = deliveryAmount.ToString("C2")
+            });
+            customAttributes.Add(new Dictionary<string, object?>
+            {
+                ["key"] = "Shipping",
+                ["value"] = "Calculate with Shopify shipping rates"
+            });
+        }
+
         var input = new Dictionary<string, object?>
         {
             ["lineItems"] = quote.Lines
@@ -79,19 +112,7 @@ public sealed class ShopifyDraftOrderService(
                 "GHOS Quote",
                 quote.QuoteNumber
             },
-            ["customAttributes"] = new[]
-            {
-                new Dictionary<string, object?>
-                {
-                    ["key"] = "GHOS Quote",
-                    ["value"] = quote.QuoteNumber
-                },
-                new Dictionary<string, object?>
-                {
-                    ["key"] = "GHOS Audience",
-                    ["value"] = quote.Audience.ToString()
-                }
-            },
+            ["customAttributes"] = customAttributes,
             ["note"] = BuildNote(quote)
         };
 
@@ -111,19 +132,6 @@ public sealed class ShopifyDraftOrderService(
                         ["companyLocationId"] =
                             quote.ShopifyCompanyLocationId
                     }
-            };
-        }
-
-        var deliveryAmount = ResolveDeliveryAmount(quote);
-        if (deliveryAmount > 0)
-        {
-            input["shippingLine"] = new Dictionary<string, object?>
-            {
-                ["title"] =
-                    quote.DeliveryServiceName ??
-                    quote.DeliveryDescription ??
-                    "Green Hills delivery",
-                ["priceWithCurrency"] = Usd(deliveryAmount)
             };
         }
 
@@ -158,6 +166,81 @@ public sealed class ShopifyDraftOrderService(
         }
 
         return input;
+    }
+
+    internal static ShopifyDraftOrderShippingRate? SelectShippingRate(
+        IEnumerable<ShopifyDraftOrderShippingRate> rates,
+        decimal quotedDeliveryAmount)
+    {
+        var validRates = rates
+            .Where(rate =>
+                !string.IsNullOrWhiteSpace(rate.Handle) &&
+                !Regex.IsMatch(
+                    rate.Title,
+                    @"\b(pick\s*up|pickup|in[-\s]?store|store pickup|local pickup)\b",
+                    RegexOptions.IgnoreCase))
+            .ToList();
+        if (validRates.Count == 0)
+        {
+            return null;
+        }
+
+        var deliveryRates = validRates
+            .Where(rate => Regex.IsMatch(
+                rate.Title,
+                @"\b(delivery|shipping|ship)\b",
+                RegexOptions.IgnoreCase))
+            .ToList();
+        var candidates = deliveryRates.Count > 0
+            ? deliveryRates
+            : validRates;
+
+        return candidates
+            .OrderBy(rate => rate.Price.HasValue ? 0 : 1)
+            .ThenBy(rate => rate.Price.HasValue
+                ? Math.Abs(rate.Price.Value - quotedDeliveryAmount)
+                : decimal.MaxValue)
+            .ThenBy(rate => rate.Title, StringComparer.OrdinalIgnoreCase)
+            .First();
+    }
+
+    private async Task AddCalculatedShippingRateAsync(
+        CustomerQuote quote,
+        Dictionary<string, object?> input,
+        CancellationToken cancellationToken)
+    {
+        var quotedDeliveryAmount = ResolveDeliveryAmount(quote);
+        if (quotedDeliveryAmount <= 0)
+        {
+            return;
+        }
+
+        var rates = await shopifyClient.CalculateShippingRatesAsync(
+            input,
+            cancellationToken);
+        var selectedRate = SelectShippingRate(
+            rates,
+            quotedDeliveryAmount)
+            ?? throw new ShopifyConnectionException(
+                "Shopify did not return a delivery rate for this quote. Confirm the delivery address and that the Local-Delivery carrier service is active.");
+
+        input["shippingLine"] = new Dictionary<string, object?>
+        {
+            ["shippingRateHandle"] = selectedRate.Handle,
+            ["title"] = selectedRate.Title
+        };
+
+        if (input["customAttributes"] is
+            List<Dictionary<string, object?>> customAttributes)
+        {
+            customAttributes.Add(new Dictionary<string, object?>
+            {
+                ["key"] = "Shopify Shipping Rate",
+                ["value"] = selectedRate.Price.HasValue
+                    ? $"{selectedRate.Title} - {selectedRate.Price.Value:C2}"
+                    : selectedRate.Title
+            });
+        }
     }
 
     internal static bool HasShopifyPurchasingCompany(

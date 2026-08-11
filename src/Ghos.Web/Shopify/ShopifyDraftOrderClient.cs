@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -10,6 +11,12 @@ public sealed record ShopifyDraftOrderCreateResult(
     string Name,
     string AdminUrl,
     string? InvoiceUrl);
+
+public sealed record ShopifyDraftOrderShippingRate(
+    string Handle,
+    string Title,
+    decimal? Price,
+    string CurrencyCode);
 
 public sealed class ShopifyDraftOrderClient(
     HttpClient httpClient,
@@ -42,6 +49,27 @@ public sealed class ShopifyDraftOrderClient(
               name
               legacyResourceId
               invoiceUrl
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """;
+
+    private const string CalculateMutation = """
+        mutation GhosDraftOrderCalculate($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder {
+              availableShippingRates {
+                handle
+                title
+                price {
+                  amount
+                  currencyCode
+                }
+              }
             }
             userErrors {
               field
@@ -89,6 +117,62 @@ public sealed class ShopifyDraftOrderClient(
             cancellationToken: cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ShopifyDraftOrderShippingRate>>
+        CalculateShippingRatesAsync(
+            IReadOnlyDictionary<string, object?> input,
+            CancellationToken cancellationToken = default)
+    {
+        var accessToken =
+            await accessTokenProvider.GetAccessTokenAsync(cancellationToken);
+        var payload = new GraphQlRequest(
+            CalculateMutation,
+            new Dictionary<string, object?> { ["input"] = input });
+
+        using var request = CreateRequest(accessToken, payload);
+        using var response = await httpClient.SendAsync(
+            request,
+            cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning(
+                "Shopify returned HTTP {StatusCode} while calculating draft-order shipping.",
+                (int)response.StatusCode);
+            throw new ShopifyConnectionException(
+                $"Shopify rejected the shipping calculation with HTTP {(int)response.StatusCode}.");
+        }
+
+        var graphQlResponse =
+            JsonSerializer.Deserialize<GraphQlResponse>(
+                responseBody,
+                JsonOptions)
+            ?? throw new ShopifyConnectionException(
+                "Shopify returned an empty shipping-calculation response.");
+
+        ThrowGraphQlErrors(graphQlResponse.Errors, "calculate shipping for");
+
+        var result = graphQlResponse.Data?.DraftOrderCalculate
+            ?? throw new ShopifyConnectionException(
+                "Shopify did not return a shipping-calculation result.");
+        ThrowUserErrors(result.UserErrors, "calculate shipping for");
+
+        return result.CalculatedDraftOrder?.AvailableShippingRates
+            .Where(rate => !string.IsNullOrWhiteSpace(rate.Handle))
+            .Select(rate => new ShopifyDraftOrderShippingRate(
+                rate.Handle,
+                string.IsNullOrWhiteSpace(rate.Title)
+                    ? "Delivery"
+                    : rate.Title,
+                ParseMoney(rate.Price?.Amount),
+                string.IsNullOrWhiteSpace(rate.Price?.CurrencyCode)
+                    ? "USD"
+                    : rate.Price.CurrencyCode))
+            .ToList()
+            ?? [];
+    }
+
     private async Task<ShopifyDraftOrderCreateResult> SendAsync(
         string mutation,
         IReadOnlyDictionary<string, object?> variables,
@@ -100,15 +184,7 @@ public sealed class ShopifyDraftOrderClient(
             await accessTokenProvider.GetAccessTokenAsync(cancellationToken);
         var payload = new GraphQlRequest(mutation, variables);
 
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"https://{_options.StoreDomain}/admin/api/{_options.ApiVersion}/graphql.json");
-        request.Headers.TryAddWithoutValidation(
-            "X-Shopify-Access-Token",
-            accessToken);
-        request.Content = JsonContent.Create(
-            payload,
-            options: JsonOptions);
+        using var request = CreateRequest(accessToken, payload);
 
         using var response = await httpClient.SendAsync(
             request,
@@ -133,17 +209,7 @@ public sealed class ShopifyDraftOrderClient(
             ?? throw new ShopifyConnectionException(
                 "Shopify returned an empty draft-order response.");
 
-        if (graphQlResponse.Errors.Count > 0)
-        {
-            var message = string.Join(
-                "; ",
-                graphQlResponse.Errors.Select(error => error.Message));
-            logger.LogWarning(
-                "Shopify draft-order GraphQL errors: {Errors}",
-                message);
-            throw new ShopifyConnectionException(
-                $"Shopify could not {operation} the draft order: {message}");
-        }
+        ThrowGraphQlErrors(graphQlResponse.Errors, operation);
 
         var result = (isUpdate
             ? graphQlResponse.Data?.DraftOrderUpdate
@@ -151,17 +217,7 @@ public sealed class ShopifyDraftOrderClient(
             ?? throw new ShopifyConnectionException(
                 "Shopify did not return a draft-order result.");
 
-        if (result.UserErrors.Count > 0)
-        {
-            var message = string.Join(
-                "; ",
-                result.UserErrors.Select(error =>
-                    string.IsNullOrWhiteSpace(error.FieldText)
-                        ? error.Message
-                        : $"{error.FieldText}: {error.Message}"));
-            throw new ShopifyConnectionException(
-                $"Shopify could not {operation} the draft order: {message}");
-        }
+        ThrowUserErrors(result.UserErrors, operation);
 
         var draftOrder = result.DraftOrder
             ?? throw new ShopifyConnectionException(
@@ -177,6 +233,67 @@ public sealed class ShopifyDraftOrderClient(
             adminUrl,
             draftOrder.InvoiceUrl);
     }
+
+    private HttpRequestMessage CreateRequest(
+        string accessToken,
+        GraphQlRequest payload)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"https://{_options.StoreDomain}/admin/api/{_options.ApiVersion}/graphql.json");
+        request.Headers.TryAddWithoutValidation(
+            "X-Shopify-Access-Token",
+            accessToken);
+        request.Content = JsonContent.Create(payload, options: JsonOptions);
+        return request;
+    }
+
+    private void ThrowGraphQlErrors(
+        IReadOnlyCollection<GraphQlError> errors,
+        string operation)
+    {
+        if (errors.Count == 0)
+        {
+            return;
+        }
+
+        var message = string.Join(
+            "; ",
+            errors.Select(error => error.Message));
+        logger.LogWarning(
+            "Shopify draft-order GraphQL errors: {Errors}",
+            message);
+        throw new ShopifyConnectionException(
+            $"Shopify could not {operation} the draft order: {message}");
+    }
+
+    private static void ThrowUserErrors(
+        IReadOnlyCollection<UserError> errors,
+        string operation)
+    {
+        if (errors.Count == 0)
+        {
+            return;
+        }
+
+        var message = string.Join(
+            "; ",
+            errors.Select(error =>
+                string.IsNullOrWhiteSpace(error.FieldText)
+                    ? error.Message
+                    : $"{error.FieldText}: {error.Message}"));
+        throw new ShopifyConnectionException(
+            $"Shopify could not {operation} the draft order: {message}");
+    }
+
+    private static decimal? ParseMoney(string? amount) =>
+        decimal.TryParse(
+            amount,
+            NumberStyles.Number,
+            CultureInfo.InvariantCulture,
+            out var parsed)
+            ? parsed
+            : null;
 
     private sealed record GraphQlRequest(
         string Query,
@@ -198,6 +315,9 @@ public sealed class ShopifyDraftOrderClient(
 
         [JsonPropertyName("draftOrderUpdate")]
         public DraftOrderCreatePayload? DraftOrderUpdate { get; init; }
+
+        [JsonPropertyName("draftOrderCalculate")]
+        public DraftOrderCalculatePayload? DraftOrderCalculate { get; init; }
     }
 
     private sealed class DraftOrderCreatePayload
@@ -207,6 +327,42 @@ public sealed class ShopifyDraftOrderClient(
 
         [JsonPropertyName("userErrors")]
         public List<UserError> UserErrors { get; init; } = [];
+    }
+
+    private sealed class DraftOrderCalculatePayload
+    {
+        [JsonPropertyName("calculatedDraftOrder")]
+        public CalculatedDraftOrder? CalculatedDraftOrder { get; init; }
+
+        [JsonPropertyName("userErrors")]
+        public List<UserError> UserErrors { get; init; } = [];
+    }
+
+    private sealed class CalculatedDraftOrder
+    {
+        [JsonPropertyName("availableShippingRates")]
+        public List<ShippingRateNode> AvailableShippingRates { get; init; } = [];
+    }
+
+    private sealed class ShippingRateNode
+    {
+        [JsonPropertyName("handle")]
+        public string Handle { get; init; } = string.Empty;
+
+        [JsonPropertyName("title")]
+        public string Title { get; init; } = string.Empty;
+
+        [JsonPropertyName("price")]
+        public MoneyNode? Price { get; init; }
+    }
+
+    private sealed class MoneyNode
+    {
+        [JsonPropertyName("amount")]
+        public string? Amount { get; init; }
+
+        [JsonPropertyName("currencyCode")]
+        public string? CurrencyCode { get; init; }
     }
 
     private sealed class DraftOrderNode

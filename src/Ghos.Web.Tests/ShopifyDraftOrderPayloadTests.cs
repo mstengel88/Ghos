@@ -73,7 +73,7 @@ public sealed class ShopifyDraftOrderPayloadTests
     }
 
     [Fact]
-    public void DraftInput_SendsDeliveryAsShopifyMoney()
+    public void DraftInput_DoesNotSendFixedDeliveryPrice()
     {
         var input = ShopifyDraftOrderService.BuildInput(
             new CustomerQuote
@@ -97,13 +97,64 @@ public sealed class ShopifyDraftOrderPayloadTests
                 ]
             });
 
-        var shippingLine = Assert.IsAssignableFrom<
-            IReadOnlyDictionary<string, object?>>(
-                input["shippingLine"]);
-        Assert.Equal("Aggregate Delivery", shippingLine["title"]);
-        Assert.Equal(
-            "207.93",
-            MoneyAmount(shippingLine, "priceWithCurrency"));
+        Assert.DoesNotContain("shippingLine", input.Keys);
+        var attributes = Assert.IsAssignableFrom<
+            IEnumerable<IReadOnlyDictionary<string, object?>>>(
+                input["customAttributes"]);
+        Assert.Contains(attributes, attribute =>
+            Equals(attribute["key"], "Shipping") &&
+            Equals(
+                attribute["value"],
+                "Calculate with Shopify shipping rates"));
+    }
+
+    [Fact]
+    public void ShippingRateSelection_PrefersDeliveryAndRejectsPickup()
+    {
+        var selected = ShopifyDraftOrderService.SelectShippingRate(
+            [
+                new ShopifyDraftOrderShippingRate(
+                    "pickup-handle",
+                    "Local Pickup",
+                    0m,
+                    "USD"),
+                new ShopifyDraftOrderShippingRate(
+                    "parcel-handle",
+                    "Standard parcel",
+                    25m,
+                    "USD"),
+                new ShopifyDraftOrderShippingRate(
+                    "delivery-handle",
+                    "Aggregate Delivery",
+                    205m,
+                    "USD")
+            ],
+            207.93m);
+
+        Assert.NotNull(selected);
+        Assert.Equal("delivery-handle", selected.Handle);
+    }
+
+    [Fact]
+    public void ShippingRateSelection_UsesClosestDeliveryEstimate()
+    {
+        var selected = ShopifyDraftOrderService.SelectShippingRate(
+            [
+                new ShopifyDraftOrderShippingRate(
+                    "near-handle",
+                    "Local Delivery",
+                    210m,
+                    "USD"),
+                new ShopifyDraftOrderShippingRate(
+                    "far-handle",
+                    "Landscape Delivery",
+                    350m,
+                    "USD")
+            ],
+            207.93m);
+
+        Assert.NotNull(selected);
+        Assert.Equal("near-handle", selected.Handle);
     }
 
     [Fact]
