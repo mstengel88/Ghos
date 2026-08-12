@@ -66,7 +66,11 @@ docker version >"$metadata_dir/docker-version.txt"
 docker ps --format '{{.Names}}\t{{.Image}}\t{{.Status}}' >"$metadata_dir/containers.txt"
 
 phase="database-dumps"
-while IFS='|' read -r name compose_file service db_user db_name postgres_image; do
+mapfile -t database_entries < <(each_config_line "$DATABASES_FILE")
+(( ${#database_entries[@]} > 0 )) || die "No databases are registered in $DATABASES_FILE"
+
+for database_entry in "${database_entries[@]}"; do
+  IFS='|' read -r name compose_file service db_user db_name postgres_image <<<"$database_entry"
   [[ -f "$compose_file" ]] || die "Database '$name' compose file not found: $compose_file"
   [[ -n "$name" && -n "$service" && -n "$db_user" && -n "$db_name" ]] ||
     die "Invalid database entry in $DATABASES_FILE"
@@ -76,31 +80,57 @@ while IFS='|' read -r name compose_file service db_user db_name postgres_image; 
 
   docker compose -f "$compose_file" exec -T "$service" \
     pg_dump --format=custom --compress=6 --no-owner --no-acl \
-    --username="$db_user" --dbname="$db_name" >"$dump_file"
+    --username="$db_user" --dbname="$db_name" </dev/null >"$dump_file"
   [[ -s "$dump_file" ]] || die "Database '$name' produced an empty dump."
 
   docker compose -f "$compose_file" exec -T "$service" \
-    pg_dumpall --globals-only --username="$db_user" >"$globals_file"
+    pg_dumpall --globals-only --username="$db_user" </dev/null >"$globals_file"
   [[ -s "$globals_file" ]] || die "Database '$name' produced an empty globals dump."
 
   docker compose -f "$compose_file" exec -T "$service" \
     pg_restore --list <"$dump_file" >"$database_dir/$name-contents.txt"
 
   printf '%s\n' "${postgres_image:-postgres:16}" >"$database_dir/$name-postgres-image"
-done < <(each_config_line "$DATABASES_FILE")
+done
+
+# A Docker child process must never be allowed to consume the database registry
+# stream and make a partial run look successful. Verify every registered entry
+# produced the complete logical-backup set before restic can snapshot the run.
+for database_entry in "${database_entries[@]}"; do
+  IFS='|' read -r name _ <<<"$database_entry"
+  for required_file in \
+    "$database_dir/$name.dump" \
+    "$database_dir/$name-globals.sql" \
+    "$database_dir/$name-contents.txt" \
+    "$database_dir/$name-postgres-image"; do
+    [[ -s "$required_file" ]] ||
+      die "Database '$name' is missing required backup artifact: $required_file"
+  done
+done
+
+printf 'Created complete logical dumps for %d registered databases.\n' \
+  "${#database_entries[@]}"
 
 phase="volume-exports"
-while IFS='|' read -r name compose_file service container_path; do
+mapfile -t volume_entries < <(each_config_line "$VOLUME_EXPORTS_FILE")
+for volume_entry in "${volume_entries[@]}"; do
+  IFS='|' read -r name compose_file service container_path <<<"$volume_entry"
   [[ -f "$compose_file" ]] || die "Volume '$name' compose file not found: $compose_file"
   [[ -n "$name" && -n "$service" && "$container_path" == /* ]] ||
     die "Invalid volume export entry in $VOLUME_EXPORTS_FILE"
 
   archive="$volume_dir/$name.tar"
   docker compose -f "$compose_file" exec -T "$service" \
-    tar --numeric-owner -C "$container_path" -cf - . >"$archive"
+    tar --numeric-owner -C "$container_path" -cf - . </dev/null >"$archive"
   [[ -s "$archive" ]] || die "Volume '$name' produced an empty archive."
   tar -tf "$archive" >/dev/null
-done < <(each_config_line "$VOLUME_EXPORTS_FILE")
+done
+
+for volume_entry in "${volume_entries[@]}"; do
+  IFS='|' read -r name _ <<<"$volume_entry"
+  [[ -s "$volume_dir/$name.tar" ]] ||
+    die "Volume '$name' is missing its required backup archive."
+done
 
 phase="source-validation"
 : >"$paths_file"
