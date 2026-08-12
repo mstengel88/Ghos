@@ -90,7 +90,12 @@ ensure_private_directory "$staged_database_dir"
 # database registry disagree. This produces one complete diagnostic instead of
 # stopping at the first missing dump and makes configuration drift obvious.
 missing_backups=()
-while IFS='|' read -r backup_name _; do
+mapfile -t database_entries < <(each_config_line "$DATABASES_FILE")
+(( ${#database_entries[@]} > 0 )) ||
+  die "No databases are registered in $DATABASES_FILE"
+
+for database_entry in "${database_entries[@]}"; do
+  IFS='|' read -r backup_name _ <<<"$database_entry"
   [[ -n "$backup_name" ]] || continue
   dump_file="$staged_database_dir/$backup_name.dump"
   image_file="$staged_database_dir/$backup_name-postgres-image"
@@ -103,19 +108,19 @@ while IFS='|' read -r backup_name _; do
     find "$dump_file" "$image_file" -maxdepth 0 -type f -delete 2>/dev/null || true
     missing_backups+=("$backup_name")
   fi
-done < <(each_config_line "$DATABASES_FILE")
+done
 
 if (( ${#missing_backups[@]} > 0 )); then
   die "Snapshot ${snapshot_id:0:8} is incomplete for the active database registry; missing logical backups: ${missing_backups[*]}"
 fi
 
-mapfile -t configured_names < <(
-  while IFS='|' read -r backup_name _; do
-    if [[ "$database_name" == all || "$database_name" == "$backup_name" ]]; then
-      printf '%s\n' "$backup_name"
-    fi
-  done < <(each_config_line "$DATABASES_FILE")
-)
+configured_names=()
+for database_entry in "${database_entries[@]}"; do
+  IFS='|' read -r backup_name _ <<<"$database_entry"
+  if [[ "$database_name" == all || "$database_name" == "$backup_name" ]]; then
+    configured_names+=("$backup_name")
+  fi
+done
 (( ${#configured_names[@]} > 0 )) ||
   die "No configured database matches restore drill selection '$database_name'."
 
