@@ -7,8 +7,32 @@ Canonical source:
 
 Status: local PostgreSQL 17 schema, exact managed-schema comparison,
 queue-workflow rehearsal, clean-room PostgREST recovery, and both Edge
-Function authorization contracts pass. Production rows, production secrets,
-client cutover, and external callbacks are not migrated.
+Function authorization contracts pass. The GHOS queue now uses the local
+Operations bridge on the VM. Standalone client cutover and public external
+callbacks remain on the managed service until their own acceptance passes.
+
+## GHOS bridge cutover
+
+On 2026-08-12, GHOS reconciled its saved bridge credential into the private
+Operations runtime configuration, restarted only the Operations functions,
+and received HTTP 200 from the authenticated local bridge health endpoint.
+Only after that validation did GHOS replace its saved managed bridge endpoint
+with the local Operations endpoint.
+
+Post-cutover acceptance confirmed:
+
+- `ghos-web` remained available;
+- the Operations database, API, Auth, REST, and functions containers were
+  healthy;
+- the local bridge rejected neither the reconciled credential nor the health
+  request;
+- the encrypted GHOS backup completed successfully; and
+- the disposable restore drill passed for all five registered databases,
+  including `operations`.
+
+The previous endpoint and private runtime configuration were retained in
+timestamped server-side backups for rollback. No secret value was written to
+Git or printed during reconciliation.
 
 ## Application contract
 

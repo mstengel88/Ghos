@@ -124,6 +124,9 @@ For each of the five production applications:
 - [x] Dump Site clean-room API recovery passes service-only PostgREST insert,
       generated `201-D` numbering, CounterPoint RPC claim/completion, browser
       denial, cleanup, and automatic Local-Delivery restoration
+- [x] GHOS Dump Site queue is cut over to the authenticated local Operations
+      bridge after HTTP 200 health acceptance; standalone clients remain on
+      managed Supabase pending public-endpoint acceptance
 - [x] Ticket Printer application migrations pass on disposable PostgreSQL 17
 - [x] Ticket Printer Edge Functions pass secret-free local acceptance
 - [x] Ticket Printer managed `pg_cron` task has a GHOS systemd replacement
