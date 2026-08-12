@@ -37,6 +37,26 @@ docker compose --env-file .env -f compose.yml config --quiet
 Complete the root-private `.env` and `functions.env` files before starting.
 Never paste their values into Git, screenshots, or chat.
 
+On GHOS, existing approved Google Maps, Shopify app, and Loadrite user values
+can be copied into the private integration file without displaying them:
+
+```bash
+./import-known-integrations.sh
+./generate-dump-site-secrets.sh
+./validate-integrations.sh
+```
+
+The validator intentionally blocks cutover until the required Ticket Printer
+and Dump Site values are present. Managed Supabase does not expose Edge Function
+secret values through database temporary access, so any remaining values must
+come from the approved password manager or be rotated and installed in both the
+dependent client and this private file.
+
+`generate-dump-site-secrets.sh` only fills blank values and never rotates an
+existing value. The new QR token must be installed in the Dump Site client and
+the bridge secret must be installed in the CounterPoint bridge before traffic
+is switched.
+
 ```bash
 docker compose --env-file .env -f compose.yml up -d
 ./verify.sh
