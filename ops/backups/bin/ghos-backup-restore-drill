@@ -43,10 +43,13 @@ wait_for_final_postgres() {
     fi
 
     init_process="$(docker exec "$candidate_container" cat /proc/1/comm 2>/dev/null || true)"
-    if [[ "$init_process" == postgres* ]] &&
-       docker exec "$candidate_container" pg_isready -U postgres >/dev/null 2>&1; then
-      return 0
-    fi
+    case "$init_process" in
+      postgres*|.postgres-wrapp*)
+        if docker exec "$candidate_container" pg_isready -U postgres >/dev/null 2>&1; then
+          return 0
+        fi
+        ;;
+    esac
 
     sleep 2
   done
