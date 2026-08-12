@@ -285,6 +285,11 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
+if (await DumpSiteMaintenanceCommand.TryExecuteAsync(args, app.Services))
+{
+    return;
+}
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
