@@ -39,6 +39,7 @@ path_is_covered /etc/ghos-backup || problem '/etc/ghos-backup is not included in
 declare -A configured_database_targets=()
 declare -A configured_database_services=()
 declare -A configured_database_compose_services=()
+declare -A configured_database_service_names=()
 declare -A configured_database_container_ids=()
 declare -A configured_database_container_names=()
 while IFS='|' read -r _ compose_file compose_service database_user database_name _; do
@@ -46,6 +47,7 @@ while IFS='|' read -r _ compose_file compose_service database_user database_name
   configured_database_targets["$compose_file|$compose_service|$database_name"]=1
   configured_database_services["$compose_file|$compose_service|$database_user"]=1
   configured_database_compose_services["$compose_file|$compose_service"]=1
+  configured_database_service_names["$compose_service"]=1
 done < <(each_config_line "$DATABASES_FILE")
 
 for service_key in "${!configured_database_services[@]}"; do
@@ -83,7 +85,8 @@ while IFS='|' read -r container_id container compose_file compose_service mount_
     if [[ "$destination" == /var/lib/postgresql/data ]]; then
       if [[ -n "${configured_database_container_ids[$container_id]:-}" || \
         -n "${configured_database_container_names[$container]:-}" || \
-        -n "${configured_database_compose_services["$compose_file|$compose_service"]:-}" ]]; then
+        -n "${configured_database_compose_services["$compose_file|$compose_service"]:-}" || \
+        -n "${configured_database_service_names[$compose_service]:-}" ]]; then
         continue
       fi
     fi
