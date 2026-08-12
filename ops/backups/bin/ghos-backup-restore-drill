@@ -15,6 +15,7 @@ require_root
 require_command docker
 require_command restic
 require_command flock
+require_command python3
 load_backup_config
 
 ensure_private_directory "$BACKUP_ROOT"
@@ -38,12 +39,52 @@ trap cleanup EXIT
 load_repository "$repository_name"
 repository_exists || die "Repository '$repository_name' is not initialized."
 
-restic restore latest \
-  --host "$BACKUP_HOST_TAG" \
-  --tag ghos-automatic \
-  --target "$restore_root" \
-  --include "$BACKUP_ROOT/runs/*/databases/*.dump" \
-  --include "$BACKUP_ROOT/runs/*/databases/*-postgres-image"
+# Every backup uses a new run directory, so Restic's wildcard restore filters
+# are not a reliable way to recover the logical dumps. Select the newest
+# snapshot explicitly, read its recorded run root, and extract each required
+# file by its exact snapshot path instead.
+snapshot_selection="$({
+  restic snapshots \
+    --host "$BACKUP_HOST_TAG" \
+    --tag ghos-automatic \
+    --json
+} | python3 -c '
+import json
+import os
+import sys
+
+backup_root = os.path.normpath(sys.argv[1])
+run_prefix = backup_root + "/runs/"
+snapshots = json.load(sys.stdin)
+candidates = []
+
+for snapshot in snapshots:
+    run_paths = [
+        os.path.normpath(path)
+        for path in snapshot.get("paths", [])
+        if os.path.normpath(path).startswith(run_prefix)
+    ]
+    if run_paths:
+        candidates.append((snapshot.get("time", ""), snapshot.get("id", ""), run_paths[0]))
+
+if not candidates:
+    raise SystemExit("No GHOS automatic snapshot contains a backup run directory.")
+
+_, snapshot_id, run_path = max(candidates)
+if not snapshot_id:
+    raise SystemExit("Latest GHOS automatic snapshot does not have an ID.")
+
+print(snapshot_id)
+print(run_path)
+' "$BACKUP_ROOT")" || die "Unable to select the latest GHOS automatic snapshot."
+
+mapfile -t snapshot_details <<<"$snapshot_selection"
+(( ${#snapshot_details[@]} == 2 )) ||
+  die "Unable to identify the latest GHOS backup snapshot and run directory."
+snapshot_id="${snapshot_details[0]}"
+snapshot_run_path="${snapshot_details[1]}"
+staged_database_dir="$restore_root/databases"
+ensure_private_directory "$staged_database_dir"
 
 # Refuse to proceed when the snapshot's logical-dump manifest and the active
 # database registry disagree. This produces one complete diagnostic instead of
@@ -51,15 +92,21 @@ restic restore latest \
 missing_backups=()
 while IFS='|' read -r backup_name _; do
   [[ -n "$backup_name" ]] || continue
-  dump_file="$(find "$restore_root" -type f -path "*/databases/$backup_name.dump" -print -quit)"
-  image_file="$(find "$restore_root" -type f -path "*/databases/$backup_name-postgres-image" -print -quit)"
-  if [[ -z "$dump_file" || ! -s "$dump_file" || -z "$image_file" || ! -s "$image_file" ]]; then
+  dump_file="$staged_database_dir/$backup_name.dump"
+  image_file="$staged_database_dir/$backup_name-postgres-image"
+  snapshot_dump_path="$snapshot_run_path/databases/$backup_name.dump"
+  snapshot_image_path="$snapshot_run_path/databases/$backup_name-postgres-image"
+
+  if ! restic dump --quiet "$snapshot_id" "$snapshot_dump_path" --target "$dump_file" ||
+     ! restic dump --quiet "$snapshot_id" "$snapshot_image_path" --target "$image_file" ||
+     [[ ! -s "$dump_file" || ! -s "$image_file" ]]; then
+    find "$dump_file" "$image_file" -maxdepth 0 -type f -delete 2>/dev/null || true
     missing_backups+=("$backup_name")
   fi
 done < <(each_config_line "$DATABASES_FILE")
 
 if (( ${#missing_backups[@]} > 0 )); then
-  die "Latest snapshot is incomplete for the active database registry; missing logical backups: ${missing_backups[*]}"
+  die "Snapshot ${snapshot_id:0:8} is incomplete for the active database registry; missing logical backups: ${missing_backups[*]}"
 fi
 
 mapfile -t configured_names < <(
@@ -73,8 +120,8 @@ mapfile -t configured_names < <(
   die "No configured database matches restore drill selection '$database_name'."
 
 for backup_name in "${configured_names[@]}"; do
-  dump_file="$(find "$restore_root" -type f -path "*/databases/$backup_name.dump" -print -quit)"
-  image_file="$(find "$restore_root" -type f -path "*/databases/$backup_name-postgres-image" -print -quit)"
+  dump_file="$staged_database_dir/$backup_name.dump"
+  image_file="$staged_database_dir/$backup_name-postgres-image"
   [[ -n "$dump_file" && -s "$dump_file" ]] || die "Latest snapshot does not contain $backup_name.dump"
   [[ -n "$image_file" && -s "$image_file" ]] || die "Latest snapshot does not identify the PostgreSQL image for $backup_name."
   postgres_image="$(cat "$image_file")"
