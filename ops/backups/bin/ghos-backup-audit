@@ -38,12 +38,14 @@ path_is_covered /etc/ghos-backup || problem '/etc/ghos-backup is not included in
 
 declare -A configured_database_targets=()
 declare -A configured_database_services=()
+declare -A configured_database_compose_services=()
 declare -A configured_database_container_ids=()
 declare -A configured_database_container_names=()
 while IFS='|' read -r _ compose_file compose_service database_user database_name _; do
   [[ -n "$database_name" ]] || continue
   configured_database_targets["$compose_file|$compose_service|$database_name"]=1
   configured_database_services["$compose_file|$compose_service|$database_user"]=1
+  configured_database_compose_services["$compose_file|$compose_service"]=1
 done < <(each_config_line "$DATABASES_FILE")
 
 for service_key in "${!configured_database_services[@]}"; do
@@ -71,7 +73,7 @@ for service_key in "${!configured_database_services[@]}"; do
 done
 
 mapfile -t running_containers < <(docker ps -q)
-while IFS='|' read -r container_id container mount_type source destination; do
+while IFS='|' read -r container_id container compose_file compose_service mount_type source destination; do
   [[ -n "$container" ]] || continue
   if [[ "$mount_type" == bind ]]; then
     [[ "$source" == /var/run/docker.sock ]] && continue
@@ -80,7 +82,8 @@ while IFS='|' read -r container_id container mount_type source destination; do
   elif [[ "$mount_type" == volume ]]; then
     if [[ "$destination" == /var/lib/postgresql/data ]]; then
       if [[ -n "${configured_database_container_ids[$container_id]:-}" || \
-        -n "${configured_database_container_names[$container]:-}" ]]; then
+        -n "${configured_database_container_names[$container]:-}" || \
+        -n "${configured_database_compose_services["$compose_file|$compose_service"]:-}" ]]; then
         continue
       fi
     fi
@@ -98,7 +101,7 @@ while IFS='|' read -r container_id container mount_type source destination; do
 done < <(
   if (( ${#running_containers[@]} > 0 )); then
     docker inspect "${running_containers[@]}" --format \
-      '{{range .Mounts}}{{$.Id}}|{{$.Name}}|{{.Type}}|{{.Source}}|{{.Destination}}{{"\n"}}{{end}}' |
+      '{{range .Mounts}}{{$.Id}}|{{$.Name}}|{{index $.Config.Labels "com.docker.compose.project.config_files"}}|{{index $.Config.Labels "com.docker.compose.service"}}|{{.Type}}|{{.Source}}|{{.Destination}}{{"\n"}}{{end}}' |
       sed 's#|/#|#'
   fi
 )
