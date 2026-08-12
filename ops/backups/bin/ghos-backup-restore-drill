@@ -162,6 +162,16 @@ for backup_name in "${configured_names[@]}"; do
   [[ -n "$dump_file" && -s "$dump_file" ]] || die "Latest snapshot does not contain $backup_name.dump"
   [[ -n "$image_file" && -s "$image_file" ]] || die "Latest snapshot does not identify the PostgreSQL image for $backup_name."
   postgres_image="$(cat "$image_file")"
+  restore_user="postgres"
+  case "$postgres_image" in
+    supabase/postgres:*)
+      # Supabase's Vault tables are owned by supabase_admin and intentionally
+      # reject writes from its non-superuser postgres role. Use the image's
+      # built-in administrative role so the drill validates the complete dump,
+      # including encrypted Vault rows, inside this disposable container.
+      restore_user="supabase_admin"
+      ;;
+  esac
   container_name="ghos-restore-drill-${backup_name//[^a-zA-Z0-9_.-]/-}-$(date +%s)"
 
   docker run -d --rm \
@@ -173,9 +183,9 @@ for backup_name in "${configured_names[@]}"; do
     die "Disposable PostgreSQL container failed to become ready for '$backup_name'."
   docker exec "$container_name" createdb -U postgres restore_drill
   docker exec -i "$container_name" \
-    pg_restore --exit-on-error --no-owner --no-acl -U postgres -d restore_drill <"$dump_file"
+    pg_restore --exit-on-error --no-owner --no-acl -U "$restore_user" -d restore_drill <"$dump_file"
   docker exec "$container_name" \
-    psql -v ON_ERROR_STOP=1 -U postgres -d restore_drill \
+    psql -v ON_ERROR_STOP=1 -U "$restore_user" -d restore_drill \
     -c 'select current_database(), count(*) as schema_count from information_schema.schemata;' >/dev/null
   docker rm -f "$container_name" >/dev/null
   container_name=""
