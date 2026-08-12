@@ -4,7 +4,8 @@ umask 077
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 db_container="${OPERATIONS_DB_CONTAINER:-ghos-operations-db}"
-database_name="operations_restore_$(date -u +%Y%m%d_%H%M%S)"
+database_name="${OPERATIONS_RESTORE_DATABASE:-operations_restore_$(date -u +%Y%m%d_%H%M%S)}"
+keep_candidate="${OPERATIONS_KEEP_RESTORE:-0}"
 dump_migrations="${DUMP_SITE_MIGRATIONS:-/Users/mattstengel/Documents/GreenHills APP/supabase/migrations}"
 work_root="$(mktemp -d "${TMPDIR:-/tmp}/ghos-operations-restore.XXXXXX")"
 ticket_root="$work_root/ticket"
@@ -22,7 +23,7 @@ app_containers=(
 
 cleanup() {
   set +e
-  if [[ "$candidate_created" == 1 ]]; then
+  if [[ "$candidate_created" == 1 && "$keep_candidate" != "1" ]]; then
     docker exec "$db_container" dropdb -U postgres --if-exists --force \
       "$database_name" >/dev/null 2>&1
   fi
@@ -43,6 +44,15 @@ done
 [[ "$db_container" == "ghos-operations-db" ]] || {
   printf 'Refusing unexpected Operations database container: %s\n' \
     "$db_container" >&2
+  exit 1
+}
+[[ "$database_name" =~ ^operations_restore_[a-zA-Z0-9_]+$ ]] || {
+  printf 'Refusing unsafe Operations restore database name: %s\n' \
+    "$database_name" >&2
+  exit 1
+}
+[[ "$keep_candidate" == "0" || "$keep_candidate" == "1" ]] || {
+  printf 'OPERATIONS_KEEP_RESTORE must be 0 or 1.\n' >&2
   exit 1
 }
 [[ -d "$dump_migrations" ]] || {
@@ -369,3 +379,7 @@ printf '%s\n' \
   'Ticket Printer Auth and application counts match the encrypted source.' \
   'Dump Site table counts and both sequence positions match the encrypted source.' \
   'Dump Site remains service-only with no anon/authenticated table grants.'
+
+if [[ "$keep_candidate" == "1" ]]; then
+  printf 'Verified candidate database retained as %s.\n' "$database_name"
+fi

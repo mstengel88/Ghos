@@ -30,6 +30,36 @@ cp "$upstream/api/envoy/lds.template.yaml" "$runtime/api/lds.template.yaml"
 cp "$upstream/api/envoy/docker-entrypoint.sh" "$runtime/api/docker-entrypoint.sh"
 cp "$upstream/db/roles.sql" "$runtime/db/roles.sql"
 cp "$upstream/db/jwt.sql" "$runtime/db/jwt.sql"
+cat > "$runtime/db/bootstrap-roles.sql" <<'SQL'
+\set pgpass `echo "$POSTGRES_PASSWORD"`
+
+-- The pinned Supabase image creates a different subset of service roles
+-- depending on which optional services are enabled. Assign the shared
+-- database password only to roles that exist in this lightweight stack.
+SELECT format('ALTER ROLE %I PASSWORD %L;', rolname, :'pgpass')
+FROM pg_roles
+WHERE rolname IN (
+  'authenticator',
+  'pgbouncer',
+  'supabase_auth_admin',
+  'supabase_functions_admin',
+  'supabase_storage_admin'
+)
+\gexec
+
+SELECT format(
+  'ALTER FUNCTION %I.%I(%s) OWNER TO supabase_auth_admin;',
+  namespace.nspname,
+  procedure.proname,
+  pg_get_function_identity_arguments(procedure.oid)
+)
+FROM pg_proc AS procedure
+JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+WHERE namespace.nspname = 'auth'
+  AND procedure.proname IN ('uid', 'role', 'email')
+  AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_auth_admin')
+\gexec
+SQL
 cat > "$runtime/db/auth-owner.sql" <<'SQL'
 DO $$
 BEGIN

@@ -34,13 +34,31 @@ services:
     networks:
       - operations-internal
 
+  db-bootstrap:
+    image: supabase/postgres:17.6.1.136
+    container_name: ghos-operations-db-bootstrap
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./.runtime/db/bootstrap-roles.sql:/bootstrap/roles.sql:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - exec psql --host=db --port=5432 --username=postgres --dbname=postgres --set=ON_ERROR_STOP=1 --file=/bootstrap/roles.sql
+    networks:
+      - operations-internal
+
   auth:
     image: supabase/gotrue:v2.189.0
     container_name: ghos-operations-auth
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -83,8 +101,8 @@ services:
     container_name: ghos-operations-rest
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
       PGRST_DB_SCHEMAS: public
@@ -109,8 +127,8 @@ services:
     container_name: ghos-operations-functions
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
+      db-bootstrap:
+        condition: service_completed_successfully
     env_file:
       - path: functions.env
         required: true

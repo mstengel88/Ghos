@@ -11,7 +11,10 @@ if [[ -e "$env_file" || -e "$functions_env" ]]; then
   exit 1
 fi
 
-postgres_password="$(openssl rand -base64 48 | tr -d '\n')"
+# This password is interpolated into PostgreSQL connection URIs by Compose.
+# Hex keeps it high-entropy while avoiding URI delimiters such as /, +, @,
+# and : that would otherwise require a separately percent-encoded value.
+postgres_password="$(openssl rand -hex 48)"
 jwt_secret="$(openssl rand -base64 48 | tr -d '\n')"
 
 sign_jwt() {
