@@ -9,6 +9,7 @@ repo_root="$(
 
 project_ref="${SUPABASE_EXPORT_PROJECT_REF:-caegybyfdkmgjrygnavg}"
 pooler_host="${SUPABASE_EXPORT_POOLER_HOST:-aws-1-us-east-1.pooler.supabase.com}"
+pooler_port="${SUPABASE_EXPORT_POOLER_PORT:-6543}"
 export_label="${SUPABASE_EXPORT_LABEL:-WinterWatch}"
 archive_slug="${SUPABASE_EXPORT_ARCHIVE_SLUG:-winterwatch-pro}"
 expected_counts_sql_file="${SUPABASE_EXPORT_EXPECTED_COUNTS_SQL_FILE:-}"
@@ -77,7 +78,8 @@ if ! docker run --rm \
   -e PGPASSWORD="$pat" \
   -e PGOPTIONS="-c jit=true" \
   -e PGHOST="$pooler_host" \
-  -e PGPORT=5432 \
+  -e PGPORT="$pooler_port" \
+  -e PGSSLMODE=require \
   -e PGUSER="postgres.$project_ref" \
   -e PGDATABASE=postgres \
   "$postgres_image" \
@@ -134,7 +136,8 @@ run_dump() {
     -e PGPASSWORD="$pat" \
     -e PGOPTIONS="-c jit=true" \
     -e PGHOST="$pooler_host" \
-    -e PGPORT=5432 \
+    -e PGPORT="$pooler_port" \
+    -e PGSSLMODE=require \
     -e PGUSER="postgres.$project_ref" \
     -e PGDATABASE=postgres \
     "$@" \
@@ -202,7 +205,8 @@ docker run --rm \
   -e PGPASSWORD="$pat" \
   -e PGOPTIONS="-c jit=true" \
   -e PGHOST="$pooler_host" \
-  -e PGPORT=5432 \
+  -e PGPORT="$pooler_port" \
+  -e PGSSLMODE=require \
   -e PGUSER="postgres.$project_ref" \
   -e PGDATABASE=postgres \
   -v "$export_root:/export" \

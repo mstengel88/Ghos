@@ -4,5 +4,10 @@ postgres-maintenance|/opt/ghos/compose.yml|postgres|ghosadmin|postgres|postgres:
 shipcalc|/opt/ghos/compose.yml|postgres|ghosadmin|shipcalc|postgres:16
 shopify-bridge|/opt/ghos/compose.yml|postgres|ghosadmin|shopify_bridge|postgres:16
 
+# Shared self-hosted Supabase backend for Ticket Printer and Dump Site. Keep
+# this entry disabled until /opt/ghos/ops/supabase-operations is deployed and
+# its database container is healthy.
+# operations|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|postgres|supabase/postgres:17.6.1.136
+
 # Add each self-hosted Supabase project after it is deployed. Example:
 # local-delivery|/opt/supabase/local-delivery/docker-compose.yml|db|postgres|postgres|supabase/postgres:17.4.1.054
