@@ -36,20 +36,35 @@ path_is_covered() {
 path_is_covered /opt/ghos || problem '/opt/ghos is not included in source-paths.conf'
 path_is_covered /etc/ghos-backup || problem '/etc/ghos-backup is not included in source-paths.conf'
 
-declare -A configured_databases=()
-while IFS='|' read -r _ _ _ _ database_name _; do
-  [[ -n "$database_name" ]] && configured_databases["$database_name"]=1
+declare -A configured_database_targets=()
+declare -A configured_database_services=()
+declare -A configured_database_containers=()
+while IFS='|' read -r _ compose_file compose_service database_user database_name _; do
+  [[ -n "$database_name" ]] || continue
+  configured_database_targets["$compose_file|$compose_service|$database_name"]=1
+  configured_database_services["$compose_file|$compose_service|$database_user"]=1
 done < <(each_config_line "$DATABASES_FILE")
 
-while IFS= read -r database_name; do
-  [[ -n "$database_name" ]] || continue
-  [[ -n "${configured_databases[$database_name]:-}" ]] ||
-    problem "local PostgreSQL database '$database_name' is not configured for a logical dump"
-done < <(
-  docker compose -f /opt/ghos/compose.yml exec -T postgres \
-    psql -U ghosadmin -d postgres -Atc \
-      'select datname from pg_database where not datistemplate order by datname'
-)
+for service_key in "${!configured_database_services[@]}"; do
+  IFS='|' read -r compose_file compose_service database_user <<<"$service_key"
+  container_id="$(docker compose -f "$compose_file" ps -q "$compose_service")"
+  [[ -n "$container_id" ]] || {
+    problem "configured PostgreSQL service is not running: $compose_file ($compose_service)"
+    continue
+  }
+  configured_database_containers["$(docker inspect --format '{{.Name}}' "$container_id" | sed 's#^/##')"]=1
+
+  while IFS= read -r database_name; do
+    [[ -n "$database_name" ]] || continue
+    target_key="$compose_file|$compose_service|$database_name"
+    [[ -n "${configured_database_targets[$target_key]:-}" ]] ||
+      problem "local PostgreSQL database '$database_name' in $compose_file ($compose_service) is not configured for a logical dump"
+  done < <(
+    docker compose -f "$compose_file" exec -T "$compose_service" \
+      psql -U "$database_user" -d postgres -Atc \
+        'select datname from pg_database where not datistemplate order by datname'
+  )
+done
 
 mapfile -t running_containers < <(docker ps -q)
 while IFS='|' read -r container mount_type source destination; do
@@ -59,6 +74,10 @@ while IFS='|' read -r container mount_type source destination; do
     path_is_covered "$source" ||
       problem "bind mount for $container is outside protected paths: $source -> $destination"
   elif [[ "$mount_type" == volume ]]; then
+    if [[ "$destination" == /var/lib/postgresql/data && \
+      -n "${configured_database_containers[$container]:-}" ]]; then
+      continue
+    fi
     if ! each_config_line "$VOLUME_EXPORTS_FILE" |
       awk -F '|' -v path="$destination" '$4 == path { found=1 } END { exit !found }'; then
       problem "named volume for $container is not configured for export: $destination"

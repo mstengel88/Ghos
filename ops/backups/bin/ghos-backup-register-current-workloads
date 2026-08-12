@@ -41,25 +41,29 @@ upsert_pipe_record() {
 }
 
 database_exists() {
-  local database_name="$1"
-  docker compose -f "$COMPOSE_FILE" exec -T postgres \
-    psql -U ghosadmin -d postgres -Atc \
+  local compose_file="$1"
+  local compose_service="$2"
+  local database_user="$3"
+  local database_name="$4"
+  docker compose -f "$compose_file" exec -T "$compose_service" \
+    psql -U "$database_user" -d postgres -Atc \
       "select 1 from pg_database where datname = '$database_name' and not datistemplate" |
     grep -qx 1
 }
 
-while IFS='|' read -r backup_name database_name; do
-  database_exists "$database_name" || {
+while IFS='|' read -r backup_name compose_file compose_service database_user database_name postgres_image; do
+  database_exists "$compose_file" "$compose_service" "$database_user" "$database_name" || {
     printf 'Expected local database is missing: %s\n' "$database_name" >&2
     exit 1
   }
   upsert_pipe_record "$DATABASES_FILE" "$backup_name" \
-    "$backup_name|$COMPOSE_FILE|postgres|ghosadmin|$database_name|postgres:16"
+    "$backup_name|$compose_file|$compose_service|$database_user|$database_name|$postgres_image"
 done <<'EOF'
-ghos|ghos
-postgres-maintenance|postgres
-shipcalc|shipcalc
-shopify-bridge|shopify_bridge
+ghos|/opt/ghos/compose.yml|postgres|ghosadmin|ghos|postgres:16
+postgres-maintenance|/opt/ghos/compose.yml|postgres|ghosadmin|postgres|postgres:16
+shipcalc|/opt/ghos/compose.yml|postgres|ghosadmin|shipcalc|postgres:16
+shopify-bridge|/opt/ghos/compose.yml|postgres|ghosadmin|shopify_bridge|postgres:16
+operations|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|postgres|supabase/postgres:17.6.1.136
 EOF
 
 upsert_pipe_record "$VOLUME_EXPORTS_FILE" ghos-data-protection \
