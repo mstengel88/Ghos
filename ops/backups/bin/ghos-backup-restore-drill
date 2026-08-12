@@ -42,8 +42,8 @@ restic restore latest \
   --host "$BACKUP_HOST_TAG" \
   --tag ghos-automatic \
   --target "$restore_root" \
-  --include '**/databases/*.dump' \
-  --include '**/databases/*-postgres-image'
+  --include "$BACKUP_ROOT/runs/*/databases/*.dump" \
+  --include "$BACKUP_ROOT/runs/*/databases/*-postgres-image"
 
 # Refuse to proceed when the snapshot's logical-dump manifest and the active
 # database registry disagree. This produces one complete diagnostic instead of
