@@ -45,6 +45,23 @@ restic restore latest \
   --include '**/databases/*.dump' \
   --include '**/databases/*-postgres-image'
 
+# Refuse to proceed when the snapshot's logical-dump manifest and the active
+# database registry disagree. This produces one complete diagnostic instead of
+# stopping at the first missing dump and makes configuration drift obvious.
+missing_backups=()
+while IFS='|' read -r backup_name _; do
+  [[ -n "$backup_name" ]] || continue
+  dump_file="$(find "$restore_root" -type f -path "*/databases/$backup_name.dump" -print -quit)"
+  image_file="$(find "$restore_root" -type f -path "*/databases/$backup_name-postgres-image" -print -quit)"
+  if [[ -z "$dump_file" || ! -s "$dump_file" || -z "$image_file" || ! -s "$image_file" ]]; then
+    missing_backups+=("$backup_name")
+  fi
+done < <(each_config_line "$DATABASES_FILE")
+
+if (( ${#missing_backups[@]} > 0 )); then
+  die "Latest snapshot is incomplete for the active database registry; missing logical backups: ${missing_backups[*]}"
+fi
+
 mapfile -t configured_names < <(
   while IFS='|' read -r backup_name _; do
     if [[ "$database_name" == all || "$database_name" == "$backup_name" ]]; then
