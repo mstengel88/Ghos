@@ -38,7 +38,7 @@ path_is_covered /etc/ghos-backup || problem '/etc/ghos-backup is not included in
 
 declare -A configured_database_targets=()
 declare -A configured_database_services=()
-declare -A configured_database_containers=()
+declare -A configured_database_container_ids=()
 while IFS='|' read -r _ compose_file compose_service database_user database_name _; do
   [[ -n "$database_name" ]] || continue
   configured_database_targets["$compose_file|$compose_service|$database_name"]=1
@@ -52,7 +52,7 @@ for service_key in "${!configured_database_services[@]}"; do
     problem "configured PostgreSQL service is not running: $compose_file ($compose_service)"
     continue
   }
-  configured_database_containers["$(docker inspect --format '{{.Name}}' "$container_id" | sed 's#^/##')"]=1
+  configured_database_container_ids["$container_id"]=1
 
   while IFS= read -r database_name; do
     [[ -n "$database_name" ]] || continue
@@ -67,7 +67,7 @@ for service_key in "${!configured_database_services[@]}"; do
 done
 
 mapfile -t running_containers < <(docker ps -q)
-while IFS='|' read -r container mount_type source destination; do
+while IFS='|' read -r container_id container mount_type source destination; do
   [[ -n "$container" ]] || continue
   if [[ "$mount_type" == bind ]]; then
     [[ "$source" == /var/run/docker.sock ]] && continue
@@ -75,7 +75,13 @@ while IFS='|' read -r container mount_type source destination; do
       problem "bind mount for $container is outside protected paths: $source -> $destination"
   elif [[ "$mount_type" == volume ]]; then
     if [[ "$destination" == /var/lib/postgresql/data && \
-      -n "${configured_database_containers[$container]:-}" ]]; then
+      -n "${configured_database_container_ids[$container_id]:-}" ]]; then
+      continue
+    fi
+    # The Edge Runtime's Deno dependency cache is reconstructed from the
+    # versioned function sources. Treating it as application state wastes
+    # backup space and can restore stale compiled dependencies.
+    if [[ "$destination" == /root/.cache/deno ]]; then
       continue
     fi
     if ! each_config_line "$VOLUME_EXPORTS_FILE" |
@@ -86,8 +92,8 @@ while IFS='|' read -r container mount_type source destination; do
 done < <(
   if (( ${#running_containers[@]} > 0 )); then
     docker inspect "${running_containers[@]}" --format \
-      '{{range .Mounts}}{{$.Name}}|{{.Type}}|{{.Source}}|{{.Destination}}{{"\n"}}{{end}}' |
-      sed 's#^/##'
+      '{{range .Mounts}}{{$.Id}}|{{$.Name}}|{{.Type}}|{{.Source}}|{{.Destination}}{{"\n"}}{{end}}' |
+      sed 's#|/#|#'
   fi
 )
 
