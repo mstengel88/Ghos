@@ -13,7 +13,7 @@
         <a href="/settings">← Settings</a>
         <span class="panel-label">DUMPSITE CONNECTION</span>
         <h2>Operator queue connection</h2>
-        <p>Move the secure fallback queue into GHOS while Supabase remains the source of truth for dump-site check-ins and Counterpoint ticket state.</p>
+        <p>Run the secure operator queue through GHOS Operations while preserving the managed Supabase endpoint as a rollback path during migration.</p>
     </div>
     <div class="connection-state @(Configured ? "connected" : "pending")">
         <i></i>
@@ -51,12 +51,12 @@
 
                 <div class="field-grid">
                     <label class="wide">
-                        <span>Supabase bridge API address</span>
+                        <span>Dumpsite bridge API address</span>
                         <input @bind="ConnectionModel.BridgeApiBaseUrl"
                                @bind:event="oninput"
                                type="url"
                                autocomplete="url"
-                               placeholder="https://PROJECT.supabase.co/functions/v1/dump-site-bridge" />
+                               placeholder="https://…/dump-site-bridge or the private GHOS Operations address" />
                         <ValidationMessage For="@(() => ConnectionModel.BridgeApiBaseUrl)" />
                     </label>
 
@@ -170,8 +170,18 @@ else
             </dl>
             <div class="form-actions">
                 <a class="primary-action queue-link" href="/dumpsite/queue">Open Dumpsite queue</a>
+                @if (!UsesLocalOperations)
+                {
+                    <button class="secondary-action"
+                            type="button"
+                            disabled="@Busy"
+                            @onclick="SwitchToLocalOperationsAsync">
+                        @(Busy ? "Verifying local bridge…" : "Switch to local GHOS Operations")
+                    </button>
+                }
                 <button class="secondary-action"
                         type="button"
+                        disabled="@Busy"
                         @onclick="BeginEdit">
                     Replace or update connection
                 </button>
@@ -180,8 +190,15 @@ else
 
         <section class="panel migration-summary">
             <span class="panel-label">CONSOLIDATION</span>
-            <h3>Windows web process can be retired</h3>
-            <p>After the GHOS queue is verified with a real queued entry, disable the old <code>GreenHills Dump Site Operator</code> scheduled task on the Windows server. The Counterpoint desktop application stays where it is.</p>
+            <h3>@(UsesLocalOperations ? "Local Operations is active" : "Local Operations is ready")</h3>
+            @if (UsesLocalOperations)
+            {
+                <p>GHOS is using the private Operations bridge. Verify a real queued entry before changing public/mobile clients or retiring the old Windows operator process.</p>
+            }
+            else
+            {
+                <p>The switch verifies the saved encrypted credential against the local bridge before changing this endpoint. If verification fails, the current managed connection remains unchanged.</p>
+            }
         </section>
     </div>
 }
@@ -195,6 +212,10 @@ else
     private bool Busy { get; set; }
     private string? ErrorMessage { get; set; }
     private string? SuccessMessage { get; set; }
+    private bool UsesLocalOperations => string.Equals(
+        Settings?.BridgeApiBaseUrl,
+        DumpSiteCredentialStore.LocalOperationsBridgeUrl,
+        StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnInitializedAsync()
     {
@@ -250,6 +271,54 @@ else
                 "GHOS could not save the Dumpsite connection.");
             ErrorMessage =
                 "GHOS could not test or save the Dumpsite connection. Nothing was changed.";
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task SwitchToLocalOperationsAsync()
+    {
+        Busy = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            var configuration = await CredentialStore.GetAsync() ??
+                throw new DumpSiteConnectionException(
+                    "Configure the Dumpsite connection before switching its endpoint.");
+
+            await BridgeClient.TestAsync(
+                DumpSiteCredentialStore.LocalOperationsBridgeUrl,
+                configuration.Credentials.SharedSecret,
+                configuration.Credentials.BridgeId);
+
+            var authenticationState =
+                await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userId = authenticationState.User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+            await CredentialStore.UpdateBridgeEndpointAsync(
+                DumpSiteCredentialStore.LocalOperationsBridgeUrl,
+                userId);
+
+            Settings = await CredentialStore.GetSettingsAsync();
+            ConnectionModel = FromSettings(Settings!);
+            SuccessMessage =
+                "Dumpsite now uses the private GHOS Operations bridge. The saved secret and mappings were preserved.";
+        }
+        catch (DumpSiteConnectionException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "GHOS could not switch Dumpsite to the local Operations bridge.");
+            ErrorMessage =
+                "The local bridge could not be verified. The existing Dumpsite connection was not changed.";
         }
         finally
         {

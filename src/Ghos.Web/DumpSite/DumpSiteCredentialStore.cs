@@ -17,6 +17,9 @@ public sealed record DumpSiteConfiguration(
 
 public sealed class DumpSiteCredentialStore
 {
+    public const string LocalOperationsBridgeUrl =
+        "http://ghos-operations-api:8000/functions/v1/dump-site-bridge";
+
     private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
     private readonly IDataProtector _protector;
 
@@ -132,7 +135,31 @@ public sealed class DumpSiteCredentialStore
         settings.LastHealthCheckAtUtc = DateTime.UtcNow;
         settings.LastHealthCheckSucceeded = true;
         settings.LastHealthCheckMessage =
-            "The Supabase Dumpsite bridge accepted the GHOS connection.";
+            "The Dumpsite bridge accepted the GHOS connection.";
+        settings.UpdatedAtUtc = DateTime.UtcNow;
+        settings.UpdatedByUserId = userId;
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateBridgeEndpointAsync(
+        string bridgeApiBaseUrl,
+        string? userId,
+        CancellationToken cancellationToken = default)
+    {
+        var baseUrl = NormalizeBaseUrl(bridgeApiBaseUrl);
+
+        await using var dbContext =
+            await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var settings = await dbContext.DumpSiteConnectionSettings
+            .SingleOrDefaultAsync(cancellationToken) ??
+            throw new DumpSiteConnectionException(
+                "Configure the Dumpsite connection before switching its endpoint.");
+
+        settings.BridgeApiBaseUrl = baseUrl;
+        settings.LastHealthCheckAtUtc = DateTime.UtcNow;
+        settings.LastHealthCheckSucceeded = true;
+        settings.LastHealthCheckMessage =
+            "The local GHOS Operations bridge accepted the saved connection.";
         settings.UpdatedAtUtc = DateTime.UtcNow;
         settings.UpdatedByUserId = userId;
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -141,11 +168,25 @@ public sealed class DumpSiteCredentialStore
     public static string NormalizeBaseUrl(string baseUrl)
     {
         if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) ||
-            uri.Scheme != Uri.UriSchemeHttps ||
             !string.IsNullOrEmpty(uri.UserInfo))
         {
             throw new DumpSiteConnectionException(
-                "Enter the secure HTTPS address for the Dumpsite bridge API.");
+                "Enter a valid Dumpsite bridge API address without embedded credentials.");
+        }
+
+        var isSecurePublicEndpoint = uri.Scheme == Uri.UriSchemeHttps;
+        var isPrivateOperationsEndpoint =
+            uri.Scheme == Uri.UriSchemeHttp &&
+            string.Equals(
+                uri.Host,
+                "ghos-operations-api",
+                StringComparison.OrdinalIgnoreCase) &&
+            uri.Port == 8000;
+
+        if (!isSecurePublicEndpoint && !isPrivateOperationsEndpoint)
+        {
+            throw new DumpSiteConnectionException(
+                "Use HTTPS, or the private GHOS Operations bridge address.");
         }
 
         return uri.GetLeftPart(UriPartial.Path).TrimEnd('/');
