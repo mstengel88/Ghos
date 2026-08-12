@@ -28,6 +28,35 @@ restore_root="$(mktemp -d "$BACKUP_ROOT/restore-drill.XXXXXXXX")"
 container_name=""
 drill_password="restore-drill-only"
 
+wait_for_final_postgres() {
+  local candidate_container="$1"
+  local init_process=""
+
+  # PostgreSQL images start a temporary server while their entrypoint performs
+  # initialization. pg_isready can succeed against that server immediately
+  # before it is intentionally stopped, which previously made the drill race
+  # into "the database system is shutting down". The entrypoint execs the
+  # final postgres server as PID 1 only after initialization is complete.
+  for _ in $(seq 1 120); do
+    if [[ "$(docker inspect --format '{{.State.Running}}' "$candidate_container" 2>/dev/null || true)" != true ]]; then
+      break
+    fi
+
+    init_process="$(docker exec "$candidate_container" cat /proc/1/comm 2>/dev/null || true)"
+    if [[ "$init_process" == postgres* ]] &&
+       docker exec "$candidate_container" pg_isready -U postgres >/dev/null 2>&1; then
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  printf "PostgreSQL container '%s' did not reach final-server readiness.\n" \
+    "$candidate_container" >&2
+  docker logs --tail 100 "$candidate_container" >&2 2>/dev/null || true
+  return 1
+}
+
 cleanup() {
   [[ -z "$container_name" ]] || docker rm -f "$container_name" >/dev/null 2>&1 || true
   if [[ -d "$restore_root" && "$restore_root" == "$BACKUP_ROOT"/restore-drill.* ]]; then
@@ -137,13 +166,8 @@ for backup_name in "${configured_names[@]}"; do
     -e "POSTGRES_PASSWORD=$drill_password" \
     "$postgres_image" >/dev/null
 
-  for _ in $(seq 1 60); do
-    if docker exec "$container_name" pg_isready -U postgres >/dev/null 2>&1; then
-      break
-    fi
-    sleep 2
-  done
-  docker exec "$container_name" pg_isready -U postgres >/dev/null
+  wait_for_final_postgres "$container_name" ||
+    die "Disposable PostgreSQL container failed to become ready for '$backup_name'."
   docker exec "$container_name" createdb -U postgres restore_drill
   docker exec -i "$container_name" \
     pg_restore --exit-on-error --no-owner --no-acl -U postgres -d restore_drill <"$dump_file"
