@@ -185,10 +185,12 @@ for backup_name in "${configured_names[@]}"; do
   # Never restore into a database cloned from template1. Supabase images put
   # extensions such as pg_net in template1, and restoring their COMMENT or
   # metadata as another administrative role then fails an ownership check.
-  # A template0 database is empty; restoring as its selected owner lets the
-  # dump create and own its extensions and Vault objects consistently.
+  # Connect as the selected restore role when creating the template0 database.
+  # Supabase deliberately prevents its postgres role from SET ROLE to
+  # supabase_admin, so `createdb -U postgres --owner=supabase_admin` fails even
+  # inside this disposable validation container.
   docker exec "$container_name" \
-    createdb -U postgres --template=template0 --owner="$restore_user" restore_drill
+    createdb -U "$restore_user" --template=template0 restore_drill
   docker exec -i "$container_name" \
     pg_restore --exit-on-error --no-owner --no-acl -U "$restore_user" -d restore_drill <"$dump_file"
   docker exec "$container_name" \
