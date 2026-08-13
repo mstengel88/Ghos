@@ -163,15 +163,6 @@ for backup_name in "${configured_names[@]}"; do
   [[ -n "$image_file" && -s "$image_file" ]] || die "Latest snapshot does not identify the PostgreSQL image for $backup_name."
   postgres_image="$(cat "$image_file")"
   restore_user="postgres"
-  case "$postgres_image" in
-    supabase/postgres:*)
-      # Supabase's Vault tables are owned by supabase_admin and intentionally
-      # reject writes from its non-superuser postgres role. Use the image's
-      # built-in administrative role so the drill validates the complete dump,
-      # including encrypted Vault rows, inside this disposable container.
-      restore_user="supabase_admin"
-      ;;
-  esac
   container_name="ghos-restore-drill-${backup_name//[^a-zA-Z0-9_.-]/-}-$(date +%s)"
 
   docker run -d --rm \
@@ -181,7 +172,14 @@ for backup_name in "${configured_names[@]}"; do
 
   wait_for_final_postgres "$container_name" ||
     die "Disposable PostgreSQL container failed to become ready for '$backup_name'."
-  docker exec "$container_name" createdb -U postgres restore_drill
+
+  # Never restore into a database cloned from template1. Supabase images put
+  # extensions such as pg_net in template1, and restoring their COMMENT or
+  # metadata as another administrative role then fails an ownership check.
+  # A template0 database is empty; restoring as its postgres owner lets the
+  # dump create and own its extensions and Vault objects consistently.
+  docker exec "$container_name" \
+    createdb -U postgres --template=template0 --owner="$restore_user" restore_drill
   docker exec -i "$container_name" \
     pg_restore --exit-on-error --no-owner --no-acl -U "$restore_user" -d restore_drill <"$dump_file"
   docker exec "$container_name" \

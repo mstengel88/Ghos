@@ -103,6 +103,21 @@ operations_database="$(
 upsert_pipe_record "$DATABASES_FILE" operations \
   "operations|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|$operations_database|supabase/postgres:17.6.1.136"
 
+# The Supabase Operations cluster also has the standard postgres maintenance
+# database. The coverage audit treats every persistent non-template database
+# as recoverable data, so register it independently from the application
+# database discovered above.
+database_exists \
+  /opt/ghos/ops/supabase-operations/compose.yml \
+  db \
+  postgres \
+  postgres || {
+  printf 'Expected Operations maintenance database is missing: postgres\n' >&2
+  exit 1
+}
+upsert_pipe_record "$DATABASES_FILE" operations-postgres-maintenance \
+  'operations-postgres-maintenance|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|postgres|supabase/postgres:17.6.1.136'
+
 upsert_pipe_record "$VOLUME_EXPORTS_FILE" ghos-data-protection \
   'ghos-data-protection|/opt/ghos/compose.yml|ghos-web|/var/lib/ghos/data-protection'
 
