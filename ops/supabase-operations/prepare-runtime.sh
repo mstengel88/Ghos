@@ -107,6 +107,18 @@ second = source.find(duplicate, first + len(duplicate))
 if second == -1:
     raise SystemExit('Pinned Edge Runtime router changed: second route parser not found')
 source = source[:second] + source[second + len(duplicate):]
+
+# Clone the inbound request at the worker boundary so POST bodies survive the
+# transfer into a user worker. Supabase's internal request tag owns the stream
+# resource, so it must be copied to the clone before worker.fetch is called.
+old_fetch = "    return await worker.fetch(req)"
+new_fetch = """    const worker_request = req.clone()
+    EdgeRuntime.applySupabaseTag(req, worker_request)
+    return await worker.fetch(worker_request)"""
+if source.count(old_fetch) != 1:
+    raise SystemExit('Pinned Edge Runtime router changed: worker fetch marker mismatch')
+source = source.replace(old_fetch, new_fetch)
+
 path.write_text(source)
 PY
 

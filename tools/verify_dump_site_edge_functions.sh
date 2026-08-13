@@ -55,7 +55,7 @@ if [[ -z "$anon_key" ]]; then
   exit 1
 fi
 
-expected_api_hash="4732a4a6e92a7bcfcb200a66d657d7fd2478f8892eafa1ee7c55f9057761d38b"
+expected_api_hash="39a398b88b101832615e377ed6b8170ebb6f514b465eb77cf3db432c31d29f30"
 expected_bridge_hash="3bdf9a9b88cd195a0113d93f5c7e337bc3f4d25210139e87f05cb13dcdfcecf3"
 source_root="${DUMP_SITE_SOURCE_ROOT:-/Users/mattstengel/Documents/GreenHills APP}"
 
@@ -85,7 +85,7 @@ cp -R \
   create --force-recreate functions
 docker start "$functions_container" >/dev/null
 
-for attempt in {1..30}; do
+for _ in {1..30}; do
   status="$(
     curl -sS -o /dev/null -w '%{http_code}' \
       --connect-timeout 2 --max-time 5 \
@@ -139,6 +139,13 @@ assert_json \
   "Dump Site API validates submission fields before database access" 400 \
   '.error == "Truck number, driver name, material, and vehicle are required."' \
   -X POST -H "Content-Type: application/json" -d '{}' \
+  "$base_url/functions/v1/dump-site-api/submit"
+
+assert_json \
+  "Dump Site API preserves populated JSON submission bodies" 401 \
+  '.error == "Your dump-site session is not valid. Enter the company code again."' \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"sessionToken":"invalid-regression-token","truckNumber":"TEST","driverName":"Regression Probe","materialType":"Yard Waste","vehicleType":"Pickup Truck"}' \
   "$base_url/functions/v1/dump-site-api/submit"
 
 assert_json \

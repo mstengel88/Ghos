@@ -2,8 +2,6 @@
 set -Eeuo pipefail
 umask 077
 
-COMPOSE_FILE=/opt/ghos/compose.yml
-
 if [[ -f /usr/local/lib/ghos-backup/lib/backup-common.sh ]]; then
   # shellcheck source=/dev/null
   source /usr/local/lib/ghos-backup/lib/backup-common.sh
@@ -51,6 +49,33 @@ database_exists() {
     grep -qx 1
 }
 
+discover_application_database() {
+  local compose_file="$1"
+  local compose_service="$2"
+  local database_user="$3"
+  local databases
+
+  databases="$(
+    docker compose -f "$compose_file" exec -T "$compose_service" \
+      psql -U "$database_user" -d postgres -Atc \
+        "select datname from pg_database where not datistemplate and datname <> 'postgres' order by datname"
+  )"
+
+  if [[ -z "$databases" ]]; then
+    printf 'No application database was found for Compose service %s in %s\n' \
+      "$compose_service" "$compose_file" >&2
+    return 1
+  fi
+
+  if [[ "$(printf '%s\n' "$databases" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')" != 1 ]]; then
+    printf 'Expected one application database for Compose service %s in %s; found:\n%s\n' \
+      "$compose_service" "$compose_file" "$databases" >&2
+    return 1
+  fi
+
+  printf '%s\n' "$databases"
+}
+
 while IFS='|' read -r backup_name compose_file compose_service database_user database_name postgres_image; do
   database_exists "$compose_file" "$compose_service" "$database_user" "$database_name" || {
     printf 'Expected local database is missing: %s\n' "$database_name" >&2
@@ -63,8 +88,20 @@ ghos|/opt/ghos/compose.yml|postgres|ghosadmin|ghos|postgres:16
 postgres-maintenance|/opt/ghos/compose.yml|postgres|ghosadmin|postgres|postgres:16
 shipcalc|/opt/ghos/compose.yml|postgres|ghosadmin|shipcalc|postgres:16
 shopify-bridge|/opt/ghos/compose.yml|postgres|ghosadmin|shopify_bridge|postgres:16
-operations|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|postgres|supabase/postgres:17.6.1.136
 EOF
+
+
+# Operations may intentionally retain a timestamped database name during a
+# rollback window. Register the database the healthy runtime is actually using
+# instead of assuming that it is always named "operations".
+operations_database="$(
+  discover_application_database \
+    /opt/ghos/ops/supabase-operations/compose.yml \
+    db \
+    postgres
+)"
+upsert_pipe_record "$DATABASES_FILE" operations \
+  "operations|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|$operations_database|supabase/postgres:17.6.1.136"
 
 upsert_pipe_record "$VOLUME_EXPORTS_FILE" ghos-data-protection \
   'ghos-data-protection|/opt/ghos/compose.yml|ghos-web|/var/lib/ghos/data-protection'

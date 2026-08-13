@@ -7,9 +7,17 @@ Canonical source:
 
 Status: local PostgreSQL 17 schema, exact managed-schema comparison,
 queue-workflow rehearsal, clean-room PostgREST recovery, and both Edge
-Function authorization contracts pass. The GHOS queue now uses the local
-Operations bridge on the VM. Standalone client cutover and public external
-callbacks remain on the managed service until their own acceptance passes.
+Function authorization contracts pass. The GHOS queue uses the local
+Operations bridge, and the public Dump Site gateway is live at
+`https://app.ghstickets.com/functions/v1/dump-site-api`. Managed Supabase is
+being retained as the rollback target until rebuilt mobile client and full
+workflow acceptance are complete.
+
+The pinned local Edge Runtime router clones inbound requests before handing
+them to user workers and transfers the Supabase request tag to that clone. This
+preserves populated POST bodies across the worker boundary; the regression
+suite verifies that a populated submission reaches the API and receives the
+expected session response instead of a stream-resource failure.
 
 ## GHOS bridge cutover
 
@@ -119,23 +127,24 @@ tools/verify_dump_site_edge_functions.sh
 
 ## Client cutover inventory
 
-The standalone clients still point directly at the managed function URL:
+The standalone client source now points to the GHOS public function gateway:
 
 - iOS: `ProjectInfo.plist` key `DumpSiteAPIBaseURL`;
 - Android: `GreenHillsINC-Android/app/build.gradle.kts` build configuration.
 
-The iOS value is already configuration-shaped, but its release value still
-needs to be supplied by the future environment/build pipeline. Android needs
-the same environment-specific build configuration instead of a literal
-managed-project URL. The canonical application checkout is highly modified, so
-no client files were changed during this server-side rehearsal.
+Both values are synchronized to
+`https://app.ghstickets.com/functions/v1/dump-site-api`, and
+`tools/verify_dump_site_client_config.sh` passes with that exact expected
+endpoint. Existing installed mobile apps retain the endpoint compiled into
+their current release and therefore require a rebuilt release before they are
+considered cut over.
 
 Cutover must update both clients to the same public HTTPS function gateway.
 Tailscale-only access is not sufficient for the Shopify website/app-proxy
 workflow. The managed URL remains the rollback target until mobile and website
 acceptance passes.
 
-The current clients can be checked without modifying them:
+The client source can be checked without modifying it:
 
 ```bash
 tools/verify_dump_site_client_config.sh
@@ -231,19 +240,36 @@ Secrets must be entered into the future GHSSERVER runtime from the company
 password manager. They must not be copied into Git, Docker images, migration
 reports, or command history.
 
+## Public gateway cutover
+
+On 2026-08-12, `app.ghstickets.com` began forwarding the Dump Site function
+path through `ghos-shopify-bridge` to the private Operations Edge Function.
+The public gateway preserves the API route and method contract while keeping
+the internal Operations hostname and credentials private. Acceptance verified
+the POST-only guard, unknown-route guard, invalid QR response, validation
+response, and healthy GHOS bridge/API/database containers.
+
+The Shopify application declares the storefront app proxy as:
+
+- prefix: `apps`;
+- subpath: `green-hills-dump-site`; and
+- upstream: `/functions/v1/dump-site-api` on the app URL.
+
+Shopify application version `local-delivery-116` was released on 2026-08-12.
+After release, a unique invalid-QR request sent through
+`/apps/green-hills-dump-site/qr-access` returned HTTP 200 with the same
+`{"allowed":false}` contract as the direct GHOS gateway. The Shopify bridge
+and all Operations containers remained healthy during acceptance.
+
 ## Remaining gates
 
-1. Capture an encrypted exact database export without resetting a production
-   database password.
-2. Restore the encrypted data export into the isolated Dump Site database and
-   verify counts, constraints, and the two production generated-number
-   sequence positions. The empty clean-room API path already passes.
-3. Capture the Edge Function secret values through an authorized private
-   handoff and test Shopify, email, QR, and bridge callbacks using staging
-   credentials. The local authorization contract already passes with test-only
-   credentials.
-4. Deploy behind HTTPS because the Shopify and QR workflows cannot use a
-   Tailscale-only callback.
-5. Run the GHOS queue and the standalone Dump Site client against the same
-   candidate backend before the managed-project cutover.
-6. Keep managed Supabase intact through the rollback observation window.
+1. Rebuild and release the iOS and Android apps, then test their authenticated
+   and QR access paths against the GHOS gateway.
+2. Complete end-to-end production acceptance for queueing, notification email,
+   Shopify company authorization, and CounterPoint operator completion.
+3. Keep managed Supabase intact throughout the rollback observation window;
+   decommission it only after explicit approval.
+
+The backup registrar discovers the single non-template database used by the
+Operations runtime. This protects a timestamped rollback database name without
+renaming it during the observation window.

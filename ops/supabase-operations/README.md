@@ -84,11 +84,14 @@ schema and data.
 
 The normal GHOS source backup already includes this stack because `/opt/ghos`
 is a required source path. After the Operations database is restored and the
-stack is healthy, enable this logical-dump entry in
-`/etc/ghos-backup/databases.conf`:
+stack is healthy, run `ghos-backup-register-current-workloads`. It discovers
+the single non-template Operations database used by the healthy runtime, which
+also supports a timestamped database name retained during a rollback window.
+The resulting logical-dump entry in `/etc/ghos-backup/databases.conf` has this
+shape:
 
 ```text
-operations|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|postgres|supabase/postgres:17.6.1.136
+operations|/opt/ghos/ops/supabase-operations/compose.yml|db|postgres|<active-database-name>|supabase/postgres:17.6.1.136
 ```
 
 Do not enable the scheduled backup timer until an Operations backup and a
