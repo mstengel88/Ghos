@@ -27,6 +27,8 @@ done
 grep -q '^/opt/ghos/postgres/\*\*$' "$backup_root/config/excludes.txt"
 grep -q '^ghos|' "$backup_root/config/databases.conf.example"
 grep -q '^offsite|' "$backup_root/config/repositories.conf.example"
+grep -q 'supabase/postgres:\*' "$backup_root/bin/ghos-backup-restore-drill"
+grep -q 'restore_user="supabase_admin"' "$backup_root/bin/ghos-backup-restore-drill"
 test -s "$backup_root/windows-counterpoint/Install-CounterPointCloudBackup.ps1"
 test -s "$backup_root/windows-counterpoint/Invoke-CounterPointCloudBackup.ps1"
 grep -q 'da948ad707ed690426473aaba2046cd61f8f90f6f0e7dab6be0d5796531de67d' \

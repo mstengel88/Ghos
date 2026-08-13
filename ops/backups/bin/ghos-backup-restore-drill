@@ -163,6 +163,15 @@ for backup_name in "${configured_names[@]}"; do
   [[ -n "$image_file" && -s "$image_file" ]] || die "Latest snapshot does not identify the PostgreSQL image for $backup_name."
   postgres_image="$(cat "$image_file")"
   restore_user="postgres"
+  case "$postgres_image" in
+    supabase/postgres:*)
+      # Supabase Vault objects are owned by supabase_admin and deliberately
+      # reject writes from the image's non-superuser postgres role. The drill
+      # runs only inside a disposable container, so use the image's built-in
+      # administrative role to validate protected Vault rows as well.
+      restore_user="supabase_admin"
+      ;;
+  esac
   container_name="ghos-restore-drill-${backup_name//[^a-zA-Z0-9_.-]/-}-$(date +%s)"
 
   docker run -d --rm \
@@ -176,7 +185,7 @@ for backup_name in "${configured_names[@]}"; do
   # Never restore into a database cloned from template1. Supabase images put
   # extensions such as pg_net in template1, and restoring their COMMENT or
   # metadata as another administrative role then fails an ownership check.
-  # A template0 database is empty; restoring as its postgres owner lets the
+  # A template0 database is empty; restoring as its selected owner lets the
   # dump create and own its extensions and Vault objects consistently.
   docker exec "$container_name" \
     createdb -U postgres --template=template0 --owner="$restore_user" restore_drill
